@@ -13,6 +13,7 @@
     };
 }
 <h1>Storico evento</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
 <h2 class="h4">@Model.Event.Name</h2>
 <p>Orari nel fuso @Model.Event.TimeZoneId. I nomi visualizzati sono quelli attuali. Le operazioni risalgono all'introduzione dei relativi audit.</p>
 <p><a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a></p>
@@ -24,6 +25,7 @@
         <option value="Attendance" selected="@(Model.Category == HistoryCategory.Attendance)">Presenze</option>
         <option value="Event" selected="@(Model.Category == HistoryCategory.Event)">Evento e partecipanti</option>
         <option value="Access" selected="@(Model.Category == HistoryCategory.Access)">Accessi all'evento</option>
+        <option value="Local" selected="@(Model.Category == HistoryCategory.Local)">Moduli locali</option>
     </select>
     <button class="btn btn-outline-secondary mt-2" type="submit">Filtra</button>
 </form>
@@ -33,7 +35,7 @@
 }
 else
 {
-    <div class="table-responsive">
+    <div class="table-responsive" role="region" aria-label="Storico operazioni, tabella scorrevole" tabindex="0">
     <table class="table">
         <thead><tr><th scope="col">Data e ora</th><th scope="col">Operazione</th><th scope="col">Organizzatore</th><th scope="col">Persona</th><th scope="col">Esito</th></tr></thead>
         <tbody>
@@ -41,7 +43,8 @@ else
         {
             var instant = new DateTimeOffset(entry.OccurredAtUtc);
             var local = TimeZoneInfo.ConvertTime(instant, zone);
-            var action = entry.Category == HistoryCategory.Attendance
+            var action = entry.Category == HistoryCategory.Local ? LocalHistoryLabels.Module(entry.LocalModule) + ": " + LocalHistoryLabels.Action(entry.LocalAction)
+                : entry.Category == HistoryCategory.Attendance
                 ? entry.Origin == AttendanceOrigin.Organizer ? "Presenza registrata dall'organizzatore" : "Presenza simulata"
                 : entry.EventAction switch
             {

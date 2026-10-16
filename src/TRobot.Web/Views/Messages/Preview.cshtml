@@ -1,0 +1,25 @@
+@model TRobot.Domain.OutboundMessage
+@using TRobot.Domain
+@using TRobot.Web.Models
+@{ ViewData["Title"] = "Anteprima messaggio"; }
+<h1>Anteprima messaggio — @ViewData["EventName"]</h1>
+<p>@MessageLabels.Kind(Model.Kind) · @MessageLabels.Status(Model.Status)</p>
+<pre class="border p-3" style="white-space:pre-wrap">@Model.Body</pre>
+<p>Programmazione UTC: @Model.ScheduledAtUtc.ToString("u"). L'invio avviene solo tramite il pulsante di simulazione.</p>
+@if (Model.Status == OutboundMessageStatus.Draft)
+{
+    <a asp-action="Edit" asp-route-eventId="@Model.EventId" asp-route-id="@Model.Id">Modifica bozza</a>
+    <form asp-action="Transition" method="post" class="my-3">
+        <input type="hidden" name="EventId" value="@Model.EventId" /><input type="hidden" name="Id" value="@Model.Id" /><input type="hidden" name="Revision" value="@Model.Revision" />
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo testo e programmazione per il gruppo</label>
+        <button type="submit" class="btn btn-primary">Accoda</button>
+    </form>
+}
+@if (Model.Status is OutboundMessageStatus.Draft or OutboundMessageStatus.Queued)
+{
+    <form asp-action="Transition" method="post" class="my-3">
+        <input type="hidden" name="EventId" value="@Model.EventId" /><input type="hidden" name="Id" value="@Model.Id" /><input type="hidden" name="Revision" value="@Model.Revision" /><input type="hidden" name="Cancel" value="true" />
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo l'annullamento</label><button type="submit" class="btn btn-outline-danger">Annulla messaggio</button>
+    </form>
+}
+<a asp-action="Index" asp-route-eventId="@Model.EventId">Torna ai messaggi</a>

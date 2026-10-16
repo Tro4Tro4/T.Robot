@@ -1,0 +1,67 @@
+@using TRobot.Domain
+@model TRobot.Application.Polls.PollPage
+@{ ViewData["Title"] = Model.Poll.Title;
+   var zone = TimeZoneInfo.FindSystemTimeZoneById(Model.Event.TimeZoneId);
+   var state = Model.Poll.Status switch { PollStatus.Draft => "Bozza", PollStatus.Closed => "Chiuso", PollStatus.Cancelled => "Annullato", _ => Model.Open ? "Aperto" : Model.Publication?.Status == OutboundMessageStatus.Sent ? "Scaduto: da chiudere" : "In attesa di invio simulato" };
+}
+<h1>@Model.Poll.Title</h1>
+<p>Comando nel simulatore: <code>!vota @Model.Poll.Id &lt;numero opzione&gt;</code>.
+    Scegli uno dei numeri elencati sotto e conferma il voto nel simulatore.</p>
+<p>@Model.Event.Name · @state · Scadenza @TimeZoneInfo.ConvertTimeFromUtc(Model.Poll.DeadlineUtc, zone).ToString("dd/MM/yyyy HH:mm") (@Model.Event.TimeZoneId)</p>
+<p><a asp-action="Index" asp-route-eventId="@Model.Event.Id">Torna ai sondaggi</a> · <a asp-controller="Messages" asp-action="Index" asp-route-eventId="@Model.Event.Id">Coda e simulazione invii</a></p>
+<h2>Opzioni e conteggi</h2>
+<p>Il voto accettato resta nel risultato anche se successivamente cambia la presenza o la classificazione. Nessun vincitore o spareggio automatico.</p>
+<ul>@foreach (var row in Model.Counts) { <li>@row.Option.Position. @row.Option.Text: @row.Count</li> }</ul>
+@if (Model.Poll.Status == PollStatus.Draft)
+{
+    <p><a asp-action="Edit" asp-route-eventId="@Model.Event.Id" asp-route-id="@Model.Poll.Id">Modifica titolo e scadenza</a></p>
+    <h2>Anteprima pubblicazione</h2><pre style="white-space:pre-wrap">@Model.PublicationPreview</pre>
+    <form asp-action="Publish" method="post"><partial name="_ActionFields" model="Model" />
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo titolo, opzioni e testo per il gruppo; non contengono dati personali o saldi.</label>
+        <button class="btn btn-primary">Approva e accoda pubblicazione</button>
+    </form>
+}
+@if (Model.Open)
+{
+    <h2>Registra voto simulato</h2>
+    <form asp-action="Vote" method="post"><partial name="_ActionFields" model="Model" />
+        <input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+        <label for="voter">Adulto confermato</label><select id="voter" name="PersonId" class="form-select" required>
+            @foreach (var person in Model.Eligible) { <option value="@person.PersonId">@person.Name</option> }
+        </select>
+        <label for="option">Opzione</label><select id="option" name="OptionId" class="form-select" required>
+            @foreach (var row in Model.Counts) { <option value="@row.Option.Id">@row.Option.Text</option> }
+        </select>
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo il voto indicato dalla persona; sostituisce il suo voto precedente.</label>
+        <button class="btn btn-primary">Registra voto</button>
+    </form>
+}
+@if (Model.Poll.Status == PollStatus.PublicationQueued && Model.Publication?.Status == OutboundMessageStatus.Sent)
+{
+    <h2>Anteprima chiusura</h2><pre style="white-space:pre-wrap">@Model.ResultPreview</pre>
+    <form asp-action="Close" method="post"><partial name="_ActionFields" model="Model" />
+        <label for="decision">Decisione ufficiale facoltativa</label><select id="decision" name="DecisionOptionId" class="form-select"><option value="">Nessuna decisione</option>
+        @foreach (var row in Model.Counts) { <option value="@row.Option.Id">@row.Option.Text</option> }</select>
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la chiusura, i conteggi visualizzati e l'eventuale decisione selezionata. I voti saranno bloccati.</label>
+        <button class="btn btn-primary">Chiudi sondaggio</button>
+    </form>
+}
+@if (Model.Poll.Status == PollStatus.Closed)
+{
+    <h2>Anteprima risultato per il gruppo</h2><pre style="white-space:pre-wrap">@Model.ResultPreview</pre>
+    @if (!Model.Poll.ResultMessageId.HasValue)
+    {
+        <form asp-action="QueueResult" method="post"><partial name="_ActionFields" model="Model" />
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Approvo esattamente il testo del risultato mostrato per il gruppo.</label>
+            <button class="btn btn-primary">Accoda risultato</button>
+        </form>
+    }
+    else { <p>Risultato in coda/storico: @Model.Result?.Status</p> }
+}
+@if ((Model.Poll.Status is PollStatus.Draft or PollStatus.PublicationQueued) && Model.Publication?.Status != OutboundMessageStatus.Sent)
+{
+    <form asp-action="Cancel" method="post" class="mt-4"><partial name="_ActionFields" model="Model" />
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo l'annullamento prima della pubblicazione e del suo messaggio in coda.</label>
+        <button class="btn btn-outline-danger">Annulla sondaggio</button>
+    </form>
+}

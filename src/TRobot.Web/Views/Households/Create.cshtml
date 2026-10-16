@@ -1,0 +1,11 @@
+@model HouseholdInput
+@{ ViewData["Title"] = "Nuovo nucleo"; }
+<h1>Nuovo nucleo</h1>
+<form asp-action="Create" method="post">
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <input asp-for="EventId" type="hidden" />
+    <input asp-for="OperationId" type="hidden" />
+    <div class="mb-3"><label asp-for="Name"></label><input asp-for="Name" class="form-control" maxlength="150" /></div>
+    <button class="btn btn-primary" type="submit">Crea nucleo</button>
+    <a asp-action="Index" asp-route-eventId="@Model.EventId">Annulla</a>
+</form>

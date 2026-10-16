@@ -1,0 +1,16 @@
+@model PollDraftPage
+@{ ViewData["Title"] = "Bozza sondaggio"; }
+<h1>Bozza sondaggio</h1>
+<p>@Model.EventName — fuso @Model.TimeZoneId</p>
+<form asp-action="Save" method="post">
+    <input asp-for="Input.EventId" name="EventId" type="hidden" />
+    <input asp-for="Input.Id" name="Id" type="hidden" />
+    <input asp-for="Input.OperationId" name="OperationId" type="hidden" />
+    <input asp-for="Input.Revision" name="Revision" type="hidden" />
+    <div class="mb-3"><label asp-for="Input.Title"></label><input asp-for="Input.Title" name="Title" class="form-control" maxlength="200" required /></div>
+    <div class="mb-3"><label asp-for="Input.DeadlineLocal"></label><input asp-for="Input.DeadlineLocal" asp-format="{0:yyyy-MM-ddTHH:mm:ss.fff}" name="DeadlineLocal" type="datetime-local" step="0.001" class="form-control" required /></div>
+    @if (!Model.Input.Id.HasValue)
+    { <div class="mb-3"><label asp-for="Input.Options"></label><textarea asp-for="Input.Options" name="Options" class="form-control" required></textarea><small>Massimo 150 caratteri per opzione. Le opzioni restano fisse; per cambiarle crea una nuova bozza.</small></div> }
+    <button class="btn btn-primary">Salva bozza</button>
+</form>
+<p><a asp-action="Index" asp-route-eventId="@Model.Input.EventId">Torna ai sondaggi</a></p>

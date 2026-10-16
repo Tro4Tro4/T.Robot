@@ -1,5 +1,14 @@
 # T.Robot — Registro decisioni
 
+## 2026-10-16 — Milestone 17: giochi volontari locali
+
+- Adesione esplicita confermata per partecipante dell'evento, indipendente da presenza e classificazione adulto/bambino. Nessuna iscrizione automatica o delega familiare. Ritiro e riadesione confermati con revisione sulla stessa membership; storico e risposte rimangono, il ritiro esclude dalla classifica e la riadesione ripristina i punti senza resettare le risposte.
+- Quiz con domanda massimo 200 caratteri, 2–10 opzioni distinte massimo 150 e una posizione corretta validata. Definizione e scadenza UTC immutabili dalla creazione; correzione mediante annullamento prepubblicazione e nuova bozza. Scadenza inserita nel fuso evento, ore DST ambigue/inesistenti rifiutate.
+- Anteprima e conferma accodano atomicamente un OutboundMessage Entertainment; apertura effettiva solo dopo Sent simulato e prima della scadenza. Si applicano pausa, silenzio e cap condiviso dell'intrattenimento; nessuna soluzione, identità o classifica nell'outbox. Domanda e opzioni sono testo approvato dall'organizzatore privo di dati personali.
+- Risposta definitiva unica per evento/quiz/persona aderente, simulata dall'organizzatore con conferma e revisione. QuizAnswer immutabile usa operationId come PK e conserva anche attore/UTC, fungendo da ricevuta storica: reinvio identico innocuo dopo ritiro/scadenza/chiusura; payload diverso in conflitto. Autorizzazione attuale sempre prima del reinvio. Mutazione, revisione quiz e audit atomici.
+- Classifica solo sito riservato e sole adesioni attive: un punto per risposta corretta nei quiz Closed, zero per errori, nessuna penalità. Pari punti stessa posizione (1,1,3); nomi usati solo per ordinare le righe a parità. Chiusura sempre esplicita con anteprima, anche dopo scadenza; nessun invio automatico dei risultati.
+- Annullamento prima di Sent annulla anche il messaggio preservando tutto. Dopo Sent si chiude. Un quiz rimasto in coda oltre la scadenza non consente risposte né rinnova automaticamente la scadenza; si può annullare se non ancora inviato. Dettagli in docs/MILESTONE_17.md.
+
 ## Confermate
 - Nome pubblico: **T.Robot**; nomi tecnici `TRobot.*`.
 - Partecipanti solo nel gruppo WhatsApp esistente, senza messaggi privati.
@@ -108,3 +117,78 @@ Aggiornare questo file quando si prende una nuova decisione, riportando data e m
 - Spazi esterni rimossi, interruzioni di riga del programma uniformate a LF e valori vuoti convertiti a null. Il servizio verifica il limite dopo la normalizzazione, anche per i moduli inviati con CRLF dal browser. Il luogo segue i normali limiti del modulo e del dominio.
 - Luogo/programma sono modificati con il resto dell'evento: stessa revisione, stessi controlli di accesso e audit EventUpdated atomico. Salvataggi equivalenti non generano nuovi audit; svuotare un campo lo rimuove e viene trattato come modifica.
 - Migrazione incrementale `EventLogistics`: due colonne nullable e relativi vincoli, preservando revisioni, dati e riferimenti precedenti. Nessun cambio delle credenziali o seed automatico.
+
+## 2026-10-16 — Completamento del prototipo locale
+
+- L'utente conferma esplicitamente tutti i moduli del prototipo locale, simulazioni e test, escludendo servizi reali e deploy. Questo estende il precedente perimetro ristretto alla sola milestone corrente. Roadmap in `docs/ROADMAP_LOCAL.md`.
+- Ogni task viene sviluppato da un agente dedicato e verificato da un agente diverso, come richiesto dall'utente; il coordinatore integra migrazioni, build e suite senza scritture concorrenti allo snapshot.
+- Un'infrastruttura comune autorizza le operazioni per evento e account, gestisce transazioni e audit; servizi tipizzati separati mantengono le regole dei singoli moduli. Nessun controller può indicare tipi EF o modificare campi DB arbitrari.
+- La contabilità locale registra importi, quote, dichiarazioni e conferme manuali; non esegue trasferimenti reali o integrazioni bancarie. I messaggi e i giochi restano simulati. I partecipanti non accedono al sito e non ricevono DM.
+
+## 2026-10-16 — Milestone 12: nuclei e accompagnatori
+
+- I nuclei raggruppano solo persone già partecipanti dello stesso evento, anche senza mittente WhatsApp. Una persona ha al massimo una membership attiva per evento; adulto/bambino è una classificazione dell'evento e senza membership attiva il default è adulto.
+- Un accompagnatore riferisce solo un adulto primario attivo dello stesso nucleo. Prima di rimuovere, riclassificare o rendere accompagnatore un primario occorre scollegare i suoi accompagnatori attivi: niente cicli o catene.
+- Le membership vengono disattivate e riattivate con conferma e revisioni correnti del nucleo e della membership; nessuna eliminazione di persone o variazione delle presenze. Le righe rimosse rimangono consultabili.
+- Il nome del nucleo è immutabile in questa milestone. Il reinvio della creazione con lo stesso identificativo e nome resta valido anche dopo modifiche alle membership; payload diversi vengono rifiutati. Il reinvio di un'aggiunta riconosce solo la membership ancora intatta: dopo correzione o rimozione segnala conflitto e non riattiva implicitamente.
+- Foreign key composte limitano i riferimenti allo stesso evento e nucleo; un indice univoco filtrato impedisce membership attive duplicate. Migrazione e snapshot vengono integrati sequenzialmente dal coordinatore.
+- Il rientro nello stesso nucleo riattiva esclusivamente la membership storica tramite modifica confermata: una nuova aggiunta della stessa persona a quel nucleo viene rifiutata, anche con un nuovo identificativo operazione. Il selettore delle nuove aggiunte esclude anche le membership storiche del nucleo.
+
+## 2026-10-16 — Milestone 13: menu e bevande
+
+- Le voci appartengono al singolo evento e indicano categoria, quantità decimal positiva fino a 1000000 con massimo tre decimali e unità libera. Il modulo accetta punto e virgola come separatori decimali, senza separatori delle migliaia.
+- Il responsabile è facoltativo e deve appartenere all'evento come partecipante o organizzatore attivo. Assegnato richiede un responsabile; Pronto può rappresentare preparazioni comuni senza responsabile. Assegnazioni e disponibilità non cambiano presenze o ricevute.
+- L'annullamento conserva voce e riferimenti e richiede conferma esplicita anche in creazione. Il reinvio identico di una creazione già registrata è innocuo e non richiede una nuova conferma; dati differenti con lo stesso identificativo vengono rifiutati.
+- Modifiche con revisione obbligatoria, account abilitato e assegnazione attiva; voce e audit sono salvati nella stessa transazione. Nessuna cancellazione o invio al gruppo. Mapping e migrazione vengono integrati sequenzialmente dal coordinatore.
+- Il limite delle note è verificato dopo la normalizzazione CRLF/LF nel dominio, come il programma evento: un testo di 2000 caratteri normalizzati rimane salvabile dai moduli browser. Il test HTTP copre accettazione al limite, rifiuto oltre limite e reinvio equivalente senza nuove revisioni o audit.
+
+
+## 2026-10-16 — Milestone 14: messaggi e scheduler simulato
+
+- Il compositore produce bozze revisionate; anteprima e conferma esplicita accodano il testo. Solo il tick manuale confermato produce `Sent` e `SentAtUtc`, come esito simulato. Nessun gateway, job automatico, AI o invio reale.
+- La programmazione vuota rende pronta subito una nuova bozza o una bozza futura; se la bozza è già dovuta conserva l'orario per rendere innocui i salvataggi ripetuti. Ore locali ambigue o inesistenti al cambio DST vengono rifiutate.
+- Il limite di 4000 caratteri si applica dopo normalizzazione CRLF/LF e trim nel dominio; MVC non impone un secondo limite sul testo grezzo. Riepiloghi generati hanno testo e fingerprint immutabili; rimangono annullabili e nello storico.
+- Pausa blocca invii e generazione; operativi superano silenzio e limite, riepiloghi e intrattenimento condividono al massimo tre invii al giorno locale. I riepiloghi contengono solo aggregati e vengono soppressi se invariati, già in coda o dal giorno evento; ultimo timestamp e fingerprint cambiano solo all'esito simulato.
+- Contratto successivo per sondaggi: il sondaggio conserva il riferimento al proprio `OutboundMessage` dello stesso evento; accodare non apre i voti. Il servizio sondaggi dovrà verificare `Status == Sent` e `SentAtUtc` prima di aprire la votazione, preservando messaggi annullati e storico. Nessun callback al gateway o dipendenza Domain verso messaggistica.
+
+- Il campo di modifica della programmazione mostra secondi e millisecondi compatibili con datetime-local. Se il valore ripostato coincide con quello mostrato, Application conserva eventuali tick residui originali, evitando cambi involontari di timestamp, revisione e audit al salvataggio di bozze immediate.
+
+- Riferimento per la precisione HTML del campo orario: [WHATWG, valid time string](https://html.spec.whatwg.org/dev/common-microsyntaxes.html#times), frazione opzionale da una a tre cifre. Il timestamp UTC di dominio mantiene la precisione completa.
+
+## 2026-10-16 — Milestone 15: sondaggi locali
+
+- Bozza con titolo, 2–10 opzioni distinte di massimo 150 caratteri e scadenza nel fuso evento, convertita in UTC. Titolo e scadenza modificabili solo in bozza; opzioni immutabili dalla creazione: per cambiarle si crea una nuova bozza. La UI conserva secondi e millisecondi, e un reinvio invariato mantiene eventuali tick più fini.
+- Anteprima e conferma esplicita creano atomicamente una pubblicazione Operational già accodata. Il sondaggio è Aperto solo quando il suo messaggio nello stesso evento è Sent nel trasporto simulato e la scadenza non è raggiunta. Nessuna pubblicazione o integrazione reale.
+- Un organizzatore registra il voto simulato individuale per un partecipante adulto confermato di quell'evento, con conferma e revisione del sondaggio. Membership attiva Child esclude; senza membership attiva il default è Adult. Nessuna delega familiare automatica. L'eleggibilità viene rivalutata per ogni nuova operazione; i voti già accettati restano nei risultati dopo successivi cambi di presenza/classificazione.
+- Una ricevuta immutabile identifica operazione, attore, persona e opzione; il reinvio identico è innocuo anche dopo cambio voto, scadenza o chiusura e non ripristina il vecchio voto. Il riuso dell'identificativo con payload diverso è conflitto. Autorizzazione attuale sempre verificata, anche sui reinvii. Voto, ricevuta, revisione e audit sono atomici.
+- Chiusura anticipata o a scadenza sempre esplicita con revisione dei conteggi mostrati; decisione ufficiale facoltativa scelta dall'organizzatore, senza vincitori o spareggi automatici. La chiusura blocca i voti. Un secondo passaggio mostra il testo finale e richiede approvazione per accodare il risultato: nessun annuncio automatico.
+- Messaggi del sondaggio includono esclusivamente titolo/opzioni espressamente approvati, scadenza e conteggi aggregati, più l'eventuale decisione. Nomi, identità e voti individuali restano nel sito riservato. Annullamento confermato solo prima di Sent: conserva sondaggio, opzioni e messaggio annullato; dopo pubblicazione si usa la chiusura.
+- Foreign key composte proteggono evento/sondaggio/opzione e outbox, indice unico protegge il voto per persona. Snapshot e riepiloghi includono il conteggio effettivo dei sondaggi aperti e la relativa impronta. Nessuna eliminazione storica o modifica a presenze/identità.
+
+
+## 2026-10-16 — Milestone 16: contabilità locale
+
+- Unica valuta EUR, importo decimal positivo fino a 1.000.000 per movimento e centesimi esatti; nessuna conversione o trasferimento. Solo partecipanti già registrati possono anticipare spese e comparire nei rimborsi, anche se non confermati. Nessun auto-enrollment di account organizzatori e nessuna duplicazione d'identità.
+- Expense dichiara un anticipo sostenuto: solo Approved entra nel budget e nel credito dell'anticipante. Payment registra un rimborso distinto tra due partecipanti: solo Confirmed modifica i saldi, senza aumentare il budget. Rifiuto/annullamento preservano lo storico; importi e persone immutabili, correzione mediante annullamento e nuova dichiarazione.
+- Qualsiasi organizzatore assegnato con account abilitato può dichiarare e approvare anche movimenti propri; nessuna separazione di ruoli finanziari nel prototipo. Tutte le dichiarazioni, transizioni e modifiche pesi richiedono conferma esplicita; revisione per transizioni/configurazione e ID stabili per reinvii. Mutazione e audit atomici.
+- Quote dinamiche solo sui confermati, adulto1, bambino da nucleo attivo0,5 configurabile e override individuale0–10 con tre decimali; override vuoto ripristina il default. Riparto con centesimi e pesi interi, BigInteger per prodotti e resti, metodo maggiori resti con parità su PersonId in formato N ordinale. Nessun arrotondamento cumulativo.
+- Saldo = quota − anticipi approvati − rimborsi confermati inviati + rimborsi confermati ricevuti. Positivo da versare, negativo credito. Tutti i partecipanti rimangono nel prospetto, anche assenti con movimenti. Con peso totale zero/nessun confermato, il budget resta NonRipartito: somma saldi + NonRipartito = zero; avviso prima della chiusura. Calcolo da snapshot transazionale dei dati correnti, nessun congelamento delle quote in questa milestone.
+- Saldi e dettagli rimangono esclusivamente nel sito riservato no-store; nessuna produzione outbox o pubblicazione al gruppo. Dettagli e limiti in docs/MILESTONE_16.md.
+
+## 2026-10-16 — Milestone 18: dashboard e verifica integrata
+
+- La Home mantiene presenze e simulatore e aggiunge un riepilogo riservato agli organizzatori per tutti i moduli, più navigazione condivisa con la scheda evento. Il nuovo campo del modello è facoltativo; nessuna modifica ai messaggi o ai mittenti del simulatore.
+- Gli aggregati sono query SQL per il solo evento autorizzato. Le spese approvate vengono sommate come centesimi interi e riconvertite in decimal, evitando approssimazioni monetarie. Avvisi per attività aperte scadute, sondaggi/quiz scaduti pubblicati Sent, spese pending e pagamenti declared. Le pubblicazioni ancora in coda non sono conteggiate come da chiudere.
+- Countdown calcolato da istanti UTC con TimeProvider e mostrato insieme alla data nel fuso evento: dopo l'inizio appare Evento iniziato. Nessun timer o processo aggiuntivo. Sondaggi e quiz sono scaduti a deadline <= now; le attività sono scadute se DueAtUtc < now.
+- HistoryCategory.Local estende lo storico esistente con UNION ALL e paginazione SQL da 25 righe; nuovi campi facoltativi per modulo/azione, ordinamento UTC/categoria/ID stabile a dati invariati. Nessuna copia di messaggi, saldi o contenuti liberi; si mostrano solo metadati di audit e nome attuale dell'organizzatore. Nessuna migrazione o nuova riga di audit per consultare la dashboard.
+- La verifica integrata usa dati sintetici in SQLite in memoria e passa dai servizi autorizzati per tutti i moduli, quindi consulta le pagine con login HTTP. Rimangono esclusi servizi reali, gateway, AI esterna, trasferimenti e deploy. Gli esiti finali saranno registrati soltanto dopo l'esecuzione del coordinatore.
+
+## 2026-10-17 — Collaudo, consolidamento e comandi locali
+
+- L'utente autorizza in autonomia collaudo del prototipo, correzioni necessarie, consolidamento con commit e primo incremento dei comandi nel simulatore. Conferma anche il miglioramento della UI con la skill Impeccable. Gateway, AI esterna, trasferimenti e deploy restano esclusi.
+- Incremento circoscritto del simulatore esistente: `!menu` e `!todo` consultano riepiloghi senza nomi o dati personali; `!vota <GUID sondaggio> <numero opzione>` passa dal servizio sondaggi esistente. `!aiuto` espone le sintassi supportate. `!presenza` conserva comportamento e ricevute precedenti.
+- Il mittente viene risolto tra i partecipanti abilitati del solo evento autorizzato; il voto richiede conferma esplicita dell'organizzatore nel modulo. Reinvii e conflitti vengono verificati con identificativi deterministici e ricevute, senza scritture dirette dal controller.
+- Nessuna migrazione per i comandi: il voto riusa PollVoteReceipt. Il router verifica collisioni con le ricevute presenze e serializza le scritture con un gate condiviso fra scope nel singolo processo locale. Questa garanzia non si estende a futuri gateway, chiamate dirette ai servizi o host distribuiti: prima di tali integrazioni servirà un protocollo comune persistente.
+- Collaudo delle scritture esclusivamente su database di test o copia consistente separata in `.local`; credenziali originali conservate. Ogni task è sviluppato e rivisto da agenti distinti; build, test e integrazione sono sequenziali a cura del coordinatore.
+- UI: miglioramento del sistema MVC/Bootstrap esistente in modalità Operate, senza sostituire stack o flussi. Priorità a gerarchia, navigazione coerente, focus, contrasto, moduli e tabelle utilizzabili anche su mobile. Impeccable ufficiale viene installata solo in `.local/skills`, non nel codice applicativo o nelle dipendenze di produzione.
+- Verifica finale: 310/310 test, build 0 errori/avvisi, review indipendenti positive, 10 flussi browser e secondo collaudo dei comandi con 30 controlli responsive riusciti. Tutte le 32 tabelle originali e credenziali invariate; originale/copia integri e senza violazioni FK. Dettagli e limiti in `docs/MILESTONE_19.md`.

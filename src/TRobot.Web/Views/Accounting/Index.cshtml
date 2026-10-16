@@ -1,0 +1,76 @@
+@model TRobot.Application.Accounting.AccountingOverview
+@using TRobot.Domain
+@using TRobot.Web.Models
+@{ ViewData["Title"] = "Contabilità locale";
+   string Name(Guid id) => Model.Participants.Single(x => x.PersonId == id).Name; }
+<h1>Contabilità locale — @Model.Event.Name</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<p>Registro riservato agli organizzatori, solo EUR. Le registrazioni sono manuali: nessun trasferimento di denaro. I saldi rimangono su questo sito.</p>
+<p>La spesa descrive un anticipo già sostenuto da un partecipante; il pagamento registra un rimborso tra partecipanti e non è una nuova spesa. Qualsiasi organizzatore assegnato può dichiarare e approvare anche movimenti propri.</p>
+<p>I selettori mostrano soltanto i partecipanti registrati nell'evento.</p>
+<p>Le quote vengono ricalcolate dai dati correnti: soli confermati, adulto 1, bambino @AccountingInput.Weight(Model.Settings.ChildWeight) da nucleo attivo; prevale il peso individuale. Presenze, pesi e spese modificati cambiano le quote, mentre lo storico dei movimenti resta.</p>
+<p>Spese approvate: <strong id="approved-total">@AccountingInput.Money(Model.ApprovedTotal)</strong> EUR. Non ripartito: <strong id="unallocated-total">@AccountingInput.Money(Model.Unallocated)</strong> EUR. Residuo riconciliazione: <strong id="reconciliation-residual">@AccountingInput.Money(Model.ReconciliationResidual)</strong> EUR.</p>
+@if (Model.Unallocated > 0) { <p class="alert alert-warning">Budget non ripartito: manca almeno un partecipante confermato con peso positivo. Configura presenze o pesi prima di usare i saldi per la chiusura dei conti.</p> }
+<p>Saldo positivo: da versare; saldo negativo: credito. Saldo = quota − anticipi approvati − rimborsi inviati confermati + rimborsi ricevuti confermati. Somma saldi + non ripartito = zero.</p>
+<div class="table-responsive" role="region" aria-label="Quote e saldi" tabindex="0"><table class="table"><thead><tr><th>Partecipante</th><th>Presenza</th><th>Peso</th><th>Quota EUR</th><th>Anticipi EUR</th><th>Versato EUR</th><th>Ricevuto EUR</th><th>Saldo EUR</th></tr></thead><tbody>
+@foreach (var line in Model.Balances)
+{
+<tr data-person-id="@line.PersonId"><td>@line.Name</td><td>@AccountingInput.Participation(line.Status)</td><td>@AccountingInput.Weight(line.Weight)</td><td>@AccountingInput.Money(line.Share)</td><td>@AccountingInput.Money(line.Advanced)</td><td>@AccountingInput.Money(line.Paid)</td><td>@AccountingInput.Money(line.Received)</td><td class="accounting-balance">@AccountingInput.Money(line.Balance)</td></tr>
+}
+</tbody></table></div>
+<h2>Dichiara anticipo spesa</h2>
+<form asp-action="DeclareExpense" method="post" class="border p-3 mb-3">
+<input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+<label for="expense-person">Ha anticipato</label><select id="expense-person" name="AdvancedByPersonId" class="form-select" required><option value="">Seleziona partecipante</option>@foreach(var person in Model.Participants) { <option value="@person.PersonId">@person.Name</option> }</select>
+<label for="expense-description">Descrizione</label><input id="expense-description" name="Description" class="form-control" maxlength="150" required />
+<label for="expense-amount">Importo EUR (punto o virgola, senza migliaia)</label><input id="expense-amount" name="Amount" class="form-control" inputmode="decimal" maxlength="20" required />
+<label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la dichiarazione dell'anticipo già sostenuto</label><button type="submit" class="btn btn-primary">Dichiara spesa da approvare</button>
+</form>
+<h2>Storico spese</h2>
+<div class="table-responsive" role="region" aria-label="Storico spese" tabindex="0"><table class="table"><thead><tr><th>Descrizione</th><th>Anticipante</th><th>EUR</th><th>Stato</th><th>Dichiarata UTC</th><th>Operazione</th></tr></thead><tbody>
+@foreach(var expense in Model.Expenses)
+{
+<tr><td>@expense.Description</td><td>@Name(expense.AdvancedByPersonId)</td><td>@AccountingInput.Money(expense.Amount)</td><td>@AccountingInput.Expense(expense.Status)</td><td>@expense.CreatedAtUtc.ToString("u")</td><td>
+@if(expense.Status is ExpenseStatus.Pending or ExpenseStatus.Approved)
+{
+<form asp-action="ExpenseTransition" method="post"><input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="Id" value="@expense.Id" /><input type="hidden" name="Revision" value="@expense.Revision" />
+<select name="Target" aria-label="Nuovo stato spesa">@if(expense.Status == ExpenseStatus.Pending) { <option value="Approved">Approva</option><option value="Rejected">Rifiuta</option> }<option value="Cancelled">Annulla</option></select>
+<label><input type="checkbox" name="Confirmed" value="true" required /> Confermo</label><button type="submit" class="btn btn-secondary">Registra stato spesa</button></form>
+}
+</td></tr>
+}
+</tbody></table></div>
+<h2>Dichiara rimborso</h2>
+<form asp-action="DeclarePayment" method="post" class="border p-3 mb-3">
+<input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+<label for="payment-from">Da partecipante</label><select id="payment-from" name="FromPersonId" class="form-select" required><option value="">Seleziona mittente</option>@foreach(var person in Model.Participants) { <option value="@person.PersonId">@person.Name</option> }</select>
+<label for="payment-to">A partecipante</label><select id="payment-to" name="ToPersonId" class="form-select" required><option value="">Seleziona destinatario</option>@foreach(var person in Model.Participants) { <option value="@person.PersonId">@person.Name</option> }</select>
+<label for="payment-amount">Importo EUR</label><input id="payment-amount" name="Amount" class="form-control" inputmode="decimal" maxlength="20" required />
+<label><input type="checkbox" name="Confirmed" value="true" required /> Confermo solo la dichiarazione del rimborso</label><button type="submit" class="btn btn-primary">Dichiara pagamento da confermare</button>
+</form>
+<h2>Storico rimborsi</h2>
+<div class="table-responsive" role="region" aria-label="Storico rimborsi" tabindex="0"><table class="table"><thead><tr><th>Da</th><th>A</th><th>EUR</th><th>Stato</th><th>Dichiarato UTC</th><th>Operazione</th></tr></thead><tbody>
+@foreach(var payment in Model.Payments)
+{
+<tr><td>@Name(payment.FromPersonId)</td><td>@Name(payment.ToPersonId)</td><td>@AccountingInput.Money(payment.Amount)</td><td>@AccountingInput.Payment(payment.Status)</td><td>@payment.CreatedAtUtc.ToString("u")</td><td>
+@if(payment.Status is PaymentStatus.Declared or PaymentStatus.Confirmed)
+{
+<form asp-action="PaymentTransition" method="post"><input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="Id" value="@payment.Id" /><input type="hidden" name="Revision" value="@payment.Revision" />
+<select name="Target" aria-label="Nuovo stato pagamento">@if(payment.Status == PaymentStatus.Declared) { <option value="Confirmed">Conferma avvenuto rimborso</option> }<option value="Cancelled">Annulla registrazione</option></select>
+<label><input type="checkbox" name="Confirmed" value="true" required /> Confermo verifica manuale</label><button type="submit" class="btn btn-secondary">Registra stato pagamento</button></form>
+}
+</td></tr>
+}
+</tbody></table></div>
+<h2>Pesi quote</h2>
+<form asp-action="Configure" method="post" class="border p-3 mb-3"><input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="Revision" value="@Model.Settings.Revision" />
+<label for="child-weight">Peso bambino evento (0–10, tre decimali)</label><input id="child-weight" name="ChildWeight" value="@AccountingInput.Weight(Model.Settings.ChildWeight)" inputmode="decimal" maxlength="20" required />
+<label><input type="checkbox" name="Confirmed" value="true" required /> Confermo ricalcolo quote</label><button type="submit" class="btn btn-secondary">Salva peso bambino</button></form>
+@foreach(var person in Model.Participants)
+{
+ var custom = Model.Overrides.SingleOrDefault(x => x.PersonId == person.PersonId);
+ <form asp-action="Override" method="post" class="border p-2 mb-2"><input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="PersonId" value="@person.PersonId" /><input type="hidden" name="OperationId" value="@(custom?.Id ?? Guid.NewGuid())" /><input type="hidden" name="Revision" value="@(custom?.Revision ?? 0)" />
+ <label>Peso individuale — @person.Name <input name="Weight" value="@(custom?.Weight.HasValue == true ? AccountingInput.Weight(custom.Weight.Value) : "")" inputmode="decimal" maxlength="20" /></label>
+ <span>Vuoto: usa peso adulto/bambino; zero: esente.</span><label><input type="checkbox" name="Confirmed" value="true" required /> Confermo ricalcolo</label><button type="submit" class="btn btn-secondary">Salva eccezione</button></form>
+}
+<a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a>

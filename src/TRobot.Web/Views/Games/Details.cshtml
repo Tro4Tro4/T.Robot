@@ -1,0 +1,34 @@
+@using TRobot.Domain
+@model TRobot.Application.Games.QuizPage
+@{ ViewData["Title"] = Model.Quiz.Question;
+   var state = Model.Quiz.Status switch { QuizStatus.Draft => "Bozza", QuizStatus.Closed => "Chiuso", QuizStatus.Cancelled => "Annullato", _ => Model.Open ? "Aperto" : Model.Publication?.Status == OutboundMessageStatus.Sent ? "Scaduto: da chiudere" : "In attesa di invio simulato" }; }
+<h1>@Model.Quiz.Question</h1><p>@Model.Event.Name · @state</p>
+<p><a asp-action="Index" asp-route-eventId="@Model.Event.Id">Giochi e classifica riservata</a> · <a asp-controller="Messages" asp-action="Index" asp-route-eventId="@Model.Event.Id">Coda e invio simulato</a></p>
+<h2>Anteprima pubblicazione</h2><pre style="white-space:pre-wrap">@Model.Preview</pre>
+<p>Soluzione riservata: opzione @Model.Quiz.CorrectPosition. Risposte registrate: @Model.Answers.Count. Punti assegnati in classifica dopo la chiusura.</p>
+@if (Model.Quiz.Status == QuizStatus.Draft)
+{
+    <form asp-action="Publish" method="post"><partial name="_ActionFields" model="Model" />
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo domanda, soluzione e testo mostrato: nessun dato personale; approvo la pubblicazione simulata.</label>
+        <button class="btn btn-primary">Approva e accoda quiz</button>
+    </form>
+}
+@if (Model.Open)
+{
+    <h2>Risposta simulata</h2>
+    <form asp-action="Answer" method="post"><partial name="_ActionFields" model="Model" />
+        <input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+        <label for="person">Persona aderente senza risposta</label><select id="person" name="PersonId" required class="form-select">@foreach(var person in Model.Eligible) { <option value="@person.Id">@person.Name</option> }</select>
+        <label for="option">Risposta</label><select id="option" name="OptionId" required class="form-select">@foreach(var option in Model.Options) { <option value="@option.Id">@option.Position. @option.Text</option> }</select>
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la risposta comunicata dalla persona: definitiva e unica per questo quiz.</label><button class="btn btn-primary">Registra risposta</button>
+    </form>
+}
+@if (Model.Quiz.Status == QuizStatus.PublicationQueued && Model.Publication?.Status == OutboundMessageStatus.Sent)
+{
+    <h2>Anteprima chiusura</h2><p>Risposte definitive: @Model.Answers.Count. Soluzione: @Model.Options.Single(x => x.Position == Model.Quiz.CorrectPosition).Text. Dopo la chiusura i punti saranno visibili nella classifica riservata.</p>
+    <form asp-action="Close" method="post"><partial name="_ActionFields" model="Model" /><label><input type="checkbox" name="Confirmed" value="true" required /> Confermo chiusura e assegnazione punti; nessun risultato viene inviato al gruppo.</label><button class="btn btn-primary">Chiudi quiz</button></form>
+}
+@if ((Model.Quiz.Status is QuizStatus.Draft or QuizStatus.PublicationQueued) && Model.Publication?.Status != OutboundMessageStatus.Sent)
+{
+    <form asp-action="Cancel" method="post" class="mt-4"><partial name="_ActionFields" model="Model" /><label><input type="checkbox" name="Confirmed" value="true" required /> Confermo annullamento prima della pubblicazione e del relativo messaggio in coda; storico conservato.</label><button class="btn btn-outline-danger">Annulla quiz</button></form>
+}

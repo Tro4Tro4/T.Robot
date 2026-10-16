@@ -1,0 +1,13 @@
+@model TRobot.Application.Polls.PollOverview
+@{ ViewData["Title"] = "Sondaggi locali"; }
+<h1>Sondaggi locali</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<p>@Model.Event.Name</p>
+<p><a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a> · <a asp-action="Create" asp-route-eventId="@Model.Event.Id">Nuova bozza</a></p>
+<p>Votazioni simulate registrate dagli organizzatori. Un voto per adulto confermato; nessuna delega familiare.</p>
+@if (Model.Polls.Count == 0) { <p>Nessun sondaggio.</p> }
+@foreach (var poll in Model.Polls)
+{
+    var status = poll.Status switch { TRobot.Domain.PollStatus.Draft => "Bozza", TRobot.Domain.PollStatus.PublicationQueued => "Pubblicazione avviata", TRobot.Domain.PollStatus.Closed => "Chiuso", _ => "Annullato" };
+    <p><a asp-action="Details" asp-route-eventId="@Model.Event.Id" asp-route-id="@poll.Id">@poll.Title</a> — @status</p>
+}

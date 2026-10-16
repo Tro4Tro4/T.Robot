@@ -1,0 +1,26 @@
+@using TRobot.Domain
+@model TRobot.Application.Games.GameOverview
+@{ ViewData["Title"] = "Giochi locali"; }
+<h1>Giochi volontari · @Model.Event.Name</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<p><a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a> · <a asp-action="Create" asp-route-eventId="@Model.Event.Id">Nuovo quiz</a></p>
+<p>Solo simulazione organizzatore. Registra l'adesione indicata dalla persona, mai automatica. Il ritiro esclude dalla classifica e conserva lo storico; la riadesione ripristina i punti senza consentire nuove risposte ai quiz già risposti.</p>
+<h2>Adesioni</h2>
+@foreach (var row in Model.People)
+{
+    var active = row.Membership?.IsActive == true;
+    <form asp-action="Membership" method="post" class="mb-3">
+        <input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="PersonId" value="@row.Person.Id" />
+        <input type="hidden" name="Revision" value="@(row.Membership?.Revision ?? 0)" /><input type="hidden" name="Active" value="@((!active).ToString().ToLowerInvariant())" />
+        <strong>@row.Person.Name</strong> · @(active ? "Adesione attiva" : "Non aderisce")
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la scelta volontaria comunicata dalla persona: @(active ? "ritiro" : "adesione").</label>
+        <button class="btn btn-outline-primary">@(active ? "Registra ritiro" : "Registra adesione")</button>
+    </form>
+}
+<h2>Quiz</h2>
+<ul>@foreach (var quiz in Model.Quizzes) { var state = quiz.Status switch { QuizStatus.Draft => "Bozza", QuizStatus.PublicationQueued => "Pubblicazione avviata", QuizStatus.Closed => "Chiuso", _ => "Annullato" }; <li><a asp-action="Details" asp-route-eventId="@Model.Event.Id" asp-route-id="@quiz.Id">@quiz.Question</a> · @state</li> }</ul>
+<h2>Classifica riservata</h2>
+<p>Solo quiz chiusi: 1 punto per risposta corretta, nessuna penalità. Pari punti, stessa posizione. Nessuna classifica viene accodata al gruppo.</p>
+<div class="table-responsive" role="region" aria-label="Classifica giochi volontari" tabindex="0"><table class="table"><thead><tr><th>Posizione</th><th>Partecipante aderente</th><th>Punti</th></tr></thead><tbody>
+@foreach (var row in Model.Scores) { <tr><td>@row.Position</td><td>@row.Name</td><td>@row.Points</td></tr> }
+</tbody></table></div>

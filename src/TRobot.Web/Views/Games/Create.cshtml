@@ -1,0 +1,13 @@
+@model TRobot.Web.Models.QuizDraftPage
+@{ ViewData["Title"] = "Nuovo quiz"; }
+<h1>Nuovo quiz · @Model.EventName</h1>
+<p>Domanda, opzioni, soluzione e scadenza restano fisse dopo la creazione. Il quiz viene salvato in bozza.</p>
+<form asp-action="Create" method="post">
+    <input type="hidden" name="EventId" value="@Model.Input.EventId" />
+    <input type="hidden" name="OperationId" value="@Model.Input.OperationId" />
+    <label for="question">Domanda per il gruppo (senza dati personali)</label><input id="question" name="Question" maxlength="200" required class="form-control" />
+    <label for="options">Opzioni: una per riga, da 2 a 10</label><textarea id="options" name="Options" required class="form-control"></textarea>
+    <label for="correct">Numero dell'opzione corretta (solo sito riservato)</label><input id="correct" name="CorrectPosition" type="number" min="1" max="10" required class="form-control" />
+    <label for="deadline">Scadenza locale (@Model.TimeZoneId)</label><input id="deadline" name="DeadlineLocal" type="datetime-local" step="0.001" required class="form-control" />
+    <button class="btn btn-primary mt-3">Salva bozza e mostra anteprima</button>
+</form>

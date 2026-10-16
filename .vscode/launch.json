@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "coreclr",
+            "request": "launch",
+            "name": "T.Robot · Debug locale",
+            "preLaunchTask": "build T.Robot",
+            "program": "${workspaceFolder}/src/TRobot.Web/bin/Debug/net10.0/TRobot.Web.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/TRobot.Web",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+                "uriFormat": "http://localhost:5238"
+            }
+        }
+    ]
+}

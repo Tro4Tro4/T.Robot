@@ -22,7 +22,7 @@ public sealed class EventHistoryStore(TRobotDbContext db) : IEventHistoryStore
                          {
                              Id = receipt.Id, OccurredAtUtc = receipt.ProcessedAtUtc, Category = HistoryCategory.Attendance,
                              ActorName = actor.DisplayName, PersonName = person.DisplayName, PreviousStatus = receipt.PreviousStatus.ToString(),
-                             Status = receipt.Status.ToString(), EventAction = null, AccessAction = null, Origin = receipt.Origin.ToString()
+                             Status = receipt.Status.ToString(), EventAction = null, AccessAction = null, Origin = receipt.Origin.ToString(), LocalModule = null, LocalAction = null
                          };
         var events = from audit in db.EventAudits.AsNoTracking()
                      join actor in db.People on audit.ActorId equals actor.Id
@@ -33,7 +33,7 @@ public sealed class EventHistoryStore(TRobotDbContext db) : IEventHistoryStore
                      {
                          Id = audit.Id, OccurredAtUtc = audit.OccurredAtUtc, Category = HistoryCategory.Event,
                          ActorName = actor.DisplayName, PersonName = person == null ? null : person.DisplayName,
-                         PreviousStatus = null, Status = null, EventAction = audit.Action.ToString(), AccessAction = null, Origin = null
+                         PreviousStatus = null, Status = null, EventAction = audit.Action.ToString(), AccessAction = null, Origin = null, LocalModule = null, LocalAction = null
                      };
         var access = from audit in db.AccountAudits.AsNoTracking()
                      join source in db.People on audit.ActorId equals source.Id into actors
@@ -44,20 +44,30 @@ public sealed class EventHistoryStore(TRobotDbContext db) : IEventHistoryStore
                      {
                          Id = audit.Id, OccurredAtUtc = audit.OccurredAtUtc, Category = HistoryCategory.Access,
                          ActorName = actor == null ? "Operatore locale" : actor.DisplayName, PersonName = person.DisplayName,
-                         PreviousStatus = null, Status = null, EventAction = null, AccessAction = audit.Action, Origin = null
+                         PreviousStatus = null, Status = null, EventAction = null, AccessAction = audit.Action, Origin = null, LocalModule = null, LocalAction = null
                      };
+        var local = from audit in db.Set<LocalAudit>().AsNoTracking()
+                    join actor in db.People on audit.ActorId equals actor.Id
+                    where audit.EventId == eventId
+                    select new HistoryRow
+                    {
+                        Id = audit.Id, OccurredAtUtc = audit.AtUtc, Category = HistoryCategory.Local, ActorName = actor.DisplayName,
+                        PersonName = null, PreviousStatus = null, Status = null, EventAction = null, AccessAction = null, Origin = null,
+                        LocalModule = audit.Module, LocalAction = audit.Action
+                    };
         var query = category switch
         {
             HistoryCategory.Attendance => attendance,
             HistoryCategory.Event => events,
             HistoryCategory.Access => access,
-            _ => attendance.Concat(events).Concat(access)
+            HistoryCategory.Local => local,
+            _ => attendance.Concat(events).Concat(access).Concat(local)
         };
         var rows = await query.OrderByDescending(x => x.OccurredAtUtc).ThenBy(x => x.Category).ThenBy(x => x.Id)
             .Skip(skip).Take(take).ToListAsync(ct);
         return rows.Select(x => new HistoryEntry(x.Id, DateTime.SpecifyKind(x.OccurredAtUtc, DateTimeKind.Utc), x.Category, x.ActorName,
             x.PersonName, Parse<ParticipationStatus>(x.PreviousStatus), Parse<ParticipationStatus>(x.Status),
-            Parse<EventAuditAction>(x.EventAction), x.AccessAction, Parse<AttendanceOrigin>(x.Origin))).ToArray();
+            Parse<EventAuditAction>(x.EventAction), x.AccessAction, Parse<AttendanceOrigin>(x.Origin), x.LocalModule, x.LocalAction)).ToArray();
     }
 
     private static T? Parse<T>(string? value) where T : struct, Enum => value is null ? null : Enum.Parse<T>(value);
@@ -75,5 +85,7 @@ public sealed class EventHistoryStore(TRobotDbContext db) : IEventHistoryStore
         public string? EventAction { get; set; }
         public string? AccessAction { get; set; }
         public string? Origin { get; set; }
+        public string? LocalModule { get; set; }
+        public string? LocalAction { get; set; }
     }
 }

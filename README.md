@@ -1,12 +1,12 @@
 # T.Robot
 
-Bot per organizzare Capodanno 2027 con sito riservato agli organizzatori. Milestone 10: luogo e programma dell'evento, oltre a storico, presenze, anagrafiche, account e accessi. Restano disponibili `!presenza si|forse|no` simulato, SQLite e dashboard. WhatsApp, AI e pagamenti non sono implementati; il sito rimane locale.
+Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizzatori: eventi, presenze, nuclei, attività, menu, messaggi simulati, sondaggi, contabilità locale e quiz volontari. La milestone 19 estende i comandi del simulatore e rifinisce la UI con Impeccable; build senza errori/avvisi e 310 test superati. Gateway WhatsApp, AI esterna, trasferimenti reali e deploy restano esclusi.
 
 ## Struttura
 
 - `TRobot.sln`: Web MVC → Application + Infrastructure; Application → Domain; Infrastructure → Application + Domain. Domain senza dipendenze esterne.
-- `src/TRobot.Domain`: evento, persone, partecipazioni, organizzatori e ricevute dei comandi.
-- `src/TRobot.Application`: parsing, autorizzazione per evento, servizi per eventi/partecipanti, presenze, storico, account e preparazione demo.
+- `src/TRobot.Domain`: entità e invarianti dei moduli, revisioni e ricevute, senza dipendenze esterne.
+- `src/TRobot.Application`: servizi validati e autorizzati per evento, presenze, nuclei, attività, menu, outbox, sondaggi, contabilità, giochi, dashboard e storico.
 - `src/TRobot.Infrastructure`: EF Core SQLite, store Identity, mapping, factory per CLI e migrazioni.
 - `tests/TRobot.Tests`: xUnit, regole di dominio e integrazione SQLite con migrazioni reali.
 - [Contesto](docs/PROJECT_CONTEXT.md), [decisioni](docs/DECISIONS.md), [flusso presenze](docs/MILESTONE_2.md), [account organizzatori](docs/MILESTONE_4.md), [gestione accessi](docs/MILESTONE_5.md), [eventi/partecipanti](docs/MILESTONE_6.md), [correzione nomi](docs/MILESTONE_7.md), [storico](docs/MILESTONE_8.md), [presenze organizzatore](docs/MILESTONE_9.md) e [luogo/programma](docs/MILESTONE_10.md).
@@ -25,7 +25,7 @@ dotnet ef database update --project src/TRobot.Infrastructure
 dotnet test TRobot.sln --no-build --no-restore
 ```
 
-Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db`, applicando migrazione iniziale, `AttendanceSimulation`, `OrganizerIdentity`, `OrganizerAccessLifecycle`, `EventManagement`, `ParticipantNames`, `OrganizerAttendance` ed `EventLogistics`. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Non usare `EnsureCreated` in alternativa alle migrazioni.
+Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db` applicando tutte le migrazioni versionate, comprese `OrganizationTasks`, `Households`, `MenuPlanning`, `SimulatedOutbox`, `LocalPolls`, `LocalAccounting` e `LocalGames`. La milestone 18 non cambia lo schema. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Il manifest degli strumenti è `dotnet-tools.json` nella radice (EF CLI 10.0.6). Non usare `EnsureCreated` in alternativa alle migrazioni.
 
 La connection string Web è `ConnectionStrings:TRobot` in `appsettings.Development.json`; i percorsi relativi sono risolti rispetto alla cartella Web. La factory CLI usa il percorso predefinito; per un database diverso passare esplicitamente `--connection "Data Source=C:/percorso/trobot.db;Foreign Keys=True"` a `database update` e configurare la Web con lo stesso percorso. Non inserire credenziali nel repository.
 
@@ -73,6 +73,10 @@ Aprire <http://localhost:5238>, accedere con nome utente e password di `.local/i
 | `!presenza si` oppure `!presenza sì` | Confermato |
 | `!presenza forse` | Indeciso |
 | `!presenza no` | Assente |
+
+Il simulatore supporta anche `!aiuto`, `!menu` e `!todo`: gli ultimi due mostrano solo conteggi aggregati. Per il voto usare `!vota <GUID sondaggio> <numero opzione>` e selezionare la casella di conferma esplicita nel modulo. Il comando con l'identificativo si trova nella scheda sondaggio; possono votare solo adulti confermati dopo l'invio simulato della pubblicazione, prima della scadenza/chiusura. Un nuovo ID messaggio consente di cambiare voto; il reinvio identico non lo duplica. Nessun messaggio reale viene inviato.
+
+Da VS Code è disponibile **T.Robot · Debug locale**, con compilazione preliminare del progetto C#. Prima di avviarlo fermare eventuali istanze già in ascolto sulla porta 5238. Dettagli dell'incremento e del collaudo in [Milestone 19](docs/MILESTONE_19.md).
 
 Ogni nuovo messaggio può modificare la scelta della persona. Ad esempio `si` → `forse` sposta una persona dai confermati agli indecisi, mantenendo invariato il totale. Maiuscole e spazi separatori sono tollerati; quantità e accompagnatori vengono rifiutati. Riavviando l'app, lo stato resta nel database. Se la demo è già stata utilizzata, i conteggi riflettono gli invii precedenti.
 
@@ -148,4 +152,20 @@ Milestone 9: build con 0 errori/avvisi e **173 test superati**. Verificate prese
 
 Milestone 10: build con 0 errori/avvisi e **183 test superati**. Verificati luogo e programma facoltativi, limiti e normalizzazione delle righe, codifica del testo, rimozione dei valori, pagine obsolete, permessi, rollback e concorrenza. Migrazione `EventLogistics` applicata, modello EF allineato, dati precedenti invariati e integrità/chiavi esterne OK. Copia `.local/trobot-before-event-logistics.db`. Smoke test reale con salvataggio invariato e dashboard; listener solo loopback, processo arrestato e credenziali conservate.
 
-Prossimo incremento proposto: prime attività organizzative per evento con stato e responsabile. Famiglie/accompagnatori richiedono regole di rappresentanza e conteggio. Il gateway WhatsApp resta separato e richiede una richiesta esplicita.
+Milestone 18 completata: build con **0 errori e 0 avvisi**, review indipendente positiva, **13 test mirati e 296/296 test della suite completa superati**. Smoke autenticato sul vero host con copia consistente del database: login, pagine di tutti i moduli, no-store, CSS e logout verificati. Listener solo `127.0.0.1` e `::1` sulla porta 5238; host arrestato senza listener residui. Modello EF senza modifiche pendenti; aggiornamento database ripetuto senza operazioni. Confronto di 13 tabelle precedenti invariato, integrità e chiavi esterne OK. Nessuna mutazione business o modifica alle credenziali originali; database e `.local` ignorati e non tracciati da Git.
+
+## Moduli locali e limiti
+
+La dashboard conserva il simulatore `!presenza si|forse|no`, aggiunge countdown nel fuso evento, conteggi organizzativi e avvisi per attività scadute, sondaggi/quiz pubblicati da chiudere, spese da approvare e pagamenti dichiarati. La navigazione collega tutti i moduli; lo storico include gli audit locali paginati senza duplicare dati o testi dei messaggi.
+
+- **Nuclei e menu:** raggruppano persone già partecipanti; adulto/bambino è riferito all'evento. Assegnazioni di attività o menu non cambiano le presenze. Nessuna eliminazione di riferimenti storici.
+- **Sondaggi:** 2–10 opzioni fisse dalla bozza; anteprima e conferma accodano la pubblicazione. Il voto simulato richiede messaggio Sent e adulto confermato; nessuna delega familiare. Chiusura e decisione sono esplicite; il risultato passa da una seconda anteprima e conferma.
+- **Contabilità:** EUR, spese solo se approvate, quote dinamiche dei partecipanti confermati con pesi e ripartizione deterministica dei centesimi. Anticipi e pagamenti sono registrazioni locali tra persone già partecipanti; un organizzatore che non partecipa non è parte contabile. Cambi a presenze, classificazioni o pesi ricalcolano le quote: non sono rendiconti congelati. Nessun trasferimento di denaro o servizio bancario.
+- **Giochi:** adesione volontaria registrata dall'organizzatore, quiz con una risposta per persona, un punto per risposta corretta dopo chiusura e classifica solo nel sito. Ritiro e riadesione non azzerano risposte storiche. Nessun gioco offensivo o annuncio automatico della classifica.
+- **Messaggi:** anteprima, conferma, coda ed esito Sent sono simulati dai moduli organizzatore. La simulazione manuale rispetta pausa, quiet hours e limite degli interventi spontanei. Non esiste un gateway né un job che invia a WhatsApp. Nessuna AI esterna o DM; saldi e dati personali individuali non entrano nei riepiloghi automatici di gruppo.
+
+Tutte le pagine e le simulazioni sono esclusivamente per organizzatori autenticati, in Development su loopback. I partecipanti non accedono al sito. Il parsing locale copre presenze, aiuto, riepiloghi menu/attività e voto; gli altri comandi WhatsApp descritti nel contesto rimangono specifiche future. I moduli e i comandi usano form simulati, senza ricevere messaggi reali. Nessun deploy è stato eseguito.
+
+Per una verifica manuale locale: accedi, scegli un evento e apri i moduli dalla dashboard. Per pubblicare un sondaggio o quiz, crea la bozza, verifica l'anteprima, approva e poi usa **Messaggi e configurazione → simulazione invii**; soltanto dopo Sent saranno disponibili voto o risposta. Usa dati sintetici in un database separato per le prove che modificano dati.
+
+Dettagli: [roadmap locale](docs/ROADMAP_LOCAL.md), [dashboard e verifica finale](docs/MILESTONE_18.md), [decisioni](docs/DECISIONS.md). Passi successivi da concordare dopo verifica del prototipo; gateway o servizi reali richiedono una richiesta esplicita.

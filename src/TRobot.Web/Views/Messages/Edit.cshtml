@@ -1,0 +1,17 @@
+@model TRobot.Web.Models.MessagePage
+@using TRobot.Domain
+@using TRobot.Web.Models
+@{ ViewData["Title"] = "Componi messaggio"; }
+<h1>Componi messaggio — @Model.EventName</h1>
+<p>Solo simulazione locale. Non inserire dati personali o saldi individuali nel testo destinato al gruppo. Fuso: @Model.TimeZoneId.</p>
+<form asp-action="Save" method="post">
+    <input type="hidden" name="EventId" value="@Model.Input.EventId" />
+    <input type="hidden" name="Id" value="@Model.Input.Id" />
+    <input type="hidden" name="OperationId" value="@Model.Input.OperationId" />
+    <input type="hidden" name="Revision" value="@Model.Input.Revision" />
+    <div class="mb-3"><label for="Body">Testo per il gruppo</label><textarea id="Body" name="Body" class="form-control" maxlength="4000" required rows="8">@Model.Input.Body</textarea></div>
+    <div class="mb-3"><label for="Kind">Categoria</label><select id="Kind" name="Kind" class="form-select">@foreach (var kind in Enum.GetValues<MessageKind>()) { <option value="@kind" selected="@(kind == Model.Input.Kind)">@MessageLabels.Kind(kind)</option> }</select></div>
+    <div class="mb-3"><label for="ScheduledLocal">Data locale (vuoto: pronta subito, conserva orario se già dovuta)</label><input type="datetime-local" step="0.001" id="ScheduledLocal" name="ScheduledLocal" class="form-control" value="@(Model.Input.ScheduledLocal?.ToString("yyyy-MM-ddTHH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture))" /></div>
+    <button class="btn btn-primary" type="submit">Salva e mostra anteprima</button>
+</form>
+<a asp-action="Index" asp-route-eventId="@Model.Input.EventId">Torna ai messaggi</a>

@@ -1,0 +1,31 @@
+@model TRobot.Application.Messaging.MessageOverview
+@using TRobot.Web.Models
+@{ ViewData["Title"] = "Messaggi"; }
+<h1>Messaggi — @Model.Event.Name</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<p>Trasporto simulato: nessun invio WhatsApp. Il pulsante elabora le comunicazioni dovute e genera riepiloghi aggregati se necessari. Il giorno evento non vengono inviati riepiloghi.</p>
+@if (TempData["MessagesResult"] is string result) { <p role="status" class="alert alert-info">@result</p> }
+<a class="btn btn-primary" asp-action="Create" asp-route-eventId="@Model.Event.Id">Componi messaggio</a>
+<div class="table-responsive" role="region" aria-label="Messaggi simulati" tabindex="0"><table class="table"><thead><tr><th>Anteprima</th><th>Categoria</th><th>Stato</th><th>UTC</th></tr></thead><tbody>
+@foreach (var message in Model.Messages)
+{
+<tr><td><a asp-action="Preview" asp-route-eventId="@Model.Event.Id" asp-route-id="@message.Id">@(message.Body.Length > 100 ? message.Body[..100] + "…" : message.Body)</a></td><td>@MessageLabels.Kind(message.Kind)</td><td>@MessageLabels.Status(message.Status)</td><td>@message.ScheduledAtUtc.ToString("u")</td></tr>
+}
+</tbody></table></div>
+<form asp-action="Tick" method="post" class="border p-3 my-3">
+    <input type="hidden" name="eventId" value="@Model.Event.Id" />
+    <label><input type="checkbox" name="confirmed" value="true" required /> Confermo elaborazione e invii simulati dei messaggi pronti</label>
+    <button class="btn btn-primary" type="submit">Simula scheduler e invio</button>
+</form>
+<h2>Configurazione evento</h2>
+<p>Gli operativi superano silenzio e limite giornaliero; pausa blocca tutti gli invii. Inizio e fine silenzio uguali disattivano il silenzio. Il limite conta riepiloghi e intrattenimento nel giorno locale (@Model.Event.TimeZoneId).</p>
+<form asp-action="Configure" method="post" class="border p-3">
+    <input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="Revision" value="@Model.Settings.Revision" />
+    <div><label><input type="checkbox" name="Paused" value="true" checked="@Model.Settings.Paused" /> Pausa invii</label></div>
+    <div><label for="QuietStart">Inizio silenzio (ora)</label><input id="QuietStart" name="QuietStart" type="number" min="0" max="23" value="@Model.Settings.QuietStartHour" required /></div>
+    <div><label for="QuietEnd">Fine silenzio (ora)</label><input id="QuietEnd" name="QuietEnd" type="number" min="0" max="23" value="@Model.Settings.QuietEndHour" required /></div>
+    <div><label for="Cap">Massimo interventi spontanei/giorno</label><input id="Cap" name="Cap" type="number" min="0" max="3" value="@Model.Settings.MaxSpontaneousPerDay" required /></div>
+    <div><label for="Sarcasm">Sarcasmo (tono, nessuna AI collegata)</label><input id="Sarcasm" name="Sarcasm" type="number" min="0" max="10" value="@Model.Settings.Sarcasm" required /></div>
+    <button type="submit" class="btn btn-secondary">Salva configurazione</button>
+</form>
+<a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a>

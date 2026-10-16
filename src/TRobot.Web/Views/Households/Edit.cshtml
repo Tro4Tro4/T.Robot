@@ -1,0 +1,42 @@
+@model HouseholdMemberPage
+@{ ViewData["Title"] = "Appartenenza al nucleo"; var editing = Model.Input.Id != Guid.Empty; }
+<h1>@Model.Household.Name — @(editing ? "Modifica appartenenza" : "Aggiungi partecipante")</h1>
+<form asp-action="Save" method="post">
+    <input name="EventId" value="@Model.Input.EventId" type="hidden" />
+    <input name="HouseholdId" value="@Model.Input.HouseholdId" type="hidden" />
+    <input name="Id" value="@Model.Input.Id" type="hidden" />
+    <input name="OperationId" value="@Model.Input.OperationId" type="hidden" />
+    <input name="Revision" value="@Model.Input.Revision" type="hidden" />
+    <input name="HouseholdRevision" value="@Model.Input.HouseholdRevision" type="hidden" />
+    @if (editing)
+    {
+        <input name="PersonId" value="@Model.Input.PersonId" type="hidden" />
+        <p>Persona: @Model.Overview.People.FirstOrDefault(x => x.Id == Model.Input.PersonId)?.Name</p>
+    }
+    else
+    {
+        <p>Per una persona già rimossa da questo nucleo, torna alla lista e modifica la sua appartenenza per riattivarla con conferma.</p>
+        <div class="mb-3"><label for="person">Partecipante</label><select id="person" name="PersonId" class="form-select" required>
+        <option value="">Seleziona</option>
+        @foreach (var person in Model.Overview.People.Where(x => !Model.Overview.Members.Any(m => m.PersonId == x.Id && (m.IsActive || m.HouseholdId == Model.Household.Id))))
+        { <option value="@person.Id">@person.Name</option> }
+        </select></div>
+    }
+    <div class="mb-3"><label for="kind">Classificazione</label><select id="kind" name="Kind" class="form-select">
+        <option value="0" selected="@(Model.Input.Kind == TRobot.Domain.HouseholdMemberKind.Adult)">Adulto</option>
+        <option value="1" selected="@(Model.Input.Kind == TRobot.Domain.HouseholdMemberKind.Child)">Bambino</option>
+    </select></div>
+    <div class="mb-3"><label for="companion">Accompagnatore di</label><select id="companion" name="CompanionOfMemberId" class="form-select">
+        <option value="">Nessuno (membro primario)</option>
+        @foreach (var member in Model.Overview.Members.Where(x => x.HouseholdId == Model.Household.Id && x.IsActive && x.Kind == TRobot.Domain.HouseholdMemberKind.Adult && !x.CompanionOfMemberId.HasValue && x.Id != Model.Input.Id))
+        { <option value="@member.Id" selected="@(Model.Input.CompanionOfMemberId == member.Id)">@Model.Overview.People.First(x => x.Id == member.PersonId).Name</option> }
+    </select></div>
+    @if (editing)
+    {
+        <div class="mb-3"><label for="active">Appartenenza</label><select id="active" name="IsActive" class="form-select"><option value="true" selected="@Model.Input.IsActive">Attiva</option><option value="false" selected="@(!Model.Input.IsActive)">Rimossa</option></select></div>
+        <div class="mb-3"><label><input name="Confirm" type="checkbox" value="true" /> Confermo la modifica o rimozione dell'appartenenza</label></div>
+    }
+    <button class="btn btn-primary" type="submit">Salva</button>
+    <a asp-action="Index" asp-route-eventId="@Model.Input.EventId">Annulla</a>
+</form>
+<p>Il riferimento deve essere un adulto primario attivo dello stesso nucleo. Scollega prima gli accompagnatori per rimuovere il loro riferimento.</p>

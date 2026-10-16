@@ -25,6 +25,12 @@ else
         <button type="submit" class="btn btn-outline-secondary mt-2">Mostra presenze</button>
     </form>
     <h2 class="h4">@dashboard.EventName</h2>
+    <partial name="_EventNavigation" model="dashboard.EventId" />
+    @if (Model.LocalOverview is { } overview)
+    {
+        ViewData["OverviewEventId"] = dashboard.EventId;
+        <partial name="_LocalOverview" model="overview" />
+    }
     <p><strong>Luogo:</strong> @(dashboard.Location ?? "Da definire")</p>
     <h3 class="h5">Programma</h3>
     <p style="white-space: pre-wrap">@(dashboard.Program ?? "Da definire")</p>
@@ -39,6 +45,8 @@ else
     </dl>
     <h2 class="h4">Simula un messaggio</h2>
     <p>Imposta la presenza di una sola persona: <code>!presenza si</code>, <code>!presenza forse</code> o <code>!presenza no</code>.</p>
+    <p>Consulta <code>!menu</code> e <code>!todo</code> per i riepiloghi aggregati, oppure <code>!aiuto</code>.
+        Per votare: <code>!vota &lt;GUID sondaggio&gt; &lt;numero opzione&gt;</code>. Copia l'identificativo dalla pagina del sondaggio; il mittente deve essere un adulto confermato.</p>
     <form asp-action="Simulate" method="post" class="col-lg-7">
         <div asp-validation-summary="All" class="text-danger" role="alert"></div>
         <input asp-for="Input.EventId" type="hidden" />
@@ -54,6 +62,10 @@ else
         <label asp-for="Input.MessageId" class="form-label">Identificativo del messaggio</label>
         <input asp-for="Input.MessageId" class="form-control" required maxlength="100" />
         <p class="form-text">Reinvia lo stesso identificativo per verificare che il messaggio venga elaborato una sola volta.</p>
+        <div class="form-check mb-3">
+            <input asp-for="Input.ConfirmVote" class="form-check-input" />
+            <label asp-for="Input.ConfirmVote" class="form-check-label">Confermo il voto indicato nel messaggio per il mittente selezionato.</label>
+        </div>
         <button type="submit" class="btn btn-primary" disabled="@(dashboard.Senders.Count == 0)">Elabora messaggio simulato</button>
     </form>
 }

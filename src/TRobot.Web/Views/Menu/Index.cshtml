@@ -1,0 +1,49 @@
+@using TRobot.Domain
+@model MenuViewModel
+@{
+    ViewData["Title"] = "Menu e bevande";
+    string Category(MenuCategory category) => category switch { MenuCategory.Food => "Cibo", MenuCategory.Drink => "Bevande", _ => "Altro" };
+    string Availability(MenuAvailability status) => status switch { MenuAvailability.Planned => "Da organizzare", MenuAvailability.Assigned => "Assegnato", MenuAvailability.Ready => "Pronto", _ => "Annullato" };
+}
+<h1>Menu e bevande</h1>
+<partial name="_EventNavigation" model="Model.Page.EventId" />
+<p>@Model.Page.EventName</p>
+<p><a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Page.EventId">Torna all'evento</a></p>
+<p>Le assegnazioni indicano chi si occupa di una voce e non modificano la presenza della persona.</p>
+<h2>@(Model.Editing ? "Modifica voce" : "Nuova voce")</h2>
+<form asp-action="@(Model.Editing ? "Update" : "Create")" asp-route-eventId="@Model.Page.EventId" method="post">
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <input asp-for="Input.Id" type="hidden" />
+    <input asp-for="Input.Revision" type="hidden" />
+    <div class="mb-3"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="150" /></div>
+    <div class="mb-3"><label asp-for="Input.Category"></label><select asp-for="Input.Category" class="form-select">
+        <option value="0">Cibo</option><option value="1">Bevande</option><option value="2">Altro</option>
+    </select></div>
+    <div class="mb-3"><label asp-for="Input.Quantity"></label><input asp-for="Input.Quantity" type="text" inputmode="decimal" class="form-control" /><small>Fino a 1000000, massimo tre decimali. Punto e virgola indicano sempre i decimali; non usare separatori delle migliaia.</small></div>
+    <div class="mb-3"><label asp-for="Input.Unit"></label><input asp-for="Input.Unit" class="form-control" maxlength="30" placeholder="es. porzioni, litri, pezzi" /></div>
+    <div class="mb-3"><label asp-for="Input.ResponsiblePersonId"></label><select asp-for="Input.ResponsiblePersonId" class="form-select">
+        <option value="">Nessuno</option>
+        @foreach (var person in Model.Page.People) { <option value="@person.Id">@person.Name</option> }
+    </select></div>
+    <div class="mb-3"><label asp-for="Input.Availability"></label><select asp-for="Input.Availability" class="form-select">
+        <option value="0">Da organizzare</option><option value="1">Assegnato</option><option value="2">Pronto</option><option value="3">Annullato</option>
+    </select></div>
+    <div class="mb-3"><label asp-for="Input.Notes"></label><textarea asp-for="Input.Notes" class="form-control" maxlength="2000"></textarea></div>
+    <div class="mb-3"><input asp-for="Input.ConfirmCancellation" /><label asp-for="Input.ConfirmCancellation"></label></div>
+    <button type="submit" class="btn btn-primary">Salva voce</button>
+    @if (Model.Editing) { <a asp-action="Index" asp-route-eventId="@Model.Page.EventId" class="btn btn-secondary">Chiudi modifica</a> }
+</form>
+<h2 class="mt-4">Voci previste</h2>
+@if (Model.Page.Items.Count == 0) { <p>Nessuna voce inserita.</p> }
+else
+{
+    <div class="table-responsive" role="region" aria-label="Voci del menu" tabindex="0"><table class="table"><thead><tr><th>Voce</th><th>Categoria</th><th>Quantità</th><th>Responsabile</th><th>Disponibilità</th><th>Note</th><th></th></tr></thead><tbody>
+    @foreach (var item in Model.Page.Items)
+    {
+        <tr><td>@item.Name</td><td>@Category(item.Category)</td><td>@item.Quantity @item.Unit</td>
+        <td>@(Model.Page.People.FirstOrDefault(x => x.Id == item.ResponsiblePersonId)?.Name ?? "Nessuno")</td>
+        <td>@Availability(item.Availability)</td><td style="white-space: pre-wrap">@item.Notes</td>
+        <td><a asp-action="Edit" asp-route-eventId="@Model.Page.EventId" asp-route-id="@item.Id">Modifica</a></td></tr>
+    }
+    </tbody></table></div>
+}

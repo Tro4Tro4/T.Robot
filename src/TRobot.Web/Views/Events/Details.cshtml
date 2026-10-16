@@ -2,7 +2,7 @@
 @using TRobot.Domain
 @{ ViewData["Title"] = Model.Details.Event.Name; }
 <h1>@Model.Details.Event.Name</h1>
-<p><a asp-controller="History" asp-action="Index" asp-route-eventId="@Model.Details.Event.Id">Storico evento</a></p>
+<partial name="_EventNavigation" model="Model.Details.Event.Id" />
 @if (TempData["EventNotice"] is string notice)
 {
     <div class="alert alert-success" role="status">@notice</div>
@@ -23,7 +23,7 @@
 }
 else
 {
-    <table class="table">
+    <div class="table-responsive" role="region" aria-label="Partecipanti evento" tabindex="0"><table class="table">
         <thead><tr><th scope="col">Nome</th><th scope="col">Presenza</th><th scope="col">Nel simulatore</th><th scope="col">Anagrafica</th></tr></thead>
         <tbody>
         @foreach (var participant in Model.Details.Participants)
@@ -48,7 +48,7 @@ else
             </td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
 }
 <h2 class="h4 mt-4">Aggiungi partecipante</h2>
 <p>Una persona per registrazione, con stato iniziale Senza risposta. Non viene creato un account di accesso al sito.</p>

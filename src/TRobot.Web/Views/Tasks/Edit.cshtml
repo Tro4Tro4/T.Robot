@@ -1,0 +1,18 @@
+@model TaskPage
+@using TRobot.Domain
+@{ ViewData["Title"] = Model.Input.Id == Guid.Empty ? "Nuova attività" : "Modifica attività"; }
+<h1>@ViewData["Title"] — @Model.EventName</h1>
+<form asp-action="Save" method="post">
+<input type="hidden" name="OperationId" value="@Model.Input.OperationId" />
+<input type="hidden" name="EventId" value="@Model.Input.EventId" /><input type="hidden" name="Id" value="@Model.Input.Id" /><input type="hidden" name="Revision" value="@Model.Input.Revision" />
+<div class="mb-3"><label for="Title">Titolo</label><input class="form-control" id="Title" name="Title" value="@Model.Input.Title" maxlength="160" required /></div>
+<div class="mb-3"><label for="Description">Descrizione</label><textarea class="form-control" id="Description" name="Description" maxlength="2000">@Model.Input.Description</textarea></div>
+<div class="mb-3"><label for="Priority">Priorità</label><select class="form-select" id="Priority" name="Priority">@foreach (var p in Enum.GetValues<TaskPriority>()) { <option value="@((int)p)" selected="@(p == Model.Input.Priority)">@TaskLabels.Priority(p)</option> }</select></div>
+@if (Model.Input.Id != Guid.Empty) {
+<div class="mb-3"><label for="Status">Stato</label><select class="form-select" id="Status" name="Status">@foreach (var s in Enum.GetValues<OrganizationTaskStatus>()) { <option value="@((int)s)" selected="@(s == Model.Input.Status)">@TaskLabels.Status(s)</option> }</select></div>
+<div class="mb-3"><label><input type="checkbox" name="ConfirmCancellation" value="true" /> Confermo l'annullamento (necessario entrando nello stato Annullata)</label></div>
+}
+<div class="mb-3"><label for="AssigneeId">Responsabile</label><select class="form-select" id="AssigneeId" name="AssigneeId"><option value="">Non assegnato</option>@foreach (var p in Model.People) { <option value="@p.Id" selected="@(p.Id == Model.Input.AssigneeId)">@p.Name</option> }</select></div>
+<div class="mb-3"><label for="DueLocal">Scadenza facoltativa (@Model.TimeZoneId)</label><input class="form-control" id="DueLocal" name="DueLocal" type="datetime-local" value="@(Model.Input.DueLocal?.ToString("yyyy-MM-ddTHH:mm"))" /><small>Le ore ambigue o inesistenti al cambio dell'ora non sono accettate.</small></div>
+<button class="btn btn-primary" type="submit">Salva attività</button> <a asp-action="Index" asp-route-eventId="@Model.Input.EventId">Torna alle attività</a>
+</form>

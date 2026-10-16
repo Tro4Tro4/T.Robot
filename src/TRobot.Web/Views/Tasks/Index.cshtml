@@ -1,0 +1,16 @@
+@model TRobot.Application.Tasks.TaskOverview
+@{ ViewData["Title"] = "Attività"; var zone = TimeZoneInfo.FindSystemTimeZoneById(Model.Event.TimeZoneId); }
+<h1>Attività — @Model.Event.Name</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<p><a asp-action="Create" asp-route-eventId="@Model.Event.Id">Nuova attività</a> · <a asp-controller="Home" asp-action="Index" asp-route-eventId="@Model.Event.Id">Dashboard</a></p>
+<p>Le scadenze sono mostrate nel fuso @Model.Event.TimeZoneId.</p>
+@if (Model.Tasks.Count == 0) { <p>Nessuna attività.</p> }
+else
+{
+<div class="table-responsive" role="region" aria-label="Attività evento" tabindex="0"><table class="table"><thead><tr><th>Titolo</th><th>Priorità</th><th>Stato</th><th>Responsabile</th><th>Scadenza</th><th></th></tr></thead><tbody>
+@foreach (var item in Model.Tasks)
+{
+<tr><td>@item.Title</td><td>@TaskLabels.Priority(item.Priority)</td><td>@TaskLabels.Status(item.Status)</td><td>@(Model.People.FirstOrDefault(x => x.Id == item.AssigneeId)?.Name ?? "Non assegnato")</td><td>@(item.DueAtUtc.HasValue ? TimeZoneInfo.ConvertTimeFromUtc(item.DueAtUtc.Value, zone).ToString("dd/MM/yyyy HH:mm") : "—")</td><td><a asp-action="Edit" asp-route-eventId="@Model.Event.Id" asp-route-id="@item.Id">Modifica</a></td></tr>
+}
+</tbody></table></div>
+}

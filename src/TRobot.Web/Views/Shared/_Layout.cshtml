@@ -5,25 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] — T.Robot</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-    <header class="container py-3 border-bottom d-flex justify-content-between align-items-center">
-        <a asp-controller="Home" asp-action="Index">T.Robot</a>
+    <a class="skip-link" href="#main-content">Vai al contenuto</a>
+    <header class="site-header">
+      <div class="container header-content">
+        <a class="site-brand" asp-controller="Home" asp-action="Index">T.Robot</a>
         @if (User.Identity?.IsAuthenticated == true)
         {
-            <span>@User.Identity.Name</span>
+            <nav class="site-navigation" aria-label="Navigazione principale">
             <a asp-controller="Events" asp-action="Index">Eventi</a>
             @if (User.HasClaim(TRobot.Application.Accounts.AccountClaims.SystemAdministrator, "true"))
             {
                 <a asp-controller="Organizers" asp-action="Index">Organizzatori</a>
             }
             <a asp-controller="Access" asp-action="ChangePassword">Cambia password</a>
+            </nav>
+            <div class="account-navigation">
+            <span class="account-name">@User.Identity.Name</span>
             <form asp-controller="Access" asp-action="Logout" method="post">
                 <button class="btn btn-outline-secondary btn-sm" type="submit">Esci</button>
             </form>
+            </div>
         }
+      </div>
     </header>
-    <main class="container py-4">@RenderBody()</main>
+    <main id="main-content" class="container main-content" tabindex="-1">@RenderBody()</main>
+    <footer class="site-footer"><div class="container">T.Robot · Area organizzatori · Prototipo locale</div></footer>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

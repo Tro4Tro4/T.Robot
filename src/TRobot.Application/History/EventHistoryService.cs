@@ -2,11 +2,11 @@ using TRobot.Domain;
 
 namespace TRobot.Application.History;
 
-public enum HistoryCategory { All, Attendance, Event, Access }
+public enum HistoryCategory { All, Attendance, Event, Access, Local }
 public sealed record HistoryEvent(Guid Id, string Name, string TimeZoneId);
 public sealed record HistoryEntry(Guid Id, DateTime OccurredAtUtc, HistoryCategory Category, string ActorName,
     string? PersonName, ParticipationStatus? PreviousStatus, ParticipationStatus? Status,
-    EventAuditAction? EventAction, string? AccessAction, AttendanceOrigin? Origin);
+    EventAuditAction? EventAction, string? AccessAction, AttendanceOrigin? Origin, string? LocalModule = null, string? LocalAction = null);
 public sealed record HistoryPage(HistoryEvent Event, HistoryCategory Category, int Page,
     IReadOnlyList<HistoryEntry> Entries, bool HasNext);
 public sealed class HistoryAccessException : Exception;
