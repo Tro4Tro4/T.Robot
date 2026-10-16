@@ -1,0 +1,11 @@
+@model EventEditorViewModel
+@{ ViewData["Title"] = "Crea evento"; }
+<h1>Crea evento</h1>
+<p>Verrai assegnato come organizzatore. Potrai assegnare altri account dalla pagina Organizzatori.</p>
+<form asp-action="Create" method="post" class="col-lg-7">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <input asp-for="Input.Revision" type="hidden" />
+    <partial name="_EventFields" for="Input" />
+    <button type="submit" class="btn btn-primary">Crea evento</button>
+    <a asp-action="Index" class="btn btn-link">Torna agli eventi</a>
+</form>

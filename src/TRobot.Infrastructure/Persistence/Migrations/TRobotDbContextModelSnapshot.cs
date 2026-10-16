@@ -17,6 +17,107 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.6");
 
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClaimType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClaimValue")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AspNetUserClaims", (string)null);
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
+                {
+                    b.Property<string>("LoginProvider")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderKey")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderDisplayName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("LoginProvider", "ProviderKey");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AspNetUserLogins", (string)null);
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LoginProvider")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "LoginProvider", "Name");
+
+                    b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AccountAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("PersonId");
+
+                    b.ToTable("AccountAudits", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AccountAudits_Action", "Action IN ('AdministratorInitialized', 'OrganizerCreated', 'PasswordChanged', 'EventGranted', 'EventRevoked', 'AccountEnabled', 'AccountDisabled')");
+
+                            t.HasCheckConstraint("CK_AccountAudits_Event", "Action NOT IN ('EventGranted', 'EventRevoked') OR EventId IS NOT NULL");
+                        });
+                });
+
             modelBuilder.Entity("TRobot.Domain.Event", b =>
                 {
                     b.Property<Guid>("Id")
@@ -30,6 +131,12 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTime>("StartsAtUtc")
                         .HasColumnType("TEXT");
@@ -51,6 +158,51 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TRobot.Domain.EventAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegistrationFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("EventId", "OccurredAtUtc");
+
+                    b.ToTable("EventAudits", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EventAudits_Action", "Action IN ('EventCreated', 'EventUpdated', 'ParticipantAdded', 'ParticipantRenamed')");
+
+                            t.HasCheckConstraint("CK_EventAudits_Fingerprint", "RegistrationFingerprint IS NULL OR (Action = 'ParticipantAdded' AND length(RegistrationFingerprint) = 64 AND RegistrationFingerprint NOT GLOB '*[^0-9A-F]*')");
+
+                            t.HasCheckConstraint("CK_EventAudits_Person", "(Action IN ('ParticipantAdded', 'ParticipantRenamed') AND PersonId IS NOT NULL) OR (Action NOT IN ('ParticipantAdded', 'ParticipantRenamed') AND PersonId IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("TRobot.Domain.EventOrganizer", b =>
                 {
                     b.Property<Guid>("EventId")
@@ -61,6 +213,12 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -89,8 +247,12 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("TEXT");
 
                     b.HasKey("EventId", "PersonId");
@@ -102,6 +264,58 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.ToTable("EventParticipants", null, t =>
                         {
                             t.HasCheckConstraint("CK_EventParticipants_Status", "Status IN ('NoResponse', 'Confirmed', 'Undecided', 'Absent')");
+                        });
+                });
+
+            modelBuilder.Entity("TRobot.Domain.ParticipationReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("OrganizerPersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId", "MessageId")
+                        .IsUnique();
+
+                    b.HasIndex("EventId", "OrganizerPersonId");
+
+                    b.HasIndex("EventId", "PersonId");
+
+                    b.ToTable("ParticipationReceipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ParticipationReceipts_MessageId", "length(trim(MessageId)) BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("CK_ParticipationReceipts_PreviousStatus", "PreviousStatus IN ('NoResponse', 'Confirmed', 'Undecided', 'Absent')");
+
+                            t.HasCheckConstraint("CK_ParticipationReceipts_Status", "Status IN ('NoResponse', 'Confirmed', 'Undecided', 'Absent')");
                         });
                 });
 
@@ -119,6 +333,12 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("WhatsAppSenderId")
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
@@ -134,6 +354,151 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_People_WhatsAppSenderId", "WhatsAppSenderId IS NULL OR length(trim(WhatsAppSenderId)) BETWEEN 1 AND 200");
                         });
+                });
+
+            modelBuilder.Entity("TRobot.Infrastructure.Identity.OrganizerUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AccessFailedCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsSystemAdministrator")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("LockoutEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LockoutEnd")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NormalizedEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NormalizedUserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PhoneNumberConfirmed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SecurityStamp")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("TwoFactorEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedEmail")
+                        .HasDatabaseName("EmailIndex");
+
+                    b.HasIndex("NormalizedUserName")
+                        .IsUnique()
+                        .HasDatabaseName("UserNameIndex");
+
+                    b.HasIndex("PersonId")
+                        .IsUnique();
+
+                    b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
+                {
+                    b.HasOne("TRobot.Infrastructure.Identity.OrganizerUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
+                {
+                    b.HasOne("TRobot.Infrastructure.Identity.OrganizerUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
+                {
+                    b.HasOne("TRobot.Infrastructure.Identity.OrganizerUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AccountAudit", b =>
+                {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.EventAudit", b =>
+                {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("TRobot.Domain.EventOrganizer", b =>
@@ -159,6 +524,30 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.ParticipationReceipt", b =>
+                {
+                    b.HasOne("TRobot.Domain.EventOrganizer", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "OrganizerPersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Infrastructure.Identity.OrganizerUser", b =>
+                {
                     b.HasOne("TRobot.Domain.Person", null)
                         .WithMany()
                         .HasForeignKey("PersonId")

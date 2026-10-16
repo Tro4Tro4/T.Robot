@@ -1,14 +1,15 @@
 # T.Robot
 
-Bot per organizzare Capodanno 2027 con sito riservato agli organizzatori. Milestone 1: soluzione .NET 10, modello iniziale ed EF Core SQLite. Il sito è solo un prototipo locale; WhatsApp, AI, autenticazione, pagamenti e dashboard non sono implementati.
+Bot per organizzare Capodanno 2027 con sito riservato agli organizzatori. Milestone 7: correzione dei nomi dei partecipanti preservando identità, presenze e storico, oltre a eventi, registrazioni, account e accessi. Restano disponibili `!presenza si|forse|no` simulato, SQLite, storico e dashboard. WhatsApp, AI e pagamenti non sono implementati; il sito rimane locale.
 
 ## Struttura
 
 - `TRobot.sln`: Web MVC → Application + Infrastructure; Application → Domain; Infrastructure → Application + Domain. Domain senza dipendenze esterne.
-- `src/TRobot.Domain`: Event, Person, EventParticipant, EventOrganizer e validazioni iniziali.
-- `src/TRobot.Infrastructure/Persistence`: DbContext, mapping, factory per CLI e migrazioni.
+- `src/TRobot.Domain`: evento, persone, partecipazioni, organizzatori e ricevute dei comandi.
+- `src/TRobot.Application`: parsing, autorizzazione per evento, servizi per eventi/partecipanti, presenze, account e preparazione demo.
+- `src/TRobot.Infrastructure`: EF Core SQLite, store Identity, mapping, factory per CLI e migrazioni.
 - `tests/TRobot.Tests`: xUnit, regole di dominio e integrazione SQLite con migrazioni reali.
-- [Contesto](docs/PROJECT_CONTEXT.md) e [decisioni](docs/DECISIONS.md).
+- [Contesto](docs/PROJECT_CONTEXT.md), [decisioni](docs/DECISIONS.md), [flusso presenze](docs/MILESTONE_2.md), [account organizzatori](docs/MILESTONE_4.md), [gestione accessi](docs/MILESTONE_5.md), [eventi/partecipanti](docs/MILESTONE_6.md) e [correzione nomi](docs/MILESTONE_7.md).
 
 ## Preparazione e database
 
@@ -24,7 +25,7 @@ dotnet ef database update --project src/TRobot.Infrastructure
 dotnet test TRobot.sln --no-build --no-restore
 ```
 
-Il comando EF crea `src/TRobot.Web/trobot.db` e applica la migrazione iniziale. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Non usare `EnsureCreated` in alternativa alle migrazioni.
+Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db`, applicando migrazione iniziale, `AttendanceSimulation`, `OrganizerIdentity`, `OrganizerAccessLifecycle`, `EventManagement` e `ParticipantNames`. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Non usare `EnsureCreated` in alternativa alle migrazioni.
 
 La connection string Web è `ConnectionStrings:TRobot` in `appsettings.Development.json`; i percorsi relativi sono risolti rispetto alla cartella Web. La factory CLI usa il percorso predefinito; per un database diverso passare esplicitamente `--connection "Data Source=C:/percorso/trobot.db;Foreign Keys=True"` a `database update` e configurare la Web con lo stesso percorso. Non inserire credenziali nel repository.
 
@@ -35,7 +36,29 @@ dotnet ef migrations add NomeModifica --project src/TRobot.Infrastructure --outp
 dotnet ef database update --project src/TRobot.Infrastructure
 ```
 
-Versionare migrazioni e snapshot, mai database o contenuti personali. Il database iniziale è vuoto; i test usano dati sintetici in memoria e non modificano quello locale.
+Versionare migrazioni e snapshot, mai database o contenuti personali. I test automatici usano SQLite in memoria e dati sintetici, senza modificare il database locale.
+
+## Account per la demo già esistente
+
+Dopo migrazione e build, per aggiornare una demo preparata con la Milestone 2/3:
+
+```powershell
+dotnet run --project src/TRobot.Web --launch-profile http --no-build -- --initialize-identity
+```
+
+Il comando locale legge il PersonId del vecchio organizzatore da `.local/local-access.json` e crea il primo account amministratore solo se non esistono account. Non modifica partecipazioni o ricevute. Le nuove credenziali casuali sono in `.local/identity-admin.txt` (username `admin`); il precedente codice di accesso non autentica più nel sito. Il file delle nuove credenziali non viene sovrascritto se esiste già.
+
+## Prima preparazione su database vuoto
+
+Dopo migrazioni e build, eseguire una sola volta su un database vuoto:
+
+```powershell
+dotnet run --project src/TRobot.Web --launch-profile http --no-build -- --initialize-demo
+```
+
+Il servizio crea un evento chiamato **Evento dimostrativo — Capodanno 2027**, un organizzatore e un partecipante con mittente sintetico `demo-participant`. Prepara anche l'account `admin` e scrive la password casuale in `.local/identity-admin.txt`. Non crea più i vecchi file di accesso a codice. La cartella `.local` è esclusa da Git e fuori dagli asset pubblici.
+
+La preparazione non viene eseguita all'avvio del sito. Su un database con persone/eventi usare l'aggiornamento Identity, non ripetere il seed demo. Non cancellare un database esistente per ripetere la preparazione. Custodire le credenziali locali con i permessi del proprio account.
 
 ## Avvio locale
 
@@ -43,12 +66,66 @@ Versionare migrazioni e snapshot, mai database o contenuti personali. Il databas
 dotnet run --project src/TRobot.Web --launch-profile http --no-build
 ```
 
-Aprire <http://localhost:5238>. Arrestare con `Ctrl+C`. Il prototipo ascolta solo su loopback e rifiuta ambienti diversi da Development. La pagina iniziale non interroga il DB: l'integrazione dello schema viene verificata nei test. Prima di qualsiasi deploy occorrono autenticazione reale, autorizzazione e revisione della configurazione di hosting; non pubblicare questa milestone su IIS.
+Aprire <http://localhost:5238>, accedere con nome utente e password di `.local/identity-admin.txt`, selezionare il partecipante e inviare uno dei comandi:
+
+| Comando | Stato |
+| --- | --- |
+| `!presenza si` oppure `!presenza sì` | Confermato |
+| `!presenza forse` | Indeciso |
+| `!presenza no` | Assente |
+
+Ogni nuovo messaggio può modificare la scelta della persona. Ad esempio `si` → `forse` sposta una persona dai confermati agli indecisi, mantenendo invariato il totale. Maiuscole e spazi separatori sono tollerati; quantità e accompagnatori vengono rifiutati. Riavviando l'app, lo stato resta nel database. Se la demo è già stata utilizzata, i conteggi riflettono gli invii precedenti.
+
+Per verificare l'idempotenza, annotare identificativo e comando prima di inviare e reinserirli nel modulo: il reinvio mostra «Messaggio già elaborato» senza altre ricevute. Anche dopo una scelta successiva, il vecchio messaggio non ripristina lo stato precedente. Riutilizzare lo stesso ID con uno stato diverso produce un conflitto. Un nuovo identificativo con lo stesso stato registra l'elaborazione senza alterare conteggi o timestamp dell'ultimo cambio.
+
+L'amministratore globale può aprire **Organizzatori** e creare account normali, assegnandoli a un evento. La persona creata non viene automaticamente aggiunta ai partecipanti. Il nuovo organizzatore vede solo gli eventi assegnati; anche l'amministratore deve essere assegnato a un evento per leggerne le presenze.
+
+Dalla stessa pagina si possono assegnare altri eventi a un account esistente e revocare singole assegnazioni. La revoca richiede la casella di conferma e impedisce subito lettura e modifiche nell'evento, anche con cookie già aperto; gli altri eventi restano accessibili. Assegnazione e storico non vengono cancellati. Una successiva riassegnazione riusa la stessa riga e il ruolo precedente.
+
+**Disabilita account** richiede una conferma esplicita, blocca i nuovi login e invalida le sessioni. **Riattiva account** consente nuovamente il login con la password esistente; i vecchi cookie restano invalidi. Le assegnazioni ancora attive vengono mantenute. L'amministratore globale non può essere disabilitato tramite questa pagina. Le operazioni ripetute non duplicano l'audit e le revoche per evento registrano anche l'evento interessato.
+
+Ogni utente attivo può usare **Cambia password**: serve la password attuale; la nuova richiede almeno 12 caratteri con maiuscole, minuscole, cifre e simboli. Gli altri cookie vengono invalidati, mentre la sessione che effettua il cambio rimane attiva. Il file delle credenziali iniziali non viene aggiornato dopo il cambio password. Non sono ancora disponibili recupero password, MFA, eliminazione account o promozioni globali tramite Web.
+
+Arrestare con `Ctrl+C`. Il sito protegge tutti i POST con anti-CSRF e verifica i permessi nei servizi Application. Il login consente cinque tentativi al minuto per processo e blocca un account per 15 minuti dopo cinque password errate. Il cookie dura 30 minuti. Il prototipo ascolta solo su loopback e rifiuta ambienti diversi da Development. Prima di un deploy occorre configurare HTTPS e il ciclo di vita protetto delle chiavi per l'hosting scelto.
+
+## Gestione di eventi e partecipanti
+
+Aprire **Eventi** dopo il login. L'amministratore globale può scegliere **Crea evento**, indicare nome, data/ora locali e fuso (`Europe/Rome` predefinito). Riceve automaticamente accesso all'evento appena creato; dalla pagina Organizzatori può assegnare gli altri account.
+
+Gli organizzatori vedono solo i propri eventi attivi. Nella scheda evento possono modificare nome/data/fuso e registrare singoli partecipanti, che partono da **Senza risposta**. Il fuso dell'evento determina la conversione in UTC: il fuso del PC non modifica l'orario inserito. Orari ambigui o inesistenti al cambio dell'ora richiedono di scegliere un orario diverso. Se un'altra pagina ha già modificato l'evento, il salvataggio viene rifiutato: usare **Ricarica dati salvati** prima di riprovare.
+
+La casella **Abilita nel simulatore locale** crea un mittente sintetico; deselezionandola la persona viene conteggiata ma non compare fra i mittenti. Dalla scheda evento aprire **Presenze e simulatore** per provarne la presenza. Non si creano account per i partecipanti e non si richiedono numeri telefonici.
+
+Ogni nuova registrazione crea una persona distinta; usare nomi distinguibili per gli omonimi. Il reinvio dello stesso modulo non duplica la registrazione, anche dopo una correzione del nome. Non sono ancora disponibili collegamento di anagrafiche tra eventi, rimozione di partecipanti, famiglie o accompagnatori.
+
+La migrazione `EventManagement` aggiunge la revisione dell'evento (zero per i dati esistenti) e l'audit delle operazioni, senza modificare credenziali o ripetere la demo. Le modifiche e il relativo audit sono salvati nella stessa transazione.
+
+Nella tabella partecipanti usare **Correggi nome** per correggere il solo nome visualizzato. La persona conserva ID, mittente, presenze e ricevute. Se il nome è stato già corretto da un'altra pagina, occorre **Ricarica dati salvati** prima di riprovare. Un nome invariato non produce ulteriori audit.
+
+Per una persona già condivisa tra più eventi, la correzione è consentita solo a chi gestisce tutti gli eventi coinvolti e richiede conferma esplicita. Il nome viene corretto in tutti questi eventi e l'audit registrato in ciascuno. Se mancano i permessi, oppure la persona è collegata ad account o ruoli organizzativi, la tabella indica che la correzione non è disponibile; il servizio impedisce anche invii diretti al relativo endpoint. Le anagrafiche degli organizzatori richiedono un flusso dedicato.
+
+`ParticipantNames` aggiunge revisione delle persone e dati tecnici per riconoscere i moduli di registrazione precedenti alla rinomina. Non cambia nomi, account o partecipazioni esistenti e non richiede di ripetere la preparazione demo.
 
 ## Verifiche e prossimo passo
 
-I test verificano validazioni, default di partecipazione, timestamp UTC, applicazione ripetuta della migrazione, round trip delle quattro entità, identità WhatsApp facoltative/univoche, chiavi composte, riferimenti obbligatori, cancellazioni protette e vincoli sugli enum.
+I test verificano regole e vincoli della Milestone 1 più parsing, autorizzazione, storico, deduplica anche dopo cambio DbContext, rollback, concorrenza e aggiornamento del database precedente senza perdere partecipazioni. Sono coperte tutte le transizioni da ciascuno stato iniziale verso confermato, indeciso e assente, i reinvii di messaggi superati e gli ID riutilizzati con scelte diverse. I test HTTP usano cookie e anti-CSRF reali, SQLite in memoria e verificano login, simulazione, conteggi, esiti invariati, duplicati, accesso a eventi non assegnati, logout e limite tentativi.
 
-Verificato il 16 ottobre 2026: build con 0 errori e 0 avvisi; 20 test passati; migrazione applicata al database locale e ripetuta senza modifiche; `dotnet ef migrations has-pending-model-changes --project src/TRobot.Infrastructure --no-build` senza differenze. Smoke test MVC con HTTP 200 e nome pubblico corretto; listener verificati solo su `127.0.0.1` e `::1`, processo poi arrestato. L'avvio è stato verificato nel contesto utente ordinario: la sandbox non può decifrare le chiavi DPAPI del profilo Windows. Nessuna verifica di deploy, autenticazione o integrazioni esterne, che non rientrano nella milestone.
+Milestone 2, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **48 test passati**. Migrazione `AttendanceSimulation` applicata al database locale e ripetuta senza modifiche; `dotnet ef migrations has-pending-model-changes --project src/TRobot.Infrastructure --no-build` senza differenze. Smoke test sull'app avviata: anonimo reindirizzato al login, accesso con codice locale, confermati da 0 a 1, reinvio senza duplicato e logout; listener verificati solo su `127.0.0.1` e `::1`. Lo smoke test ha lasciato una presenza confermata nella demo. L'avvio è stato verificato nel contesto utente ordinario: la sandbox non può decifrare le chiavi DPAPI del profilo Windows. Nessuna verifica di deploy o integrazioni esterne.
 
-Milestone 2 proposta: ingresso locale simulato `!presenza si` → servizio Application validato e autorizzato, con storico/idempotenza → SQLite → conteggio in dashboard locale. Il gateway WhatsApp resta separato e richiede una richiesta esplicita.
+Milestone 3, verificata il 16 ottobre 2026: `dotnet build TRobot.sln --no-restore` con 0 errori e 0 avvisi; `dotnet test TRobot.sln --no-build --no-restore` con **79 test passati**. Controllo EF del modello senza differenze. Verificati tramite pipeline HTTP reale in TestServer login, ciclo `si` → `forse` → `no` → `si`, conteggi, esiti invariati e reinvii di messaggi superati; database SQLite in memoria. Queste verifiche non modificano la demo locale.
+
+Milestone 4, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **86 test passati**. Test su due account con eventi separati, privilegi globali distinti dall'accesso alle presenze, creazione senza promozioni tramite campi contraffatti, rollback completo anche dopo la scrittura Identity, lockout, cambio password e invalidazione delle altre sessioni. Upgrade da schema precedente con partecipazione e ricevuta conservate. Migrazione locale applicata e ripetuta senza modifiche; modello EF allineato. Amministratore locale preparato con credenziali fuori da Git; copia del database precedente in `.local/trobot-before-identity.db`. Smoke test sull'app avviata: vecchio codice rifiutato, login Identity, dashboard con presenza precedente, pagine account/cambio password e logout. Listener solo loopback; processo poi arrestato. Nessun deploy o invio WhatsApp.
+
+La Milestone 4 aggiunge la migrazione `OrganizerIdentity` allo schema precedente. Il bootstrap crea un account, senza ripetere la preparazione demo.
+
+La Milestone 5 aggiunge `OrganizerAccessLifecycle`: account e assegnazioni precedenti rimangono attivi. Non occorre ripetere il bootstrap o cambiare le credenziali.
+
+Milestone 5, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **98 test passati**. Coperti revoca per evento con cookie esistente, blocco di lettura e invio nell'evento revocato, altri eventi ancora accessibili, disabilitazione/riattivazione, vecchio cookie non riutilizzabile, protezione dell'amministratore, conferme lato server, idempotenza e rollback dell'audit con security stamp. Upgrade con account, assegnazioni e ricevute precedenti conservati. Migrazione locale applicata e ripetuta, modello EF allineato. Copia precedente in `.local/trobot-before-access-lifecycle.db`; confronto dei conteggi prima/dopo invariato, `foreign_key_check` senza errori e `integrity_check` OK. SQLite segnala la ricostruzione dei vincoli audit con PRAGMA fuori transazione: la verifica del DB è stata eseguita dopo il completamento della migrazione.
+
+Smoke test della Milestone 5 sull'app avviata: login, dashboard precedente, moduli di revoca e conferma, amministratore protetto e logout; listener solo loopback. Processo poi arrestato, nessuna revoca sull'account reale della demo.
+
+Milestone 6, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **116 test passati**. Coperti creazione/modifica eventi, registrazione e simulazione di nuove persone, anti-CSRF, permessi per evento, account disabilitati, revisioni obsolete, conversione UTC e cambio dell'ora, reinvii e rollback dopo le scritture SQL. Migrazione `EventManagement` applicata, modello allineato, dati precedenti confrontati senza differenze; integrità e chiavi esterne OK. Copia in `.local/trobot-before-event-management.db`. Smoke test reale su login, conteggi precedenti e nuove pagine; listener solo loopback e processo poi arrestato. Nessun nuovo evento o partecipante aggiunto alla demo dallo smoke.
+
+Milestone 7, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **137 test passati**. Coperti correzione nomi, permessi e conferme su eventi condivisi, concorrenza effettiva fra DbContext, rollback di nome/revisione/audit/impronta e reinvii dopo più rinomine, anche da registrazioni precedenti. Migrazione `ParticipantNames` applicata, modello allineato e dati precedenti invariati; integrità e chiavi esterne OK. Copia in `.local/trobot-before-participant-names.db`. Smoke test reale su modulo e salvataggio invariato senza audit; dati demo e credenziali conservati, listener solo loopback e processo poi arrestato.
+
+Prossimo incremento proposto: consultazione dello storico delle operazioni e delle presenze per evento, con accesso riservato agli organizzatori assegnati. Famiglie/accompagnatori richiedono regole di rappresentanza e conteggio. Il gateway WhatsApp resta separato e richiede una richiesta esplicita.

@@ -1,0 +1,20 @@
+@model EventsViewModel
+@{ ViewData["Title"] = "Eventi"; }
+<h1>Eventi</h1>
+@if (Model.CanCreate)
+{
+    <p><a asp-action="Create" class="btn btn-primary">Crea evento</a></p>
+}
+@if (Model.Events.Count == 0)
+{
+    <p>Nessun evento assegnato a questo organizzatore.</p>
+}
+else
+{
+    <ul>
+    @foreach (var ev in Model.Events)
+    {
+        <li class="mb-2"><a asp-action="Details" asp-route-id="@ev.Id">@ev.Name</a></li>
+    }
+    </ul>
+}

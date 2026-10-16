@@ -6,11 +6,18 @@ public sealed class Event
 
     public Event(string name, DateTime startsAtUtc, string timeZoneId = "Europe/Rome")
     {
-        Name = Guard.Text(name, 200, nameof(name));
+        SetDetails(name, startsAtUtc, timeZoneId);
+    }
+
+    private void SetDetails(string name, DateTime startsAtUtc, string timeZoneId)
+    {
+        var validName = Guard.Text(name, 200, nameof(name));
         if (startsAtUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("La data deve essere UTC.", nameof(startsAtUtc));
-        TimeZoneId = Guard.Text(timeZoneId, 100, nameof(timeZoneId));
-        _ = TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId);
+        var validZone = Guard.Text(timeZoneId, 100, nameof(timeZoneId));
+        _ = TimeZoneInfo.FindSystemTimeZoneById(validZone);
+        Name = validName;
+        TimeZoneId = validZone;
         StartsAtUtc = startsAtUtc;
     }
 
@@ -19,4 +26,17 @@ public sealed class Event
     public DateTime StartsAtUtc { get; private set; }
     public string TimeZoneId { get; private set; } = null!;
     public DateTime CreatedAtUtc { get; private set; } = DateTime.UtcNow;
+    public int Revision { get; private set; }
+
+    public bool UpdateDetails(string name, DateTime startsAtUtc, string timeZoneId)
+    {
+        // Validate before changing any field; failed edits leave the entity unchanged.
+        var validated = new Event(name, startsAtUtc, timeZoneId);
+        if (Name == validated.Name && StartsAtUtc == validated.StartsAtUtc && TimeZoneId == validated.TimeZoneId)
+            return false;
+        var nextRevision = checked(Revision + 1);
+        SetDetails(validated.Name, validated.StartsAtUtc, validated.TimeZoneId);
+        Revision = nextRevision;
+        return true;
+    }
 }

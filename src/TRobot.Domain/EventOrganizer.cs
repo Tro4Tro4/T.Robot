@@ -17,5 +17,13 @@ public sealed class EventOrganizer
     public Guid EventId { get; private set; }
     public Guid PersonId { get; private set; }
     public OrganizerRole Role { get; private set; }
+    public bool IsActive { get; private set; } = true;
     public DateTime CreatedAtUtc { get; private set; } = DateTime.UtcNow;
+
+    public bool SetActive(bool active)
+    {
+        if (IsActive == active) return false;
+        IsActive = active;
+        return true;
+    }
 }

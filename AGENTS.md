@@ -3,6 +3,8 @@
 Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. Il nome pubblico definitivo è **T.Robot** (non CapoDannoBot, tRobot o T-Robot). Usa `TRobot` per namespace e nomi dei progetti C#, `TRobot.sln` per la soluzione, `T.Robot` per il repository e `trobot.db` per SQLite. L'utente è esperto in C#/.NET, EF Core e MVC; preferisce iterazioni piccole, verificabili, guidate in italiano.
 
 ## Regole di lavoro
+- Per tutti i prossimi sviluppi usa obbligatoriamente la skill `brainstorming` prima dell'implementazione: chiarisci obiettivo e vincoli e presenta un disegno proporzionato al lavoro.
+- Modalità autonoma richiesta dall'utente: scegli i default ragionevoli, documentali in `docs/DECISIONS.md` e prosegui con implementazione e verifiche. Chiedi conferma solo quando un dubbio concreto impedisce di decidere; non introdurre approvazioni intermedie obbligatorie per disegno o piano. Questa preferenza prevale sui passaggi di approvazione della skill `brainstorming`.
 - Prima di intervenire, ispeziona repository, SDK, file e stato Git; non assumere che il codice esista.
 - Procedi per milestone; non implementare tutti i moduli contemporaneamente.
 - Mantieni Domain indipendente; usa Application per le regole; Infrastructure per persistenza/integrations; Web per UI e API.
@@ -17,4 +19,4 @@ Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. 
 - Rispondi in italiano: breve piano iniziale, poi implementazione, riepilogo finale con file, comandi, test e prossimo passo.
 
 ## Milestone corrente
-Scaffolding soluzione .NET + EF Core SQLite + prime entità Event, Person, EventParticipant, EventOrganizer + migrazione iniziale. **Non** implementare ancora gateway WhatsApp, AI, pagamenti o intero pannello. Obiettivo milestone successiva: simulare `!presenza si` -> persistenza -> dashboard.
+Milestone 7: correzione del nome dei partecipanti con revisione concorrente e audit, accesso richiesto a tutti gli eventi condivisi e conferma esplicita per le correzioni condivise. Le persone collegate ad account o ruoli organizzativi sono escluse dal modulo. Conservare identità, presenze, storico, reinvii delle registrazioni e regole Identity/accessi precedenti. Non cancellare assegnazioni, account o persone referenziati dallo storico. Sito solo Development e loopback; credenziali in `.local`, mai versionate. Vedere `docs/MILESTONE_7.md` e `docs/DECISIONS.md`. **Non** implementare ancora gateway WhatsApp, AI, pagamenti o intero pannello. Prossimo incremento proposto: consultazione dello storico delle operazioni e delle presenze per evento.

@@ -1,0 +1,14 @@
+@model LoginInput
+@{
+    ViewData["Title"] = "Accesso organizzatore";
+}
+<h1>Accesso organizzatore</h1>
+<p>Accedi con il tuo account organizzatore di T.Robot.</p>
+<form asp-action="Login" method="post" class="col-md-6">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <label asp-for="UserName" class="form-label">Nome utente</label>
+    <input asp-for="UserName" autocomplete="username" class="form-control mb-3" required maxlength="100" />
+    <label asp-for="Password" class="form-label">Password</label>
+    <input asp-for="Password" autocomplete="current-password" class="form-control" required maxlength="128" />
+    <button class="btn btn-primary mt-3" type="submit">Accedi</button>
+</form>

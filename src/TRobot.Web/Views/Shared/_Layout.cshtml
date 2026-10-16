@@ -7,7 +7,22 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
 </head>
 <body>
-    <header class="container py-3 border-bottom"><a asp-controller="Home" asp-action="Index">T.Robot</a></header>
+    <header class="container py-3 border-bottom d-flex justify-content-between align-items-center">
+        <a asp-controller="Home" asp-action="Index">T.Robot</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <span>@User.Identity.Name</span>
+            <a asp-controller="Events" asp-action="Index">Eventi</a>
+            @if (User.HasClaim(TRobot.Application.Accounts.AccountClaims.SystemAdministrator, "true"))
+            {
+                <a asp-controller="Organizers" asp-action="Index">Organizzatori</a>
+            }
+            <a asp-controller="Access" asp-action="ChangePassword">Cambia password</a>
+            <form asp-controller="Access" asp-action="Logout" method="post">
+                <button class="btn btn-outline-secondary btn-sm" type="submit">Esci</button>
+            </form>
+        }
+    </header>
     <main class="container py-4">@RenderBody()</main>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

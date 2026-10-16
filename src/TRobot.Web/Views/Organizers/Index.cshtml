@@ -1,0 +1,87 @@
+@model AccountsViewModel
+@{ ViewData["Title"] = "Organizzatori"; }
+<h1>Organizzatori</h1>
+@if (TempData["AccountNotice"] is string notice)
+{
+    <div class="alert alert-success" role="status">@notice</div>
+}
+<div asp-validation-summary="All" class="text-danger" role="alert"></div>
+<table class="table">
+    <thead><tr><th>Nome utente</th><th>Persona</th><th>Privilegio</th><th>Stato account</th></tr></thead>
+    <tbody>
+    @foreach (var account in Model.Directory.Accounts)
+    {
+        <tr>
+            <td>@account.UserName</td><td>@account.DisplayName</td>
+            <td>@(account.SystemAdministrator ? "Amministratore globale" : "Organizzatore")</td>
+            <td>
+                <p>@(account.IsEnabled ? "Attivo" : "Disabilitato")</p>
+                @if (!account.SystemAdministrator)
+                {
+                    <form asp-action="SetEnabled" method="post">
+                        <input type="hidden" name="PersonId" value="@account.PersonId" />
+                        <input type="hidden" name="Enabled" value="@(!account.IsEnabled ? "true" : "false")" />
+                        @if (account.IsEnabled)
+                        {
+                            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo il blocco di login e sessioni</label>
+                        }
+                        <button class="btn btn-outline-secondary btn-sm" type="submit">@(account.IsEnabled ? "Disabilita account" : "Riattiva account")</button>
+                    </form>
+                }
+            </td>
+        </tr>
+        <tr>
+            <td colspan="4">
+                <p class="fw-semibold">Eventi assegnati a @account.UserName</p>
+                @if (account.Assignments.Count == 0) { <p>Nessun evento assegnato.</p> }
+                @foreach (var assignment in account.Assignments)
+                {
+                    <form asp-action="SetAssignment" method="post" class="mb-2">
+                        <input type="hidden" name="PersonId" value="@account.PersonId" />
+                        <input type="hidden" name="EventId" value="@assignment.Id" />
+                        <input type="hidden" name="Active" value="false" />
+                        <span>@assignment.Name</span>
+                        <label class="ms-2"><input type="checkbox" name="Confirmed" value="true" required /> Confermo la revoca per questo evento</label>
+                        <button class="btn btn-outline-secondary btn-sm" type="submit">Revoca evento</button>
+                    </form>
+                }
+                @if (account.IsEnabled)
+                {
+                    var available = Model.Directory.Events.Where(ev => !account.Assignments.Any(a => a.Id == ev.Id)).ToList();
+                    @if (available.Count > 0)
+                    {
+                        <form asp-action="SetAssignment" method="post" class="d-flex gap-2 mt-3">
+                            <input type="hidden" name="PersonId" value="@account.PersonId" />
+                            <input type="hidden" name="Active" value="true" />
+                            <label for="assign-@account.PersonId" class="visually-hidden">Evento da assegnare a @account.UserName</label>
+                            <select id="assign-@account.PersonId" name="EventId" class="form-select" required>
+                                @foreach (var ev in available) { <option value="@ev.Id">@ev.Name</option> }
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm" type="submit">Assegna evento</button>
+                        </form>
+                    }
+                }
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+<h2 class="h4">Crea un organizzatore</h2>
+<p>Il nuovo account potrà accedere all'evento scelto. La persona non viene aggiunta automaticamente ai partecipanti.</p>
+<form asp-action="Create" method="post" class="col-lg-6">
+    <label asp-for="Input.UserName" class="form-label">Nome utente</label>
+    <input asp-for="Input.UserName" autocomplete="off" class="form-control mb-3" required maxlength="100" />
+    <label asp-for="Input.DisplayName" class="form-label">Nome visualizzato</label>
+    <input asp-for="Input.DisplayName" class="form-control mb-3" required maxlength="150" />
+    <label asp-for="Input.EventId" class="form-label">Evento assegnato</label>
+    <select asp-for="Input.EventId" class="form-select mb-3" required>
+        <option value="">Seleziona un evento</option>
+        @foreach (var ev in Model.Directory.Events) { <option value="@ev.Id">@ev.Name</option> }
+    </select>
+    <label asp-for="Input.Password" class="form-label">Password iniziale</label>
+    <input asp-for="Input.Password" autocomplete="new-password" class="form-control mb-2" required minlength="12" maxlength="128" />
+    <p class="form-text">Almeno 12 caratteri, con maiuscole, minuscole, cifre e simboli. Comunicala all'organizzatore tramite un canale riservato.</p>
+    <label asp-for="Input.ConfirmPassword" class="form-label">Ripeti la password</label>
+    <input asp-for="Input.ConfirmPassword" autocomplete="new-password" class="form-control mb-3" required maxlength="128" />
+    <button class="btn btn-primary" type="submit" disabled="@(Model.Directory.Events.Count == 0)">Crea account e assegna evento</button>
+</form>

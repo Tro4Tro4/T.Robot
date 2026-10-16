@@ -1,0 +1,23 @@
+@model ParticipantNameViewModel
+@{ ViewData["Title"] = "Correggi nome"; }
+<h1>Correggi nome</h1>
+<p>Evento: @Model.Editor.EventName</p>
+<p>La correzione conserva l'identità della persona, il mittente simulato, le presenze e le ricevute già registrate.</p>
+<form asp-action="UpdateParticipant" asp-route-id="@Model.Editor.EventId" method="post" class="col-lg-7">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <input asp-for="Input.PersonId" type="hidden" />
+    <input asp-for="Input.Revision" type="hidden" />
+    <label asp-for="Input.DisplayName" class="form-label">Nome visualizzato</label>
+    <input asp-for="Input.DisplayName" class="form-control mb-3" required maxlength="150" />
+    @if (Model.Editor.IsShared)
+    {
+        <div class="alert alert-warning">Questa persona è condivisa tra più eventi che gestisci. La correzione si applica a tutti questi eventi.</div>
+        <div class="form-check mb-3">
+            <input asp-for="Input.ConfirmedShared" class="form-check-input" />
+            <label asp-for="Input.ConfirmedShared" class="form-check-label">Confermo la correzione del nome in tutti gli eventi coinvolti</label>
+        </div>
+    }
+    <button type="submit" class="btn btn-primary">Salva nome</button>
+    <a asp-action="EditParticipant" asp-route-id="@Model.Editor.EventId" asp-route-personId="@Model.Editor.PersonId" class="btn btn-link">Ricarica dati salvati</a>
+    <a asp-action="Details" asp-route-id="@Model.Editor.EventId" class="btn btn-link">Torna all'evento</a>
+</form>

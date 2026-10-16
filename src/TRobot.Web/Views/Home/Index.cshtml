@@ -1,7 +1,55 @@
+@model DashboardViewModel
 @{
-    ViewData["Title"] = "Sviluppo locale";
+    ViewData["Title"] = "Presenze";
 }
-<h1>T.Robot</h1>
-<p>Voi fate casino, io tengo i conti.</p>
-<p>Ambiente di sviluppo locale. La base del progetto è pronta.</p>
-<p>Il pannello riservato agli organizzatori sarà disponibile nelle prossime milestone.</p>
+<h1>Presenze</h1>
+<p class="text-muted">Simulazione locale · nessun messaggio WhatsApp viene inviato.</p>
+@if (TempData["Notice"] is string notice)
+{
+    <div class="alert alert-success" role="status">@notice</div>
+}
+@if (Model.Dashboard is not { } dashboard)
+{
+    <p>Nessun evento assegnato a questo organizzatore.</p>
+}
+else
+{
+    <form asp-action="Index" method="get" class="mb-4">
+        <label for="eventId" class="form-label">Evento</label>
+        <select id="eventId" name="eventId" class="form-select">
+            @foreach (var ev in Model.Events)
+            {
+                <option value="@ev.Id" selected="@(ev.Id == dashboard.EventId)">@ev.Name</option>
+            }
+        </select>
+        <button type="submit" class="btn btn-outline-secondary mt-2">Mostra presenze</button>
+    </form>
+    <h2 class="h4">@dashboard.EventName</h2>
+    <p><a asp-controller="Events" asp-action="Details" asp-route-id="@dashboard.EventId">Gestisci evento e partecipanti</a></p>
+    <dl class="row border rounded py-3 my-3" aria-label="Conteggi presenze">
+        <div class="col"><dt>Confermati</dt><dd id="confirmed-count">@dashboard.Confirmed</dd></div>
+        <div class="col"><dt>Indecisi</dt><dd id="undecided-count">@dashboard.Undecided</dd></div>
+        <div class="col"><dt>Assenti</dt><dd id="absent-count">@dashboard.Absent</dd></div>
+        <div class="col"><dt>Senza risposta</dt><dd id="no-response-count">@dashboard.NoResponse</dd></div>
+        <div class="col"><dt>Totale persone</dt><dd id="total-count">@dashboard.Total</dd></div>
+    </dl>
+    <h2 class="h4">Simula un messaggio</h2>
+    <p>Imposta la presenza di una sola persona: <code>!presenza si</code>, <code>!presenza forse</code> o <code>!presenza no</code>.</p>
+    <form asp-action="Simulate" method="post" class="col-lg-7">
+        <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+        <input asp-for="Input.EventId" type="hidden" />
+        <label asp-for="Input.SenderId" class="form-label">Mittente simulato</label>
+        <select asp-for="Input.SenderId" class="form-select mb-3">
+            @foreach (var sender in dashboard.Senders)
+            {
+                <option value="@sender.SenderId">@sender.DisplayName</option>
+            }
+        </select>
+        <label asp-for="Input.Text" class="form-label">Messaggio</label>
+        <input asp-for="Input.Text" class="form-control mb-3" required maxlength="100" />
+        <label asp-for="Input.MessageId" class="form-label">Identificativo del messaggio</label>
+        <input asp-for="Input.MessageId" class="form-control" required maxlength="100" />
+        <p class="form-text">Reinvia lo stesso identificativo per verificare che il messaggio venga elaborato una sola volta.</p>
+        <button type="submit" class="btn btn-primary" disabled="@(dashboard.Senders.Count == 0)">Elabora messaggio simulato</button>
+    </form>
+}

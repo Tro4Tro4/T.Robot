@@ -1,0 +1,8 @@
+@model EventFormInput
+<label asp-for="Name" class="form-label">Nome evento</label>
+<input asp-for="Name" class="form-control mb-3" required maxlength="200" />
+<label asp-for="LocalStart" class="form-label">Data e ora locali dell'evento</label>
+<input asp-for="LocalStart" type="datetime-local" asp-format="{0:yyyy-MM-ddTHH:mm:ss}" step="1" class="form-control mb-3" required />
+<label asp-for="TimeZoneId" class="form-label">Fuso orario</label>
+<input asp-for="TimeZoneId" class="form-control" required maxlength="100" aria-describedby="zone-help" />
+<p id="zone-help" class="form-text">Ad esempio Europe/Rome. La data viene salvata in UTC; gli orari ambigui o inesistenti al cambio dell'ora vengono rifiutati.</p>
