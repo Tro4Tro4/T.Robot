@@ -12,10 +12,14 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         {
             table.HasCheckConstraint("CK_Events_Name", "length(trim(Name)) BETWEEN 1 AND 200");
             table.HasCheckConstraint("CK_Events_TimeZoneId", "length(trim(TimeZoneId)) BETWEEN 1 AND 100");
+            table.HasCheckConstraint("CK_Events_Location", "Location IS NULL OR length(trim(Location)) BETWEEN 1 AND 300");
+            table.HasCheckConstraint("CK_Events_Program", "Program IS NULL OR length(trim(Program)) BETWEEN 1 AND 4000");
         });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.TimeZoneId).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.Location).HasMaxLength(300);
+        builder.Property(x => x.Program).HasMaxLength(4000);
         builder.HasIndex(x => x.StartsAtUtc);
         builder.Property(x => x.Revision).HasDefaultValue(0).IsConcurrencyToken();
         builder.Property(x => x.StartsAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));

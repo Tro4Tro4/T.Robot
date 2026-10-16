@@ -100,3 +100,11 @@ Aggiornare questo file quando si prende una nuova decisione, riportando data e m
 - La versione nascosta del modulo deriva da stato e timestamp dell'ultimo cambio. Un nuovo invio da pagina obsoleta viene rifiutato; UpdatedAtUtc è anche token di concorrenza EF insieme allo stato. Il reinvio di un'operazione già registrata restituisce lo stato corrente senza ripristinare scelte precedenti.
 - La ricevuta aggiunge `Origin` (Simulation/Organizer), con default Simulation per le righe precedenti. Identificativo operazione GUID, controllo di persona/stato/attore/provenienza per le operazioni organizzatore; eventuali collisioni con messaggi simulati sono conflitti. Nuovi ID con stato invariato registrano un'operazione senza cambiare timestamp o conteggi, coerentemente con il simulatore.
 - Mutazione e ricevuta nella stessa transazione; controlli dei permessi ripetuti prima della scrittura. Nello storico le presenze manuali sono distinte dalle simulate. Migrazione `OrganizerAttendance` incrementale, nessun cambio delle credenziali o preparazione demo.
+
+## 2026-10-16 — Milestone 10
+
+- Luogo e programma facoltativi nell'evento, visibili solo agli organizzatori autorizzati nei moduli e nella dashboard. Luogo fino a 300 caratteri, programma fino a 4000 caratteri normalizzati. Nessun valore reale o dimostrativo inserito automaticamente negli eventi esistenti.
+- Testo semplice con codifica Razor, senza HTML o Markdown interpretato; interruzioni di riga mantenute nella visualizzazione. Programma come nota libera della serata, con eventuali orari riferiti al fuso evento; attività strutturate, responsabili, scadenze, mappe e invii al gruppo rinviati.
+- Spazi esterni rimossi, interruzioni di riga del programma uniformate a LF e valori vuoti convertiti a null. Il servizio verifica il limite dopo la normalizzazione, anche per i moduli inviati con CRLF dal browser. Il luogo segue i normali limiti del modulo e del dominio.
+- Luogo/programma sono modificati con il resto dell'evento: stessa revisione, stessi controlli di accesso e audit EventUpdated atomico. Salvataggi equivalenti non generano nuovi audit; svuotare un campo lo rimuove e viene trattato come modifica.
+- Migrazione incrementale `EventLogistics`: due colonne nullable e relativi vincoli, preservando revisioni, dati e riferimenti precedenti. Nessun cambio delle credenziali o seed automatico.

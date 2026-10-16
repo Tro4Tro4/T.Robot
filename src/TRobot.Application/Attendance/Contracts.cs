@@ -7,7 +7,7 @@ public sealed record SimulationResult(bool Duplicate, bool Changed, Participatio
 public sealed record EventOption(Guid Id, string Name);
 public sealed record SenderOption(string SenderId, string DisplayName);
 public sealed record AttendanceDashboard(Guid EventId, string EventName, int Confirmed, int Undecided,
-    int Absent, int NoResponse, IReadOnlyList<SenderOption> Senders)
+    int Absent, int NoResponse, IReadOnlyList<SenderOption> Senders, string? Location = null, string? Program = null)
 {
     public int Total => Confirmed + Undecided + Absent + NoResponse;
 }

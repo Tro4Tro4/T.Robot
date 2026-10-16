@@ -261,7 +261,8 @@ public sealed class OrganizerAttendanceTests
         var person = new Person("Partecipante precedente", "synthetic-origin-upgrade");
         var member = new EventParticipant(ev.Id, person.Id);
         member.ChangeStatus(ParticipationStatus.Confirmed, DateTime.UtcNow);
-        db.AddRange(ev, actor, person, member, new EventOrganizer(ev.Id, actor.Id));
+        await MigrationUpgradeTests.InsertLegacyEvent(db, ev);
+        db.AddRange(actor, person, member, new EventOrganizer(ev.Id, actor.Id));
         await db.SaveChangesAsync();
         var receipt = new ParticipationReceipt(ev.Id, person.Id, actor.Id, "before-origin", ParticipationStatus.NoResponse, ParticipationStatus.Confirmed, DateTime.UtcNow);
         await MigrationUpgradeTests.InsertLegacyReceipt(db, receipt);

@@ -2,7 +2,7 @@ using TRobot.Domain;
 
 namespace TRobot.Application.Events;
 
-public sealed record EventInput(string Name, DateTime LocalStart, string TimeZoneId);
+public sealed record EventInput(string Name, DateTime LocalStart, string TimeZoneId, string? Location = null, string? Program = null);
 public sealed record ParticipantSummary(Guid PersonId, string DisplayName, ParticipationStatus Status, bool HasSimulationSender, bool CanRename);
 public sealed record EventDetails(Event Event, IReadOnlyList<ParticipantSummary> Participants);
 public sealed class EventValidationException(string message) : Exception(message);
@@ -59,7 +59,7 @@ public sealed class EventManagementService(IEventManagementStore store, TimeProv
             var ev = await store.FindEventAsync(eventId, token) ?? throw new EventAccessException();
             if (expectedRevision < 0 || ev.Revision != expectedRevision)
                 throw new EventConflictException("L'evento è stato modificato. Ricarica la pagina prima di riprovare.");
-            var changed = ev.UpdateDetails(valid.Name, valid.StartsAtUtc, valid.TimeZoneId);
+            var changed = ev.UpdateDetails(valid.Name, valid.StartsAtUtc, valid.TimeZoneId, valid.Location, valid.Program);
             if (changed)
             {
                 store.AddAudit(new(eventId, actorId, EventAuditAction.EventUpdated, clock.GetUtcNow().UtcDateTime));
@@ -120,6 +120,10 @@ public sealed class EventManagementService(IEventManagementStore store, TimeProv
         // Avoid silent clamping at DateTime boundaries during time-zone conversion.
         if (TimeZoneInfo.ConvertTimeFromUtc(utc, zone) != input.LocalStart)
             throw new EventValidationException("Data fuori dall'intervallo supportato dal fuso orario.");
-        return new Event(input.Name.Trim(), utc, zone.Id);
+        var location = string.IsNullOrWhiteSpace(input.Location) ? null : input.Location.Trim();
+        var program = string.IsNullOrWhiteSpace(input.Program) ? null : input.Program.ReplaceLineEndings("\n").Trim();
+        if (location?.Length > 300) throw new EventValidationException("Il luogo non può superare 300 caratteri.");
+        if (program?.Length > 4000) throw new EventValidationException("Il programma non può superare 4000 caratteri.");
+        return new Event(input.Name.Trim(), utc, zone.Id, location, program);
     }
 }

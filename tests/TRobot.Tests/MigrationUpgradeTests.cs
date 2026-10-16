@@ -92,7 +92,7 @@ public sealed class MigrationUpgradeTests
         Assert.Null(participant.UpdatedAtUtc);
         Assert.Empty(await db.ParticipationReceipts.ToListAsync());
     }
-    private static Task<int> InsertLegacyEvent(TRobotDbContext db, Event ev) =>
+    internal static Task<int> InsertLegacyEvent(TRobotDbContext db, Event ev) =>
         db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Events (Id, Name, StartsAtUtc, TimeZoneId, CreatedAtUtc) VALUES ({ev.Id}, {ev.Name}, {ev.StartsAtUtc}, {ev.TimeZoneId}, {ev.CreatedAtUtc})");
 
     internal static Task<int> InsertLegacyPerson(TRobotDbContext db, Person person) =>

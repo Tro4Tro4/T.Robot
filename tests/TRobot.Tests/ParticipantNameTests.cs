@@ -307,7 +307,8 @@ public sealed class ParticipantNameTests
         var participant = new Person("Nome precedente test", "synthetic-before-name-edit");
         await MigrationUpgradeTests.InsertLegacyPerson(db, actor);
         await MigrationUpgradeTests.InsertLegacyPerson(db, participant);
-        db.AddRange(ev, new EventOrganizer(ev.Id, actor.Id), new EventParticipant(ev.Id, participant.Id));
+        await MigrationUpgradeTests.InsertLegacyEvent(db, ev);
+        db.AddRange(new EventOrganizer(ev.Id, actor.Id), new EventParticipant(ev.Id, participant.Id));
         await db.SaveChangesAsync();
         var operation = Guid.NewGuid();
         var now = DateTime.UtcNow;

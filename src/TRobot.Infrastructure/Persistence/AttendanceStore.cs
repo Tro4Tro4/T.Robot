@@ -40,7 +40,7 @@ public sealed class AttendanceStore(TRobotDbContext db) : IAttendanceStore, IDem
 
     public async Task<AttendanceDashboard> GetDashboardAsync(Guid eventId, CancellationToken ct)
     {
-        var name = await db.Events.Where(x => x.Id == eventId).Select(x => x.Name).SingleAsync(ct);
+        var ev = await db.Events.AsNoTracking().Where(x => x.Id == eventId).Select(x => new { x.Name, x.Location, x.Program }).SingleAsync(ct);
         var counts = await db.EventParticipants.Where(x => x.EventId == eventId)
             .GroupBy(x => x.Status).Select(g => new { Status = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Status, x => x.Count, ct);
@@ -49,9 +49,9 @@ public sealed class AttendanceStore(TRobotDbContext db) : IAttendanceStore, IDem
                              where participant.EventId == eventId && person.WhatsAppSenderId != null
                              orderby person.DisplayName
                              select new SenderOption(person.WhatsAppSenderId!, person.DisplayName)).ToListAsync(ct);
-        return new(eventId, name, counts.GetValueOrDefault(ParticipationStatus.Confirmed),
+        return new(eventId, ev.Name, counts.GetValueOrDefault(ParticipationStatus.Confirmed),
             counts.GetValueOrDefault(ParticipationStatus.Undecided), counts.GetValueOrDefault(ParticipationStatus.Absent),
-            counts.GetValueOrDefault(ParticipationStatus.NoResponse), senders);
+            counts.GetValueOrDefault(ParticipationStatus.NoResponse), senders, ev.Location, ev.Program);
     }
 
     public Task<EventParticipant?> FindParticipantAsync(Guid eventId, string senderId, CancellationToken ct) =>

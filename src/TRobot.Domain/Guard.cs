@@ -12,4 +12,7 @@ internal static class Guard
 
     public static Guid Id(Guid value, string name) => value != Guid.Empty
         ? value : throw new ArgumentException("L'identificativo è obbligatorio.", name);
+
+    public static string? OptionalText(string? value, int maxLength, string name) =>
+        string.IsNullOrWhiteSpace(value) ? null : Text(value, maxLength, name);
 }

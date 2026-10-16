@@ -6,3 +6,8 @@
 <label asp-for="TimeZoneId" class="form-label">Fuso orario</label>
 <input asp-for="TimeZoneId" class="form-control" required maxlength="100" aria-describedby="zone-help" />
 <p id="zone-help" class="form-text">Ad esempio Europe/Rome. La data viene salvata in UTC; gli orari ambigui o inesistenti al cambio dell'ora vengono rifiutati.</p>
+<label asp-for="Location" class="form-label">Luogo (facoltativo)</label>
+<input asp-for="Location" class="form-control mb-3" maxlength="300" />
+<label asp-for="Program" class="form-label">Programma (facoltativo)</label>
+<textarea asp-for="Program" class="form-control" rows="8" maxlength="4000" aria-describedby="program-help"></textarea>
+<p id="program-help" class="form-text">Fino a 4.000 caratteri. Indica le tappe della serata e gli eventuali orari nel fuso dell'evento.</p>

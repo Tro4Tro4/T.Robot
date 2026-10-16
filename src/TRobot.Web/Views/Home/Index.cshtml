@@ -25,6 +25,9 @@ else
         <button type="submit" class="btn btn-outline-secondary mt-2">Mostra presenze</button>
     </form>
     <h2 class="h4">@dashboard.EventName</h2>
+    <p><strong>Luogo:</strong> @(dashboard.Location ?? "Da definire")</p>
+    <h3 class="h5">Programma</h3>
+    <p style="white-space: pre-wrap">@(dashboard.Program ?? "Da definire")</p>
     <p><a asp-controller="History" asp-action="Index" asp-route-eventId="@dashboard.EventId">Storico evento</a></p>
     <p><a asp-controller="Events" asp-action="Details" asp-route-id="@dashboard.EventId">Gestisci evento e partecipanti</a></p>
     <dl class="row border rounded py-3 my-3" aria-label="Conteggi presenze">

@@ -127,9 +127,17 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Location")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Program")
+                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Revision")
@@ -152,7 +160,11 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Events", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Events_Location", "Location IS NULL OR length(trim(Location)) BETWEEN 1 AND 300");
+
                             t.HasCheckConstraint("CK_Events_Name", "length(trim(Name)) BETWEEN 1 AND 200");
+
+                            t.HasCheckConstraint("CK_Events_Program", "Program IS NULL OR length(trim(Program)) BETWEEN 1 AND 4000");
 
                             t.HasCheckConstraint("CK_Events_TimeZoneId", "length(trim(TimeZoneId)) BETWEEN 1 AND 100");
                         });
