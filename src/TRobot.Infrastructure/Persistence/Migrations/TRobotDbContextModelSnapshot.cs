@@ -253,6 +253,7 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("EventId", "PersonId");
@@ -284,6 +285,13 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrganizerPersonId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Simulation");
+
                     b.Property<Guid>("PersonId")
                         .HasColumnType("TEXT");
 
@@ -312,6 +320,8 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.ToTable("ParticipationReceipts", null, t =>
                         {
                             t.HasCheckConstraint("CK_ParticipationReceipts_MessageId", "length(trim(MessageId)) BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("CK_ParticipationReceipts_Origin", "Origin IN ('Simulation', 'Organizer')");
 
                             t.HasCheckConstraint("CK_ParticipationReceipts_PreviousStatus", "PreviousStatus IN ('NoResponse', 'Confirmed', 'Undecided', 'Absent')");
 

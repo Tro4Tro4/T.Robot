@@ -1,15 +1,15 @@
 # T.Robot
 
-Bot per organizzare Capodanno 2027 con sito riservato agli organizzatori. Milestone 7: correzione dei nomi dei partecipanti preservando identità, presenze e storico, oltre a eventi, registrazioni, account e accessi. Restano disponibili `!presenza si|forse|no` simulato, SQLite, storico e dashboard. WhatsApp, AI e pagamenti non sono implementati; il sito rimane locale.
+Bot per organizzare Capodanno 2027 con sito riservato agli organizzatori. Milestone 8/9: storico per evento e registrazione delle presenze dall'organizzatore, anche senza mittente simulato. Restano disponibili eventi, anagrafiche, account, accessi, `!presenza si|forse|no` simulato, SQLite e dashboard. WhatsApp, AI e pagamenti non sono implementati; il sito rimane locale.
 
 ## Struttura
 
 - `TRobot.sln`: Web MVC → Application + Infrastructure; Application → Domain; Infrastructure → Application + Domain. Domain senza dipendenze esterne.
 - `src/TRobot.Domain`: evento, persone, partecipazioni, organizzatori e ricevute dei comandi.
-- `src/TRobot.Application`: parsing, autorizzazione per evento, servizi per eventi/partecipanti, presenze, account e preparazione demo.
+- `src/TRobot.Application`: parsing, autorizzazione per evento, servizi per eventi/partecipanti, presenze, storico, account e preparazione demo.
 - `src/TRobot.Infrastructure`: EF Core SQLite, store Identity, mapping, factory per CLI e migrazioni.
 - `tests/TRobot.Tests`: xUnit, regole di dominio e integrazione SQLite con migrazioni reali.
-- [Contesto](docs/PROJECT_CONTEXT.md), [decisioni](docs/DECISIONS.md), [flusso presenze](docs/MILESTONE_2.md), [account organizzatori](docs/MILESTONE_4.md), [gestione accessi](docs/MILESTONE_5.md), [eventi/partecipanti](docs/MILESTONE_6.md) e [correzione nomi](docs/MILESTONE_7.md).
+- [Contesto](docs/PROJECT_CONTEXT.md), [decisioni](docs/DECISIONS.md), [flusso presenze](docs/MILESTONE_2.md), [account organizzatori](docs/MILESTONE_4.md), [gestione accessi](docs/MILESTONE_5.md), [eventi/partecipanti](docs/MILESTONE_6.md), [correzione nomi](docs/MILESTONE_7.md), [storico](docs/MILESTONE_8.md) e [presenze organizzatore](docs/MILESTONE_9.md).
 
 ## Preparazione e database
 
@@ -25,7 +25,7 @@ dotnet ef database update --project src/TRobot.Infrastructure
 dotnet test TRobot.sln --no-build --no-restore
 ```
 
-Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db`, applicando migrazione iniziale, `AttendanceSimulation`, `OrganizerIdentity`, `OrganizerAccessLifecycle`, `EventManagement` e `ParticipantNames`. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Non usare `EnsureCreated` in alternativa alle migrazioni.
+Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db`, applicando migrazione iniziale, `AttendanceSimulation`, `OrganizerIdentity`, `OrganizerAccessLifecycle`, `EventManagement`, `ParticipantNames` e `OrganizerAttendance`. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Non usare `EnsureCreated` in alternativa alle migrazioni.
 
 La connection string Web è `ConnectionStrings:TRobot` in `appsettings.Development.json`; i percorsi relativi sono risolti rispetto alla cartella Web. La factory CLI usa il percorso predefinito; per un database diverso passare esplicitamente `--connection "Data Source=C:/percorso/trobot.db;Foreign Keys=True"` a `database update` e configurare la Web con lo stesso percorso. Non inserire credenziali nel repository.
 
@@ -106,6 +106,16 @@ Per una persona già condivisa tra più eventi, la correzione è consentita solo
 
 `ParticipantNames` aggiunge revisione delle persone e dati tecnici per riconoscere i moduli di registrazione precedenti alla rinomina. Non cambia nomi, account o partecipazioni esistenti e non richiede di ripetere la preparazione demo.
 
+## Storico e registrazione delle presenze
+
+Dalla dashboard o dalla scheda evento aprire **Storico evento**: presenze, modifiche di evento/partecipanti e assegnazioni/revoche degli organizzatori, filtrabili per categoria e paginati a 25 righe. Gli orari usano il fuso evento con offset esplicito; i nomi sono quelli attuali. Sono disponibili solo le operazioni registrate dalle milestone che hanno introdotto i rispettivi audit. Sono esclusi dati tecnici dei messaggi e audit globali degli account. Anche l'amministratore globale deve essere assegnato all'evento.
+
+Nella tabella partecipanti scegliere **Registra presenza**, selezionare Confermato/Indeciso/Assente e spuntare la conferma. Il modulo funziona anche per chi non compare nel simulatore e attribuisce la registrazione all'organizzatore autenticato. La presenza cambia solo nell'evento selezionato, anche quando la persona è condivisa. Non è disponibile il reset a Senza risposta.
+
+Se la presenza è cambiata dopo l'apertura del modulo, il salvataggio viene rifiutato: usare **Ricarica dati salvati**. Un reinvio della stessa operazione non duplica ricevute e non ripristina uno stato precedente. Un nuovo invio con stato invariato registra l'operazione senza modificare timestamp o conteggi. Lo storico distingue **Presenza simulata** e **Presenza registrata dall'organizzatore**.
+
+La Milestone 8 non richiede migrazioni; `OrganizerAttendance` della Milestone 9 aggiunge la provenienza delle ricevute e mantiene quelle precedenti come simulazioni. Non occorre ripetere il bootstrap o modificare le credenziali.
+
 ## Verifiche e prossimo passo
 
 I test verificano regole e vincoli della Milestone 1 più parsing, autorizzazione, storico, deduplica anche dopo cambio DbContext, rollback, concorrenza e aggiornamento del database precedente senza perdere partecipazioni. Sono coperte tutte le transizioni da ciascuno stato iniziale verso confermato, indeciso e assente, i reinvii di messaggi superati e gli ID riutilizzati con scelte diverse. I test HTTP usano cookie e anti-CSRF reali, SQLite in memoria e verificano login, simulazione, conteggi, esiti invariati, duplicati, accesso a eventi non assegnati, logout e limite tentativi.
@@ -128,4 +138,8 @@ Milestone 6, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **116
 
 Milestone 7, verificata il 16 ottobre 2026: build con 0 errori e 0 avvisi; **137 test passati**. Coperti correzione nomi, permessi e conferme su eventi condivisi, concorrenza effettiva fra DbContext, rollback di nome/revisione/audit/impronta e reinvii dopo più rinomine, anche da registrazioni precedenti. Migrazione `ParticipantNames` applicata, modello allineato e dati precedenti invariati; integrità e chiavi esterne OK. Copia in `.local/trobot-before-participant-names.db`. Smoke test reale su modulo e salvataggio invariato senza audit; dati demo e credenziali conservati, listener solo loopback e processo poi arrestato.
 
-Prossimo incremento proposto: consultazione dello storico delle operazioni e delle presenze per evento, con accesso riservato agli organizzatori assegnati. Famiglie/accompagnatori richiedono regole di rappresentanza e conteggio. Il gateway WhatsApp resta separato e richiede una richiesta esplicita.
+Milestone 8: build con 0 errori/avvisi e **146 test superati**. Verificati storico combinato, filtri, paginazione stabile su dati invariati, isolamento per evento, privacy, cambio dell'ora e revoca con cookie aperto. Modello EF invariato; smoke test locale riuscito.
+
+Milestone 9: build con 0 errori/avvisi e **173 test superati**. Verificate presenze organizzatore anche senza mittente, conferma/anti-CSRF, tutte le transizioni, reinvii superati, pagine obsolete, collisioni fra sorgenti e rollback dopo SQL. Migrazione `OrganizerAttendance` applicata, modello allineato, dati precedenti invariati e integrità/chiavi esterne OK. Copia preventiva `.local/trobot-before-organizer-attendance.db`. Smoke test reale con invio non confermato rifiutato, storico e conteggi precedenti conservati; listener solo loopback e processo arrestato.
+
+Prossimo incremento proposto: luogo e programma dell'evento, mantenendo le stesse regole di accesso e revisione. Famiglie/accompagnatori richiedono regole di rappresentanza e conteggio. Il gateway WhatsApp resta separato e richiede una richiesta esplicita.

@@ -1,0 +1,36 @@
+@model OrganizerAttendanceViewModel
+@using TRobot.Domain
+@{
+    ViewData["Title"] = "Registra presenza";
+    var current = Model.Participant.Status switch
+    {
+        ParticipationStatus.Confirmed => "Confermato",
+        ParticipationStatus.Undecided => "Indeciso",
+        ParticipationStatus.Absent => "Assente",
+        _ => "Senza risposta"
+    };
+}
+<h1>Registra presenza</h1>
+<p>Evento: @Model.Participant.EventName</p>
+<h2 class="h4">@Model.Participant.DisplayName</h2>
+<p>Stato attuale: <strong>@current</strong>. La registrazione sarà attribuita al tuo account nello storico dell'evento.</p>
+<form asp-action="Set" asp-route-eventId="@Model.Participant.EventId" method="post" class="col-lg-7">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <input asp-for="Input.PersonId" type="hidden" />
+    <input asp-for="Input.OperationId" type="hidden" />
+    <input asp-for="Input.ExpectedVersion" type="hidden" />
+    <label asp-for="Input.Status" class="form-label">Nuovo stato</label>
+    <select asp-for="Input.Status" class="form-select mb-3" required>
+        <option value="">Scegli uno stato</option>
+        <option value="Confirmed">Confermato</option>
+        <option value="Undecided">Indeciso</option>
+        <option value="Absent">Assente</option>
+    </select>
+    <div class="form-check mb-3">
+        <input asp-for="Input.Confirmed" class="form-check-input" />
+        <label asp-for="Input.Confirmed" class="form-check-label">Confermo di registrare la presenza per questa persona</label>
+    </div>
+    <button type="submit" class="btn btn-primary">Registra presenza</button>
+    <a asp-action="Edit" asp-route-eventId="@Model.Participant.EventId" asp-route-personId="@Model.Participant.PersonId" class="btn btn-link">Ricarica dati salvati</a>
+    <a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Participant.EventId" class="btn btn-link">Torna all'evento</a>
+</form>

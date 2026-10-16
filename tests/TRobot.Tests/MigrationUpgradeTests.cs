@@ -27,8 +27,7 @@ public sealed class MigrationUpgradeTests
         var userId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO AspNetUsers (Id, PersonId, IsSystemAdministrator, UserName, NormalizedUserName, PasswordHash, SecurityStamp, ConcurrencyStamp, EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount) VALUES ({userId}, {person.Id}, 1, 'upgrade-admin', 'UPGRADE-ADMIN', 'synthetic-hash-to-preserve', 'synthetic-stamp', 'synthetic-concurrency', 0, 0, 0, 1, 0)");
         await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO AccountAudits (Id, PersonId, ActorId, Action, OccurredAtUtc) VALUES ({Guid.NewGuid()}, {person.Id}, NULL, 'AdministratorInitialized', {now})");
-        db.Add(new ParticipationReceipt(ev.Id, person.Id, person.Id, "before-lifecycle", ParticipationStatus.NoResponse, ParticipationStatus.NoResponse, now));
-        await db.SaveChangesAsync();
+        await InsertLegacyReceipt(db, new ParticipationReceipt(ev.Id, person.Id, person.Id, "before-lifecycle", ParticipationStatus.NoResponse, ParticipationStatus.NoResponse, now));
         await db.Database.MigrateAsync();
         db.ChangeTracker.Clear();
         var user = await db.Users.SingleAsync();
@@ -61,8 +60,7 @@ public sealed class MigrationUpgradeTests
         db.Add(participant);
         await db.SaveChangesAsync();
         await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO EventOrganizers (EventId, PersonId, Role, CreatedAtUtc) VALUES ({ev.Id}, {organizer.Id}, 'Administrator', {DateTime.UtcNow})");
-        db.Add(new ParticipationReceipt(ev.Id, sender.Id, organizer.Id, "existing-message", ParticipationStatus.NoResponse, ParticipationStatus.Undecided, DateTime.UtcNow));
-        await db.SaveChangesAsync();
+        await InsertLegacyReceipt(db, new ParticipationReceipt(ev.Id, sender.Id, organizer.Id, "existing-message", ParticipationStatus.NoResponse, ParticipationStatus.Undecided, DateTime.UtcNow));
         await db.Database.MigrateAsync();
         db.ChangeTracker.Clear();
         Assert.Equal(ParticipationStatus.Undecided, (await db.EventParticipants.SingleAsync()).Status);
@@ -99,4 +97,7 @@ public sealed class MigrationUpgradeTests
 
     internal static Task<int> InsertLegacyPerson(TRobotDbContext db, Person person) =>
         db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO People (Id, DisplayName, WhatsAppSenderId, CreatedAtUtc) VALUES ({person.Id}, {person.DisplayName}, {person.WhatsAppSenderId}, {person.CreatedAtUtc})");
+
+    internal static Task<int> InsertLegacyReceipt(TRobotDbContext db, ParticipationReceipt receipt) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO ParticipationReceipts (Id, EventId, PersonId, OrganizerPersonId, MessageId, PreviousStatus, Status, ProcessedAtUtc) VALUES ({receipt.Id}, {receipt.EventId}, {receipt.PersonId}, {receipt.OrganizerPersonId}, {receipt.MessageId}, {receipt.PreviousStatus.ToString()}, {receipt.Status.ToString()}, {receipt.ProcessedAtUtc})");
 }

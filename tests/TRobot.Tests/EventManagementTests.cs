@@ -285,9 +285,9 @@ public sealed class EventManagementTests
         var member = new EventParticipant(ev.Id, person.Id);
         member.ChangeStatus(ParticipationStatus.Confirmed, DateTime.UtcNow);
         await MigrationUpgradeTests.InsertLegacyPerson(db, person);
-        db.AddRange(member, new EventOrganizer(ev.Id, person.Id),
-            new ParticipationReceipt(ev.Id, person.Id, person.Id, "preserved-management", ParticipationStatus.NoResponse, ParticipationStatus.Confirmed, DateTime.UtcNow));
+        db.AddRange(member, new EventOrganizer(ev.Id, person.Id));
         await db.SaveChangesAsync();
+        await MigrationUpgradeTests.InsertLegacyReceipt(db, new ParticipationReceipt(ev.Id, person.Id, person.Id, "preserved-management", ParticipationStatus.NoResponse, ParticipationStatus.Confirmed, DateTime.UtcNow));
         await db.Database.MigrateAsync();
         await db.Database.MigrateAsync();
         db.ChangeTracker.Clear();

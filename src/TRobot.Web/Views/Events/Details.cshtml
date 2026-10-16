@@ -2,6 +2,7 @@
 @using TRobot.Domain
 @{ ViewData["Title"] = Model.Details.Event.Name; }
 <h1>@Model.Details.Event.Name</h1>
+<p><a asp-controller="History" asp-action="Index" asp-route-eventId="@Model.Details.Event.Id">Storico evento</a></p>
 @if (TempData["EventNotice"] is string notice)
 {
     <div class="alert alert-success" role="status">@notice</div>
@@ -35,6 +36,7 @@ else
                 _ => "Senza risposta"
             };
             <tr><td>@participant.DisplayName</td><td>@status</td><td>@(participant.HasSimulationSender ? "Sì" : "No")</td><td>
+                <a asp-controller="Attendance" asp-action="Edit" asp-route-eventId="@Model.Details.Event.Id" asp-route-personId="@participant.PersonId" aria-label="Registra presenza di @participant.DisplayName">Registra presenza</a>
                 @if (participant.CanRename)
                 {
                     <a asp-action="EditParticipant" asp-route-id="@Model.Details.Event.Id" asp-route-personId="@participant.PersonId" aria-label="Correggi nome di @participant.DisplayName">Correggi nome</a>

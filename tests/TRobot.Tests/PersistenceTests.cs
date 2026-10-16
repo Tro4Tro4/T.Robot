@@ -34,7 +34,7 @@ public sealed class PersistenceTests : IDisposable
         db.AddRange(new EventParticipant(ev.Id, person.Id), new EventOrganizer(ev.Id, person.Id, OrganizerRole.Administrator));
         db.SaveChanges();
         db.ChangeTracker.Clear();
-        Assert.Equal(6, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(7, db.Database.GetAppliedMigrations().Count());
         var loaded = db.Events.Single();
         Assert.Equal(ev.StartsAtUtc, loaded.StartsAtUtc);
         Assert.Equal(DateTimeKind.Utc, loaded.StartsAtUtc.Kind);

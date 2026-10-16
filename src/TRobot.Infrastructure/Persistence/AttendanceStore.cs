@@ -8,6 +8,24 @@ namespace TRobot.Infrastructure.Persistence;
 
 public sealed class AttendanceStore(TRobotDbContext db) : IAttendanceStore, IDemoSetupStore
 {
+    public Task<bool> IsEnabledOrganizerAsync(Guid eventId, Guid actorId, CancellationToken ct) =>
+        db.EventOrganizers.AnyAsync(x => x.EventId == eventId && x.PersonId == actorId && x.IsActive
+            && db.Users.Any(u => u.PersonId == actorId && u.IsEnabled), ct);
+
+    public async Task<EventParticipant?> FindParticipantByPersonAsync(Guid eventId, Guid personId, CancellationToken ct)
+    {
+        var participant = await db.EventParticipants.SingleOrDefaultAsync(x => x.EventId == eventId && x.PersonId == personId, ct);
+        if (participant is not null) await db.Entry(participant).ReloadAsync(ct);
+        return participant;
+    }
+
+    public Task<ParticipantAttendance?> ReadParticipantAsync(Guid eventId, Guid personId, CancellationToken ct) =>
+        (from member in db.EventParticipants.AsNoTracking()
+         join person in db.People on member.PersonId equals person.Id
+         join ev in db.Events on member.EventId equals ev.Id
+         where member.EventId == eventId && member.PersonId == personId
+         select new ParticipantAttendance(ev.Id, ev.Name, person.Id, person.DisplayName, member.Status, member.UpdatedAtUtc)).SingleOrDefaultAsync(ct);
+
     public Task<bool> IsOrganizerAsync(Guid eventId, Guid actorId, CancellationToken ct) =>
         db.EventOrganizers.AnyAsync(x => x.EventId == eventId && x.PersonId == actorId && x.IsActive
             && !db.Users.Any(u => u.PersonId == actorId && !u.IsEnabled), ct);

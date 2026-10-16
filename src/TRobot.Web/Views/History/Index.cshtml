@@ -1,0 +1,83 @@
+@model TRobot.Application.History.HistoryPage
+@using TRobot.Application.History
+@using TRobot.Domain
+@{
+    ViewData["Title"] = "Storico evento";
+    var zone = TimeZoneInfo.FindSystemTimeZoneById(Model.Event.TimeZoneId);
+    string Status(ParticipationStatus? status) => status switch
+    {
+        ParticipationStatus.Confirmed => "Confermato",
+        ParticipationStatus.Undecided => "Indeciso",
+        ParticipationStatus.Absent => "Assente",
+        _ => "Senza risposta"
+    };
+}
+<h1>Storico evento</h1>
+<h2 class="h4">@Model.Event.Name</h2>
+<p>Orari nel fuso @Model.Event.TimeZoneId. I nomi visualizzati sono quelli attuali. Le operazioni risalgono all'introduzione dei relativi audit.</p>
+<p><a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a></p>
+<form asp-action="Index" method="get" class="mb-4">
+    <input type="hidden" name="eventId" value="@Model.Event.Id" />
+    <label for="category" class="form-label">Operazioni</label>
+    <select id="category" name="category" class="form-select">
+        <option value="All" selected="@(Model.Category == HistoryCategory.All)">Tutte</option>
+        <option value="Attendance" selected="@(Model.Category == HistoryCategory.Attendance)">Presenze</option>
+        <option value="Event" selected="@(Model.Category == HistoryCategory.Event)">Evento e partecipanti</option>
+        <option value="Access" selected="@(Model.Category == HistoryCategory.Access)">Accessi all'evento</option>
+    </select>
+    <button class="btn btn-outline-secondary mt-2" type="submit">Filtra</button>
+</form>
+@if (Model.Entries.Count == 0)
+{
+    <p>Nessuna operazione in questa pagina con il filtro selezionato.</p>
+}
+else
+{
+    <div class="table-responsive">
+    <table class="table">
+        <thead><tr><th scope="col">Data e ora</th><th scope="col">Operazione</th><th scope="col">Organizzatore</th><th scope="col">Persona</th><th scope="col">Esito</th></tr></thead>
+        <tbody>
+        @foreach (var entry in Model.Entries)
+        {
+            var instant = new DateTimeOffset(entry.OccurredAtUtc);
+            var local = TimeZoneInfo.ConvertTime(instant, zone);
+            var action = entry.Category == HistoryCategory.Attendance
+                ? entry.Origin == AttendanceOrigin.Organizer ? "Presenza registrata dall'organizzatore" : "Presenza simulata"
+                : entry.EventAction switch
+            {
+                EventAuditAction.EventCreated => "Evento creato",
+                EventAuditAction.EventUpdated => "Dati evento modificati",
+                EventAuditAction.ParticipantAdded => "Partecipante aggiunto",
+                EventAuditAction.ParticipantRenamed => "Nome partecipante corretto",
+                _ => entry.AccessAction switch
+                {
+                    "OrganizerCreated" => "Organizzatore creato e assegnato",
+                    "EventGranted" => "Accesso evento assegnato",
+                    "EventRevoked" => "Accesso evento revocato",
+                    _ => "Operazione evento"
+                }
+            };
+            <tr>
+                <td><time datetime="@instant.ToString("O")">@local.ToString("dd/MM/yyyy HH:mm:ss zzz")</time></td>
+                <td>@action</td><td>@entry.ActorName</td><td>@(entry.PersonName ?? "—")</td>
+                <td>@if (entry.Category == HistoryCategory.Attendance)
+                {
+                    <span>@Status(entry.PreviousStatus) → @Status(entry.Status)@(entry.PreviousStatus == entry.Status ? " (stato invariato)" : "")</span>
+                }</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}
+<nav aria-label="Pagine dello storico" class="d-flex gap-3 align-items-center">
+    @if (Model.Page > 1)
+    {
+        <a asp-action="Index" asp-route-eventId="@Model.Event.Id" asp-route-category="@Model.Category" asp-route-page="@(Model.Page - 1)">Precedente</a>
+    }
+    <span>Pagina @Model.Page</span>
+    @if (Model.HasNext)
+    {
+        <a asp-action="Index" asp-route-eventId="@Model.Event.Id" asp-route-category="@Model.Category" asp-route-page="@(Model.Page + 1)">Successiva</a>
+    }
+</nav>

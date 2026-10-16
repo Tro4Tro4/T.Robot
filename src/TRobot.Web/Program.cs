@@ -7,6 +7,7 @@ using TRobot.Application.Attendance;
 using TRobot.Application.Demo;
 using TRobot.Application.Accounts;
 using TRobot.Application.Events;
+using TRobot.Application.History;
 using TRobot.Infrastructure.Identity;
 using TRobot.Infrastructure.Persistence;
 using TRobot.Web.Security;
@@ -28,12 +29,15 @@ builder.Services.AddScoped<AttendanceStore>();
 builder.Services.AddScoped<IAttendanceStore>(sp => sp.GetRequiredService<AttendanceStore>());
 builder.Services.AddScoped<IDemoSetupStore>(sp => sp.GetRequiredService<AttendanceStore>());
 builder.Services.AddScoped<AttendanceService>();
+builder.Services.AddScoped<OrganizerAttendanceService>();
 builder.Services.AddScoped<DemoSetupService>();
 builder.Services.AddScoped<IOrganizerAccountStore, OrganizerAccountStore>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<IEventManagementStore, EventManagementStore>();
 builder.Services.AddScoped<EventManagementService>();
 builder.Services.AddScoped<ParticipantNameService>();
+builder.Services.AddScoped<IEventHistoryStore, EventHistoryStore>();
+builder.Services.AddScoped<EventHistoryService>();
 builder.Services.AddIdentityCore<OrganizerUser>(options =>
 {
     options.Password.RequiredLength = 12;

@@ -19,9 +19,12 @@ public sealed class AttendanceConflictException(string message) : Exception(mess
 public interface IAttendanceStore
 {
     Task<bool> IsOrganizerAsync(Guid eventId, Guid actorId, CancellationToken ct);
+    Task<bool> IsEnabledOrganizerAsync(Guid eventId, Guid actorId, CancellationToken ct);
     Task<IReadOnlyList<EventOption>> GetEventsAsync(Guid actorId, CancellationToken ct);
     Task<AttendanceDashboard> GetDashboardAsync(Guid eventId, CancellationToken ct);
     Task<EventParticipant?> FindParticipantAsync(Guid eventId, string senderId, CancellationToken ct);
+    Task<EventParticipant?> FindParticipantByPersonAsync(Guid eventId, Guid personId, CancellationToken ct);
+    Task<ParticipantAttendance?> ReadParticipantAsync(Guid eventId, Guid personId, CancellationToken ct);
     Task<ParticipationReceipt?> FindReceiptAsync(Guid eventId, string messageId, CancellationToken ct);
     void AddReceipt(ParticipationReceipt receipt);
     Task SaveAsync(CancellationToken ct);

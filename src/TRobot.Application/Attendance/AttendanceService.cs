@@ -29,7 +29,7 @@ public sealed class AttendanceService(IAttendanceStore store, TimeProvider clock
             var previous = await store.FindReceiptAsync(message.EventId, messageId, token);
             if (previous is not null)
             {
-                if (previous.PersonId != participant.PersonId || previous.Status != status)
+                if (previous.PersonId != participant.PersonId || previous.Status != status || previous.Origin != AttendanceOrigin.Simulation)
                     throw new AttendanceConflictException("Questo identificativo messaggio è già stato usato con dati diversi.");
                 return new SimulationResult(true, false, participant.Status);
             }

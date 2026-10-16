@@ -314,8 +314,7 @@ public sealed class ParticipantNameTests
         await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO EventAudits (Id, EventId, ActorId, PersonId, Action, OccurredAtUtc) VALUES ({operation}, {ev.Id}, {actor.Id}, {participant.Id}, 'ParticipantAdded', {now})");
         var userId = Guid.NewGuid();
         await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO AspNetUsers (Id, PersonId, IsEnabled, IsSystemAdministrator, EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount) VALUES ({userId}, {actor.Id}, 1, 1, 0, 0, 0, 0, 0)");
-        db.Add(new ParticipationReceipt(ev.Id, participant.Id, actor.Id, "before-name-edit", ParticipationStatus.NoResponse, ParticipationStatus.NoResponse, now));
-        await db.SaveChangesAsync();
+        await MigrationUpgradeTests.InsertLegacyReceipt(db, new ParticipationReceipt(ev.Id, participant.Id, actor.Id, "before-name-edit", ParticipationStatus.NoResponse, ParticipationStatus.NoResponse, now));
         await db.Database.MigrateAsync();
         await db.Database.MigrateAsync();
         db.ChangeTracker.Clear();

@@ -85,3 +85,18 @@ Aggiornare questo file quando si prende una nuova decisione, riportando data e m
 - `Person.Revision` con concorrenza EF e revisione obbligatoria nel modulo. Richieste obsolete rifiutate, nomi invariati senza audit aggiuntivo. Audit `ParticipantRenamed` in ogni evento coinvolto, salvato atomicamente con la persona; non si duplicano nell'audit i nomi precedenti.
 - Per preservare i reinvii della registrazione dopo una rinomina, `EventAudit.RegistrationFingerprint` conserva SHA-256 del nome originale normalizzato con flag simulatore. È un identificatore tecnico di deduplica, non un meccanismo di anonimizzazione. Le ricevute precedenti con impronta assente vengono completate nella stessa transazione della prima correzione, prima di cambiare il nome. Impronta immutabile, nessuna copia in chiaro del nome originale nell'audit.
 - Migrazione incrementale `ParticipantNames`: revisione zero per persone esistenti, impronta facoltativa per audit precedenti, nuovi vincoli audit. Nessuna modifica a credenziali, assegnazioni o dati demo.
+
+## 2026-10-16 — Milestone 8
+
+- Storico in sola lettura per evento, accessibile solo con account abilitato e assegnazione attiva, anche per amministratori globali. Riusa ricevute e audit esistenti senza migrazioni o nuove copie dei dati.
+- Include presenze, modifiche a evento/partecipanti e creazione/assegnazione/revoca di organizzatori riferite esplicitamente all'evento. Sono esclusi audit globali, password e stato account, anche se una riga possiede incidentalmente EventId.
+- Filtri per categoria, 25 righe per pagina e ordinamento per istante UTC decrescente, categoria e ID per risolvere le parità. Orari visualizzati nel fuso dell'evento con offset esplicito; nomi attuali, senza ricostruzione di nomi precedenti non conservati.
+- Nessun identificativo mittente/messaggio, impronta di registrazione, hash, testo chat o esportazione nello storico Web. Lettura con no-store e paginazione SQL, senza caricare tutta la cronologia.
+
+## 2026-10-16 — Milestone 9
+
+- Gli organizzatori assegnati con account abilitato possono registrare Confermato/Indeciso/Assente per una singola persona dal sito, anche senza mittente simulato. Non si abilita un reset a Senza risposta. Ogni invio richiede conferma esplicita lato server ed è attribuito all'attore autenticato.
+- Le presenze appartengono al singolo evento: a differenza del nome globale, la modifica non cambia altri eventi della stessa persona e non richiede accesso a quegli eventi.
+- La versione nascosta del modulo deriva da stato e timestamp dell'ultimo cambio. Un nuovo invio da pagina obsoleta viene rifiutato; UpdatedAtUtc è anche token di concorrenza EF insieme allo stato. Il reinvio di un'operazione già registrata restituisce lo stato corrente senza ripristinare scelte precedenti.
+- La ricevuta aggiunge `Origin` (Simulation/Organizer), con default Simulation per le righe precedenti. Identificativo operazione GUID, controllo di persona/stato/attore/provenienza per le operazioni organizzatore; eventuali collisioni con messaggi simulati sono conflitti. Nuovi ID con stato invariato registrano un'operazione senza cambiare timestamp o conteggi, coerentemente con il simulatore.
+- Mutazione e ricevuta nella stessa transazione; controlli dei permessi ripetuti prima della scrittura. Nello storico le presenze manuali sono distinte dalle simulate. Migrazione `OrganizerAttendance` incrementale, nessun cambio delle credenziali o preparazione demo.

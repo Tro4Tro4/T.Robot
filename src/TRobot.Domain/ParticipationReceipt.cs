@@ -1,12 +1,15 @@
 namespace TRobot.Domain;
 
+public enum AttendanceOrigin { Simulation, Organizer }
+
 // Solo metadati del comando elaborato: non conserviamo il testo del messaggio.
 public sealed class ParticipationReceipt
 {
     private ParticipationReceipt() { }
 
     public ParticipationReceipt(Guid eventId, Guid personId, Guid organizerPersonId,
-        string messageId, ParticipationStatus previousStatus, ParticipationStatus status, DateTime processedAtUtc)
+        string messageId, ParticipationStatus previousStatus, ParticipationStatus status, DateTime processedAtUtc,
+        AttendanceOrigin origin = AttendanceOrigin.Simulation)
     {
         EventId = Guard.Id(eventId, nameof(eventId));
         PersonId = Guard.Id(personId, nameof(personId));
@@ -16,6 +19,8 @@ public sealed class ParticipationReceipt
             throw new ArgumentOutOfRangeException(nameof(status));
         if (processedAtUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("La data deve essere UTC.", nameof(processedAtUtc));
+        if (!Enum.IsDefined(origin)) throw new ArgumentOutOfRangeException(nameof(origin));
+        Origin = origin;
         PreviousStatus = previousStatus;
         Status = status;
         ProcessedAtUtc = processedAtUtc;
@@ -29,4 +34,5 @@ public sealed class ParticipationReceipt
     public ParticipationStatus PreviousStatus { get; private set; }
     public ParticipationStatus Status { get; private set; }
     public DateTime ProcessedAtUtc { get; private set; }
+    public AttendanceOrigin Origin { get; private set; }
 }

@@ -53,7 +53,7 @@ internal sealed class ParticipantConfiguration : IEntityTypeConfiguration<EventP
         builder.Property(x => x.Status).IsConcurrencyToken();
         builder.HasIndex(x => new { x.EventId, x.Status });
         builder.Property(x => x.UpdatedAtUtc).HasConversion(x => x,
-            x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
+            x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x).IsConcurrencyToken();
         builder.Property(x => x.CreatedAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));
     }
 }
