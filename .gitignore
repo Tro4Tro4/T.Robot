@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.local/
+.vs/
+*.user
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
