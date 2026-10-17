@@ -59,7 +59,7 @@ Dal numero privato o dell'amico associato nel gruppo:
 !todo
 ```
 
-`!aiuto` elenca soltanto i comandi realmente attivi. Menu e attività richiedono prima l'approvazione dei contenuti dal sito: **WhatsApp → Elenchi condivisibili nel gruppo → Anteprima e approvazione menu/attività**. Controllare il nome del gruppo e tutte le pagine, spuntare la conferma e premere **Approva condivisione elenco**. Approvare non invia messaggi.
+`!aiuto` è temporaneamente dedicato soltanto alla presenza, con istruzioni su arrivo, giorni inclusivi e conferma familiare. Menu e attività richiedono prima l'approvazione dei contenuti dal sito: **WhatsApp → Elenchi condivisibili nel gruppo → Anteprima e approvazione menu/attività**. Controllare il nome del gruppo e tutte le pagine, spuntare la conferma e premere **Approva condivisione elenco**. Approvare non invia messaggi.
 
 La risposta contiene al massimo cinque elementi per pagina, senza responsabili, note o dati delle anagrafiche. Per continuare usare `!menu 2` oppure `!todo 2`. Prima dell'approvazione, o dopo una modifica ai contenuti o al collegamento, il comando restituisce soltanto un avviso generico: occorre una nuova anteprima e approvazione. I titoli sono testo libero: verificare che non contengano dati personali prima di approvarli.
 

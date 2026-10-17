@@ -7,16 +7,21 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
-    public const string RealHelp = "🤖 *T.Robot · Comandi del gruppo*\n\n"
-        + "👋 *Presenza*\n!presenza si\n!presenza forse\n!presenza no\n\n"
-        + "Con sì raccogliamo arrivo e giorni (inclusivi), poi chiediamo conferma.\n"
-        + "Durante il dialogo: gg/mm o gg/mm/aaaa, numero da 1 a 31, sì/no.\n!annulla interrompe i dettagli senza revocare la presenza.\n\n"
-        + "🍽️ *Menu e attività*\n!menu\n!todo\nPer altre pagine: !menu 2 oppure !todo 2.\n\n"
-        + "🙋 *Impegni*\n!porto <rif>\n!prendo <rif>\n!fatto <rif>\n"
-        + "Usa i riferimenti degli elenchi; completa solo attività assegnate a te.\n"
-        + "Ricevi una proposta: nessuna modifica prima della conferma.\n!conferma <codice>\n"
-        + "Conferma tu, entro cinque minuti, nello stesso gruppo.\n\n"
-        + "❓ *Rivedi questa guida*\n!aiuto\n\nVoi fate casino, io tengo la lista. 🎉";
+    public const string RealHelp = "🤖 *T.Robot · Ci sei a Capodanno?*\n\n"
+        + "🎉 *Ci sono!*\n!presenza si\n"
+        + "Ti faccio una domanda alla volta, tu rispondi qui nel gruppo:\n\n"
+        + "📅 *Quando arrivi?*\nScrivi la data, per esempio 30/12 oppure 30/12/2026.\n\n"
+        + "🧳 *Quanti giorni resti?*\nScrivi solo il numero, da 1 a 31. Contiamo anche il giorno di arrivo!\n"
+        + "Esempio: arrivo 30/12 e 4 giorni = fino al 02/01, per 3 notti.\n\n"
+        + "🏡 *Tutta la famiglia o missione in solitaria?*\n"
+        + "Se sei un adulto del nucleo, ti chiedo se confermare le stesse date per tutti:\n"
+        + "• sì = tutta la famiglia;\n• no = soltanto tu.\n"
+        + "Se compili per te, basta confermare il tuo riepilogo con sì. I dettagli si salvano alla conferma finale.\n\n"
+        + "🤔 *Devo ancora decidere*\n!presenza forse\n\n"
+        + "😢 *Non riesco a venire*\n!presenza no\n"
+        + "Forse e no aggiornano soltanto la tua presenza.\n\n"
+        + "✏️ Per correggere le date, riparti da !presenza si. Hai 15 minuti per completare le risposte.\n\n"
+        + "Tu prepara la valigia: al conto dei giorni ci penso io. 😎";
     private const string UnapprovedList = "⏳ *Elenco in attesa*\nGli organizzatori devono approvare i contenuti aggiornati dal sito. Riprova dopo l'approvazione.";
 
     public async Task<WhatsAppListPreview> PreviewListAsync(Guid actorId, Guid eventId, WhatsAppListKind kind, CancellationToken ct = default)

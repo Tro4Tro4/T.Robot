@@ -97,12 +97,16 @@ public sealed class OperationalListTextTests
     }
 
     [Fact]
-    public void RealHelpListsOnlyActiveCommandsOnCopyableLines()
+    public void RealHelpFocusesOnPresenceAndExplainsDatesDaysAndFamily()
     {
         var lines = WhatsAppService.RealHelp.Split('\n');
-        foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no", "!menu", "!todo", "!porto <rif>", "!prendo <rif>", "!fatto <rif>", "!conferma <codice>", "!aiuto" })
+        foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no" })
             Assert.Contains(command, lines);
-        Assert.DoesNotContain("!vota", WhatsAppService.RealHelp); Assert.DoesNotContain("!quiz", WhatsAppService.RealHelp);
-        Assert.Contains("cinque minuti", WhatsAppService.RealHelp);
+        var commands = System.Text.RegularExpressions.Regex.Matches(WhatsAppService.RealHelp, @"![\p{L}]+")
+            .Select(x => x.Value).Distinct().ToArray();
+        Assert.Equal(new[] { "!presenza" }, commands);
+        Assert.Contains("30/12", WhatsAppService.RealHelp); Assert.Contains("02/01", WhatsAppService.RealHelp);
+        Assert.Contains("3 notti", WhatsAppService.RealHelp); Assert.Contains("soltanto tu", WhatsAppService.RealHelp);
+        Assert.InRange(WhatsAppService.RealHelp.Length, 1, 2000);
     }
 }
