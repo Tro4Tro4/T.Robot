@@ -30,6 +30,11 @@ public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> Send
 public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null);
 public sealed record WhatsAppPage(Event Event, WhatsAppConnection? Connection, IReadOnlyList<LocalPerson> Participants,
     IReadOnlyList<WhatsAppIdentityAlias> Aliases, IReadOnlyList<WhatsAppLiveMessage> Messages, bool CanManageDevice, bool GatewayEnabled);
+public sealed record WhatsAppMessagePreview(string EventName, WhatsAppLiveMessage Message, string? GroupName,
+    bool RecipientVerified, string RecipientStatus)
+{
+    public bool CanSend => RecipientVerified && Message.Status == WhatsAppLiveMessageStatus.Draft;
+}
 
 public interface IWhatsAppGateway
 {

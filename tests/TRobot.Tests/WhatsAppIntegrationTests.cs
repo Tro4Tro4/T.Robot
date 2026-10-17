@@ -244,6 +244,120 @@ public sealed class WhatsAppIntegrationTests
         Assert.Throws<LocalValidationException>(() => new WhatsAppGatewayOptions(true, "https://example.com:5240", new string('a', 64)).RequireEnabled());
     }
 
+    [Fact]
+    public async Task PreviewResolvesExactApprovedGroupAndEncodesNameForAssignedNonAdministrator()
+    {
+        await using var f = new LocalWebFactory(); var gateway = new FakeGateway
+        {
+            AvailableGroups = [new("second-group@g.us", "ALTRO GRUPPO NON AUTORIZZATO"), new(Group, "<script>Gruppo di prova</script>")]
+        };
+        using var app = f.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        { services.RemoveAll<WhatsAppGatewayOptions>(); services.AddSingleton(Options()); services.RemoveAll<IWhatsAppGateway>(); services.AddSingleton<IWhatsAppGateway>(gateway); }));
+        Guid id;
+        using (var setup = app.Services.CreateScope())
+        {
+            var service = Service(setup.ServiceProvider, gateway, new Clock());
+            var db = setup.ServiceProvider.GetRequiredService<TRobotDbContext>();
+            var other = new Person("Altro amministratore sintetico");
+            db.AddRange(other, new EventOrganizer(f.EventId, other.Id), new TRobot.Infrastructure.Identity.OrganizerUser
+            { Id = Guid.NewGuid(), PersonId = other.Id, UserName = "preview-activator", NormalizedUserName = "PREVIEW-ACTIVATOR", IsSystemAdministrator = true });
+            await db.SaveChangesAsync();
+            await service.SelectGroupAsync(other.Id, f.EventId, Group, 0, true);
+            var person = (await db.EventParticipants.SingleAsync()).PersonId;
+            await service.MapAsync(other.Id, f.EventId, Sender, person, 1, true);
+            (await db.Users.SingleAsync(x => x.PersonId == f.OrganizerPersonId)).IsSystemAdministrator = false;
+            await db.SaveChangesAsync();
+            id = await service.DraftAsync(f.OrganizerPersonId, f.EventId, Guid.NewGuid(), "Testo da verificare");
+        }
+        using var client = app.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var token = Token(await client.GetStringAsync("/Access/Login"));
+        await client.PostAsync("/Access/Login", Form(("UserName", LocalWebFactory.UserName), ("Password", LocalWebFactory.Password), ("__RequestVerificationToken", token)));
+        var html = await client.GetStringAsync($"/WhatsApp/Preview?eventId={f.EventId}&id={id}");
+        Assert.Contains("&lt;script&gt;Gruppo di prova&lt;/script&gt;", html); Assert.DoesNotContain("<script>Gruppo di prova</script>", html);
+        Assert.DoesNotContain("ALTRO GRUPPO NON AUTORIZZATO", html); Assert.Contains(Group, html);
+        Assert.Contains("action=\"/WhatsApp/Send\"", html); Assert.Contains("Destinatario verificato", html);
+        Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync("/WhatsApp/Groups?eventId=" + f.EventId)).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync("/WhatsApp/Status?eventId=" + f.EventId)).StatusCode);
+        using var check = app.Services.CreateScope(); Assert.Equal(0, await check.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<LocalAudit>().CountAsync(x => x.Action == "LiveSending"));
+        Assert.Equal(0, gateway.Sends);
+    }
+
+    [Theory]
+    [InlineData("offline")]
+    [InlineData("missing-name")]
+    [InlineData("duplicate-id")]
+    [InlineData("node-pin")]
+    [InlineData("different-group")]
+    [InlineData("same-group-revision")]
+    public async Task PreviewKeepsStoredRecipientAndDisablesSendWhenTargetCannotBeVerified(string kind)
+    {
+        await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
+        var gateway = new FakeGateway(); var service = Service(p, gateway, new Clock()); await Activate(p, f, service);
+        var id = await service.DraftAsync(f.OrganizerPersonId, f.EventId, Guid.NewGuid(), "Bozza conservata");
+        if (kind == "offline") gateway.FailHealth = true;
+        if (kind == "missing-name") gateway.AvailableGroups = [new("second-group@g.us", "Nome altro gruppo")];
+        if (kind == "duplicate-id") gateway.AvailableGroups = [new(Group, "Nome A"), new(Group, "Nome B")];
+        if (kind == "node-pin") gateway.HealthGroupOverride = "second-group@g.us";
+        if (kind == "different-group") await service.SelectGroupAsync(f.OrganizerPersonId, f.EventId, "second-group@g.us", 1, true);
+        if (kind == "same-group-revision") await service.SelectGroupAsync(f.OrganizerPersonId, f.EventId, Group, 1, true);
+        var preview = await service.PreviewAsync(f.OrganizerPersonId, f.EventId, id);
+        Assert.False(preview.CanSend); Assert.False(preview.RecipientVerified); Assert.Equal(Group, preview.Message.GroupId);
+        Assert.Equal("Bozza conservata", preview.Message.Body); Assert.NotEqual("Nome altro gruppo", preview.GroupName);
+        if (kind is "offline" or "missing-name" or "duplicate-id") Assert.Null(preview.GroupName);
+        if (kind is "different-group" or "same-group-revision") Assert.Equal("Gruppo sintetico", preview.GroupName);
+        if (kind == "offline") Assert.Contains("Gateway non raggiungibile", preview.RecipientStatus);
+        Assert.Equal(0, gateway.Sends);
+        var db = p.GetRequiredService<TRobotDbContext>(); Assert.Equal(WhatsAppLiveMessageStatus.Draft, (await db.Set<WhatsAppLiveMessage>().SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task HistoricalPreviewLoadsOlderMessagesAndChecksAccessBeforeAnyGatewayMetadata()
+    {
+        await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
+        var gateway = new FakeGateway(); var clock = new Clock(); var service = Service(p, gateway, clock); await Activate(p, f, service);
+        var oldest = await service.DraftAsync(f.OrganizerPersonId, f.EventId, Guid.NewGuid(), "Messaggio storico");
+        await service.SendAsync(f.OrganizerPersonId, f.EventId, oldest, 0, true);
+        for (var i = 0; i < 31; i++)
+        { clock.Utc = Now.AddMinutes(i + 1); await service.DraftAsync(f.OrganizerPersonId, f.EventId, Guid.NewGuid(), "Altra bozza " + i); }
+        Assert.DoesNotContain((await service.ReadAsync(f.OrganizerPersonId, f.EventId)).Messages, x => x.Id == oldest);
+        var preview = await service.PreviewAsync(f.OrganizerPersonId, f.EventId, oldest);
+        Assert.Equal("Messaggio storico", preview.Message.Body); Assert.Equal(WhatsAppLiveMessageStatus.Sent, preview.Message.Status); Assert.False(preview.CanSend);
+        var reads = gateway.HealthReads;
+        await Assert.ThrowsAsync<LocalAccessException>(() => service.PreviewAsync(Guid.NewGuid(), f.EventId, oldest));
+        await Assert.ThrowsAsync<LocalAccessException>(() => service.PreviewAsync(f.OrganizerPersonId, Guid.NewGuid(), oldest));
+        Assert.Equal(reads, gateway.HealthReads);
+        gateway.FailHealth = true;
+        Assert.Equal("Messaggio storico", (await service.PreviewAsync(f.OrganizerPersonId, f.EventId, oldest)).Message.Body);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HttpPreviewKeepsBodyAndBlocksSendFormWhenGatewayOfflineOrSameGroupStampIsStale(bool stale)
+    {
+        await using var f = new LocalWebFactory(); var gateway = new FakeGateway();
+        using var app = f.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        { services.RemoveAll<WhatsAppGatewayOptions>(); services.AddSingleton(Options()); services.RemoveAll<IWhatsAppGateway>(); services.AddSingleton<IWhatsAppGateway>(gateway); }));
+        Guid id;
+        using (var setup = app.Services.CreateScope())
+        {
+            var service = Service(setup.ServiceProvider, gateway, new Clock()); await Activate(setup.ServiceProvider, f, service);
+            id = await service.DraftAsync(f.OrganizerPersonId, f.EventId, Guid.NewGuid(), "Testo della bozza conservato");
+            if (stale) await service.SelectGroupAsync(f.OrganizerPersonId, f.EventId, Group, 1, true);
+            else gateway.FailHealth = true;
+        }
+        using var client = app.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var token = Token(await client.GetStringAsync("/Access/Login"));
+        await client.PostAsync("/Access/Login", Form(("UserName", LocalWebFactory.UserName), ("Password", LocalWebFactory.Password), ("__RequestVerificationToken", token)));
+        var response = await client.GetAsync($"/WhatsApp/Preview?eventId={f.EventId}&id={id}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode); var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Testo della bozza conservato", html); Assert.Contains(Group, html);
+        Assert.DoesNotContain("action=\"/WhatsApp/Send\"", html);
+        Assert.Contains(stale ? "Gruppo sintetico" : "Nome non disponibile", html);
+        Assert.Contains(stale ? "prepara una nuova bozza" : "Gateway non raggiungibile", html);
+        Assert.Equal(0, gateway.Sends);
+    }
+
     private static string Token(string html) => WebUtility.HtmlDecode(Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
     private static FormUrlEncodedContent Form(params (string Key, string Value)[] fields) => new(fields.Select(x => new KeyValuePair<string, string>(x.Key, x.Value)));
     private sealed class FailAfterSave : SaveChangesInterceptor
@@ -256,6 +370,10 @@ public sealed class WhatsAppIntegrationTests
     {
         public bool FailSend { get; set; }
         public bool FailGroup { get; set; }
+        public bool FailHealth { get; set; }
+        public string? HealthGroupOverride { get; set; }
+        public int HealthReads { get; private set; }
+        public IReadOnlyList<GatewayGroup> AvailableGroups { get; set; } = [new(Group, "Gruppo sintetico"), new("second-group@g.us", "Secondo gruppo")];
         public int Sends { get; private set; }
         public int Connects { get; private set; }
         public int GroupSets { get; private set; }
@@ -263,10 +381,11 @@ public sealed class WhatsAppIntegrationTests
         public TaskCompletionSource? SendStarted { get; set; }
         public TaskCompletionSource? ReleaseSend { get; set; }
         public string? ActiveGroup { get; private set; }
-        public Task<GatewayHealth> HealthAsync(CancellationToken ct) => Task.FromResult(new GatewayHealth("connected", null, ActiveGroup));
+        public Task<GatewayHealth> HealthAsync(CancellationToken ct)
+        { HealthReads++; if (FailHealth) throw new HttpRequestException("Gateway non disponibile"); return Task.FromResult(new GatewayHealth("connected", null, HealthGroupOverride ?? ActiveGroup)); }
         public Task<GatewayHealth> ConnectAsync(CancellationToken ct) { Connects++; return HealthAsync(ct); }
         public Task<GatewayHealth> DisconnectAsync(CancellationToken ct) { Disconnects++; ActiveGroup = null; return Task.FromResult(new GatewayHealth("disconnected")); }
-        public Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<GatewayGroup>>([new(Group, "Gruppo sintetico"), new("second-group@g.us", "Secondo gruppo")]);
+        public Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) => Task.FromResult(AvailableGroups);
         public Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) => Task.FromResult<IReadOnlyList<GatewayMember>>([new(Sender, [Alternate], "Membro sintetico")]);
         public Task SetGroupAsync(string? groupId, CancellationToken ct) { GroupSets++; if (FailGroup) throw new InvalidOperationException("Errore tecnico sintetico"); ActiveGroup = groupId; return Task.CompletedTask; }
         public async Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct)

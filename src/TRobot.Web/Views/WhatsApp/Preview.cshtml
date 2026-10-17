@@ -1,16 +1,24 @@
-@model WhatsAppPreview
+@model TRobot.Application.WhatsApp.WhatsAppMessagePreview
 @{ ViewData["Title"] = "Anteprima invio WhatsApp reale"; var message = Model.Message; }
 <h1>Anteprima invio WhatsApp reale</h1>
 <partial name="_EventNavigation" model="message.EventId" />
-<p>@Model.EventName · Gruppo approvato: <strong>@message.GroupId</strong> · Stato: <strong id="live-message-status">@message.Status</strong>.</p>
+<p>@Model.EventName · Stato messaggio: <strong id="live-message-status">@message.Status</strong>.</p>
+<h2>Destinatario del messaggio</h2>
+<p>Nome attuale del gruppo: <strong id="live-recipient-name">@(Model.GroupName ?? "Nome non disponibile")</strong>.<br />
+    <span class="text-muted">ID del gruppo approvato: <code id="live-recipient-id">@message.GroupId</code></span></p>
+<p id="live-recipient-verification" class="@(Model.RecipientVerified ? "alert alert-info" : "alert alert-warning")" role="status">@Model.RecipientStatus</p>
 <pre style="white-space: pre-wrap">@message.Body</pre>
-@if (message.Status == TRobot.Domain.WhatsAppLiveMessageStatus.Draft)
+@if (Model.CanSend)
 {
     <form asp-action="Send" method="post">
         <input type="hidden" name="EventId" value="@message.EventId" /><input type="hidden" name="Id" value="@message.Id" /><input type="hidden" name="Revision" value="@message.Revision" />
         <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo questo testo e il gruppo indicato. Il messaggio verrà inviato realmente; non contiene saldi o dati personali individuali.</label>
         <button class="btn btn-primary" type="submit">Invia realmente al gruppo</button>
     </form>
+}
+else if (message.Status == TRobot.Domain.WhatsAppLiveMessageStatus.Draft)
+{
+    <p>L'invio è disabilitato finché il destinatario non è verificato. Il testo della bozza è conservato.</p>
 }
 else if (message.Status is TRobot.Domain.WhatsAppLiveMessageStatus.Sending or TRobot.Domain.WhatsAppLiveMessageStatus.Uncertain)
 {

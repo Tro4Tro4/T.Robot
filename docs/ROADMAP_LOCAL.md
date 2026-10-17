@@ -4,7 +4,7 @@
 
 L'utente ha richiesto tutte le milestone residue e ha scelto esplicitamente il prototipo locale: moduli previsti, simulazioni e test. Servizi reali, gateway WhatsApp, provider AI, trasferimenti di denaro e deploy restano esclusi. La precedente limitazione al solo incremento corrente è superata per i moduli locali. Il sito resta esclusivo degli organizzatori.
 
-Richiesta successiva del 17 ottobre: integrazione WhatsApp sperimentale autorizzata su numero dedicato e gruppo di prova. La milestone 23 supera la sola esclusione del gateway locale, mantenendo separati trasporto reale e simulazione. Nessun deploy o servizio Windows; collegamento tramite telefono ancora da completare dall'utente. Vedere [istruzioni](WHATSAPP_LOCAL.md).
+Richiesta successiva del 17 ottobre: integrazione WhatsApp sperimentale autorizzata su numero dedicato e gruppo di prova. La milestone 23 supera la sola esclusione del gateway locale, mantenendo separati trasporto reale e simulazione. Nessun deploy o servizio Windows; pairing e comandi di presenza reali verificati dall'utente; prova invio operativo dal sito in corso. Vedere [istruzioni](WHATSAPP_LOCAL.md).
 
 Il lavoro viene suddiviso in task sviluppati da agenti dedicati e verificati da agenti diversi, come richiesto dall'utente. Nessun modulo è completato prima di review indipendente, integrazione, build e test. Le migrazioni sono integrate in sequenza dal coordinatore per evitare snapshot concorrenti.
 
@@ -24,7 +24,7 @@ Il lavoro viene suddiviso in task sviluppati da agenti dedicati e verificati da 
 | 20 | Menu/attività paginati, riferimenti brevi, `!porto`, `!prendo`, `!fatto` con ricevute e conferme | Review indipendente OK, build 0 errori/avvisi, 332 test superati |
 | 21 | Sondaggi e quiz pubblicati nel simulatore, riferimenti brevi, voto e risposta unica volontaria | Review indipendente OK, build 0 errori/avvisi, 365 test superati |
 | 22 | Scheduler automatico locale opt-in per evento, attivatore autorizzato e worker ogni 30 secondi | Completata: review indipendente OK, build 0 errori/avvisi, 44 test mirati e 380 test completi, collaudo browser dei comandi e timer reale su copia riusciti; dati originali conservati |
-| 23 | Gateway locale Baileys, QR riservato, gruppo unico, mapping PN/LID, presenza reale e nuovi avvisi con anteprima | Implementazione e review indipendente OK; build 0 errori/avvisi, 401 test .NET e 14 Node superati, otto verifiche browser su copia e gateway reale avviato disconnesso; pairing e prova con telefono da completare |
+| 23 | Gateway locale Baileys, QR riservato, gruppo unico, mapping PN/LID, presenza reale e nuovi avvisi con anteprima | Implementazione e review indipendente OK; build 0 errori/avvisi, 411 test .NET e 17 Node superati; presenze reali e isolamento mittenti verificati, anteprima con nome esatto gruppo e blocco bozze obsolete; prova invio operativo dal sito in corso |
 
 ## Disegno comune
 

@@ -1,6 +1,6 @@
 # T.Robot
 
-Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizzatori: eventi, presenze, nuclei, attività, menu, messaggi simulati, sondaggi, contabilità locale e quiz volontari. La milestone 23 aggiunge il gateway WhatsApp sperimentale locale: collegamento QR, gruppo di prova, presenze e invii operativi con anteprima; **401 test .NET e 14 test Node superati**. UI MVC/Bootstrap rifinita con Impeccable. AI esterna, trasferimenti reali e deploy restano esclusi. Per collegare il telefono vedere [WhatsApp locale](docs/WHATSAPP_LOCAL.md); pairing e prova sull'account richiedono ancora il telefono dell'utente.
+Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizzatori: eventi, presenze, nuclei, attività, menu, messaggi simulati, sondaggi, contabilità locale e quiz volontari. La milestone 23 aggiunge il gateway WhatsApp sperimentale locale: collegamento QR, gruppo di prova, presenze e invii operativi con anteprima; **411 test .NET e 17 test Node superati**. UI MVC/Bootstrap rifinita con Impeccable. AI esterna, trasferimenti reali e deploy restano esclusi. Per collegare il telefono vedere [WhatsApp locale](docs/WHATSAPP_LOCAL.md); pairing e presenze reali verificati dall'utente; prova invio operativo dal sito in corso.
 
 ## Struttura
 

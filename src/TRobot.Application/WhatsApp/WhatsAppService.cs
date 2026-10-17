@@ -9,6 +9,55 @@ public sealed class WhatsAppService(ILocalStore store, IWhatsAppStore identities
 {
     private static readonly SemaphoreSlim DeviceGate = new(1, 1);
 
+    public async Task<WhatsAppMessagePreview> PreviewAsync(Guid actorId, Guid eventId, Guid messageId, CancellationToken ct = default)
+    {
+        await operations.AuthorizeAsync(actorId, eventId, ct);
+        var ev = await store.EventAsync(eventId, ct) ?? throw new LocalAccessException();
+        var message = await store.FindAsync<WhatsAppLiveMessage>(eventId, messageId, ct) ?? throw new LocalValidationException("Messaggio non trovato in questo evento.");
+        string? groupName = null;
+        var pinMatches = false;
+        var metadataStatus = "Gateway disattivato: nome del gruppo non verificabile.";
+        if (options.Enabled)
+        {
+            try
+            {
+                options.RequireEnabled();
+                var health = await gateway.HealthAsync(ct);
+                metadataStatus = "Dispositivo non collegato: nome del gruppo non verificabile. Ricollega il dispositivo e verifica il gruppo.";
+                if (health.Status == "connected")
+                {
+                    // Resolve only the immutable recipient approved in this message. Other
+                    // group names, QR data and membership metadata never enter this DTO.
+                    var matches = (await gateway.GroupsAsync(ct)).Where(x => x.Id == message.GroupId).Take(2).ToArray();
+                    if (matches.Length == 1 && !string.IsNullOrWhiteSpace(matches[0].Name) && matches[0].Name.Length <= 200)
+                        groupName = matches[0].Name.Trim();
+                    pinMatches = health.ActiveGroupId == message.GroupId;
+                    metadataStatus = groupName is null ? "Nome del gruppo non disponibile per l'ID approvato. Invio disabilitato."
+                        : !pinMatches ? "Il gruppo attivo sul dispositivo non corrisponde al destinatario approvato. Invio disabilitato."
+                        : "Destinatario verificato: nome e ID corrispondono al gruppo attivo.";
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception)
+            {
+                // A failed lookup must preserve historical visibility without inventing a
+                // recipient or propagating gateway diagnostics/private metadata to the UI.
+                groupName = null; pinMatches = false;
+                metadataStatus = "Gateway non raggiungibile: nome del gruppo non verificabile. Invio disabilitato; riprova quando il gateway è disponibile.";
+            }
+        }
+        await operations.AuthorizeAsync(actorId, eventId, ct);
+        // Re-read a detached snapshot after the external lookup; a concurrent group change
+        // must not be hidden by EF's tracked instance from an earlier request operation.
+        var connection = (await store.ListAsync<WhatsAppConnection>(eventId, ct)).SingleOrDefault(x => x.Id == eventId);
+        var bindingMatches = connection?.Enabled == true && connection.GroupId == message.GroupId
+            && connection.Revision == message.ConnectionRevision && connection.ActorId is { } activator
+            && await store.CanManageAsync(activator, eventId, ct) && await identities.IsAdministratorAsync(activator, ct);
+        if (!bindingMatches)
+            metadataStatus = "Il collegamento è cambiato o non è più autorizzato rispetto alla bozza. Per un nuovo invio prepara una nuova bozza dopo aver verificato il gruppo attivo.";
+        return new(ev.Name, message, groupName, bindingMatches && pinMatches && groupName is not null, metadataStatus);
+    }
+
     public async Task<WhatsAppPage> ReadAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
     {
         await operations.AuthorizeAsync(actorId, eventId, ct);

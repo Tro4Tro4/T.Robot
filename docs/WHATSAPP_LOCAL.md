@@ -33,7 +33,7 @@ Il gateway ascolta su `127.0.0.1:5240`; il sito su `http://localhost:5238`. L'av
 3. Selezionare il gruppo di prova e premere **Attiva questo gruppo**, spuntando la conferma. Per un gateway è ammesso un solo gruppo/evento attivo.
 4. Associare un membro a un partecipante già registrato nell'evento. Non vengono importate persone e non vengono alterati i mittenti sintetici del simulatore.
 5. Dal telefono del membro associato inviare nel gruppo `!presenza si`, poi eventualmente `!presenza forse` e `!presenza no`. Il numero collegato al gateway non può collaudare se stesso: i messaggi propri vengono ignorati. La presenza deve aggiornarsi sul sito e il messaggio ricevere una reazione generica.
-6. Per provare un invio, preparare un nuovo avviso operativo dalla pagina WhatsApp, controllare testo e gruppo nell'anteprima e confermare. La preparazione della bozza non invia nulla. Verificare il messaggio nel gruppo prima di ripetere qualunque operazione con esito incerto.
+6. Per provare un invio, preparare un nuovo avviso operativo dalla pagina WhatsApp e controllare nell'anteprima **Nome attuale del gruppo**, ID del gruppo e testo. Il nome viene risolto per il destinatario esatto della bozza; se il collegamento è cambiato o il destinatario non è verificabile, la conferma non è disponibile e la pagina ne spiega il motivo. La preparazione della bozza non invia nulla. Confermare solo dopo il controllo e verificare il messaggio nel gruppo prima di ripetere qualunque operazione con esito incerto.
 
 DM, altri gruppi, messaggi vecchi, allegati, identità non associate e comandi diversi da `!presenza si|forse|no` sono ignorati. I test automatici usano trasporti finti e non attestano il funzionamento del proprio account: la prova con telefono resta necessaria.
 

@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using TRobot.Domain;
 
 namespace TRobot.Web.Models;
 
@@ -31,4 +30,3 @@ public sealed class WhatsAppSendInput : WhatsAppActionInput
     [BindRequired] public Guid Id { get; set; }
     [BindRequired] public int Revision { get; set; }
 }
-public sealed record WhatsAppPreview(string EventName, WhatsAppLiveMessage Message);
