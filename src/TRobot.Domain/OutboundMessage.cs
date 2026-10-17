@@ -77,8 +77,20 @@ public sealed class BotSettings : ILocalRecord
     public int QuietEndHour { get; private set; } = 9;
     public int MaxSpontaneousPerDay { get; private set; } = 3;
     public int Sarcasm { get; private set; } = 5;
+    public bool AutomaticEnabled { get; private set; }
+    public Guid? AutomaticActorId { get; private set; }
     public DateTime? LastSummaryAtUtc { get; private set; }
     public string? LastSummaryFingerprint { get; private set; }
+    public bool SetAutomatic(bool enabled, Guid actorId, bool confirmed)
+    {
+        if (!confirmed) throw new ArgumentException("Conferma la modifica dello scheduler automatico locale.");
+        Guard.Id(actorId, nameof(actorId));
+        if (AutomaticEnabled == enabled && (!enabled || AutomaticActorId == actorId)) return false;
+        AutomaticEnabled = enabled;
+        if (enabled) AutomaticActorId = actorId;
+        Revision = checked(Revision + 1);
+        return true;
+    }
     public bool Update(bool paused, int quietStart, int quietEnd, int cap, int sarcasm)
     {
         if (quietStart is < 0 or > 23 || quietEnd is < 0 or > 23 || cap is < 0 or > 3 || sarcasm is < 0 or > 10)

@@ -26,8 +26,14 @@ internal sealed class BotSettingsConfiguration : IEntityTypeConfiguration<BotSet
     public void Configure(EntityTypeBuilder<BotSettings> b)
     {
         LocalMapping.Record(b, "BotSettings"); b.HasIndex(x => x.EventId).IsUnique();
-        b.ToTable("BotSettings", t => t.HasCheckConstraint("CK_BotSettings_Ranges",
-            "QuietStartHour BETWEEN 0 AND 23 AND QuietEndHour BETWEEN 0 AND 23 AND MaxSpontaneousPerDay BETWEEN 0 AND 3 AND Sarcasm BETWEEN 0 AND 10"));
+        b.ToTable("BotSettings", t =>
+        {
+            t.HasCheckConstraint("CK_BotSettings_Ranges",
+                "QuietStartHour BETWEEN 0 AND 23 AND QuietEndHour BETWEEN 0 AND 23 AND MaxSpontaneousPerDay BETWEEN 0 AND 3 AND Sarcasm BETWEEN 0 AND 10");
+            t.HasCheckConstraint("CK_BotSettings_AutomaticActor", "AutomaticEnabled = 0 OR AutomaticActorId IS NOT NULL");
+        });
+        b.Property(x => x.AutomaticEnabled).HasDefaultValue(false);
+        b.HasOne<Person>().WithMany().HasForeignKey(x => x.AutomaticActorId).OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.LastSummaryFingerprint).HasMaxLength(200);
         b.Property(x => x.LastSummaryAtUtc).HasConversion(x => x, x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
     }

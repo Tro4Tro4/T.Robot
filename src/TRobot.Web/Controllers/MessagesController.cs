@@ -4,10 +4,23 @@ using TRobot.Web.Models;
 
 namespace TRobot.Web.Controllers;
 
-public sealed class MessagesController(MessageService service) : LocalControllerBase
+public sealed class MessagesController(MessageService service, IConfiguration configuration) : LocalControllerBase
 {
     [HttpGet] public Task<IActionResult> Index(Guid eventId, CancellationToken ct) => ExecuteAsync(async () =>
-        View(await service.ListAsync(ActorId, eventId, ct)));
+    {
+        ViewData["LocalSchedulerEnabled"] = configuration.GetValue("LocalScheduler:Enabled", true);
+        return View(await service.ListAsync(ActorId, eventId, ct));
+    });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Automation(MessageAutomationInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        await service.ListAsync(ActorId, input.EventId, ct);
+        if (!ModelState.IsValid) return BadRequest("Configurazione automatica non valida.");
+        var changed = await service.ConfigureAutomaticAsync(ActorId, input.EventId, input.Enabled, input.Revision, input.Confirmed, ct);
+        TempData["MessagesResult"] = changed
+            ? input.Enabled ? "Scheduler automatico locale abilitato per questo evento." : "Scheduler automatico locale disattivato per questo evento."
+            : "Configurazione automatica già impostata: nessuna modifica.";
+        return RedirectToAction(nameof(Index), new { eventId = input.EventId });
+    });
     [HttpGet] public Task<IActionResult> Create(Guid eventId, CancellationToken ct) => ExecuteAsync(async () =>
     {
         var page = await service.ListAsync(ActorId, eventId, ct);

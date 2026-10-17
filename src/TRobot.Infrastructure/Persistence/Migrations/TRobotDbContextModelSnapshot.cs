@@ -149,6 +149,14 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("AutomaticActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AutomaticEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<Guid>("EventId")
                         .HasColumnType("TEXT");
 
@@ -180,11 +188,15 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AutomaticActorId");
+
                     b.HasIndex("EventId")
                         .IsUnique();
 
                     b.ToTable("BotSettings", null, t =>
                         {
+                            t.HasCheckConstraint("CK_BotSettings_AutomaticActor", "AutomaticEnabled = 0 OR AutomaticActorId IS NOT NULL");
+
                             t.HasCheckConstraint("CK_BotSettings_Ranges", "QuietStartHour BETWEEN 0 AND 23 AND QuietEndHour BETWEEN 0 AND 23 AND MaxSpontaneousPerDay BETWEEN 0 AND 3 AND Sarcasm BETWEEN 0 AND 10");
                         });
                 });
@@ -1356,6 +1368,11 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TRobot.Domain.BotSettings", b =>
                 {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("AutomaticActorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TRobot.Domain.Event", null)
                         .WithMany()
                         .HasForeignKey("EventId")

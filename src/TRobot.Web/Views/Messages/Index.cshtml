@@ -1,9 +1,16 @@
 @model TRobot.Application.Messaging.MessageOverview
 @using TRobot.Web.Models
-@{ ViewData["Title"] = "Messaggi"; }
+@{
+    ViewData["Title"] = "Messaggi";
+    var schedulerAvailable = ViewData["LocalSchedulerEnabled"] is not false;
+    var automationStatus = !Model.Settings.AutomaticEnabled ? "Disattivato"
+        : !schedulerAvailable ? "Sospeso: elaborazione automatica disattivata in questa istanza"
+        : !Model.AutomaticActorAuthorized ? "Sospeso: attivatore non più autorizzato"
+        : Model.Settings.Paused ? "Sospeso: pausa invii" : "Attivo";
+}
 <h1>Messaggi — @Model.Event.Name</h1>
 <partial name="_EventNavigation" model="Model.Event.Id" />
-<p>Trasporto simulato: nessun invio WhatsApp. Il pulsante elabora le comunicazioni dovute e genera riepiloghi aggregati se necessari. Il giorno evento non vengono inviati riepiloghi.</p>
+<p>Trasporto simulato: nessun invio WhatsApp. Lo scheduler elabora la coda approvata e genera riepiloghi aggregati se necessari. Il giorno evento non vengono inviati riepiloghi.</p>
 @if (TempData["MessagesResult"] is string result) { <p role="status" class="alert alert-info">@result</p> }
 <a class="btn btn-primary" asp-action="Create" asp-route-eventId="@Model.Event.Id">Componi messaggio</a>
 <div class="table-responsive" role="region" aria-label="Messaggi simulati" tabindex="0"><table class="table"><thead><tr><th>Anteprima</th><th>Categoria</th><th>Stato</th><th>UTC</th></tr></thead><tbody>
@@ -12,13 +19,31 @@
 <tr><td><a asp-action="Preview" asp-route-eventId="@Model.Event.Id" asp-route-id="@message.Id">@(message.Body.Length > 100 ? message.Body[..100] + "…" : message.Body)</a></td><td>@MessageLabels.Kind(message.Kind)</td><td>@MessageLabels.Status(message.Status)</td><td>@message.ScheduledAtUtc.ToString("u")</td></tr>
 }
 </tbody></table></div>
+<section aria-labelledby="automation-title">
+<h2 id="automation-title">Scheduler automatico locale</h2>
+<p>Stato: <strong id="automation-status">@automationStatus</strong>.</p>
+<p>Controlla i messaggi ogni 30 secondi, solo mentre T.Robot è aperto. Non chiude sondaggi o quiz e non invia messaggi reali.</p>
+<p>L'attivazione è legata all'organizzatore che la salva: se perde accesso, l'elaborazione si sospende e può riprendere quando lo riottiene. Un altro organizzatore autorizzato può salvare l'attivazione a proprio nome o disattivarla.</p>
+@if (!schedulerAvailable)
+{
+    <p class="alert alert-info">L'elaborazione automatica è disattivata in questa istanza. Puoi usare il pulsante di simulazione manuale.</p>
+}
+<form asp-action="Automation" method="post" class="border p-3 mb-4">
+    <input type="hidden" name="EventId" value="@Model.Event.Id" />
+    <input type="hidden" name="Revision" value="@Model.Settings.Revision" />
+    <label><input type="checkbox" name="Enabled" value="true" checked="@Model.Settings.AutomaticEnabled" /> Abilita l'elaborazione automatica per questo evento</label>
+    <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo questa impostazione e, se abilitata, l'attivazione con il mio accesso all'evento.</label>
+    <button class="btn btn-primary" type="submit">Salva automazione locale</button>
+</form>
+</section>
+<h2>Elaborazione manuale</h2>
 <form asp-action="Tick" method="post" class="border p-3 my-3">
     <input type="hidden" name="eventId" value="@Model.Event.Id" />
     <label><input type="checkbox" name="confirmed" value="true" required /> Confermo elaborazione e invii simulati dei messaggi pronti</label>
     <button class="btn btn-primary" type="submit">Simula scheduler e invio</button>
 </form>
 <h2>Configurazione evento</h2>
-<p>Gli operativi superano silenzio e limite giornaliero; pausa blocca tutti gli invii. Inizio e fine silenzio uguali disattivano il silenzio. Il limite conta riepiloghi e intrattenimento nel giorno locale (@Model.Event.TimeZoneId).</p>
+<p>Gli operativi già approvati superano silenzio e limite giornaliero; pausa blocca tutti gli invii e la generazione dei riepiloghi, anche con lo scheduler automatico attivo. Inizio e fine silenzio uguali disattivano il silenzio. Il limite conta riepiloghi e intrattenimento nel giorno locale (@Model.Event.TimeZoneId).</p>
 <form asp-action="Configure" method="post" class="border p-3">
     <input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="Revision" value="@Model.Settings.Revision" />
     <div><label><input type="checkbox" name="Paused" value="true" checked="@Model.Settings.Paused" /> Pausa invii</label></div>

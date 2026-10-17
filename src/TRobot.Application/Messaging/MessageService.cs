@@ -6,7 +6,8 @@ namespace TRobot.Application.Messaging;
 
 public sealed record MessageEdit(Guid OperationId, string Body, MessageKind Kind, DateTime? ScheduledLocal, int Revision);
 public sealed record SettingsEdit(bool Paused, int QuietStart, int QuietEnd, int Cap, int Sarcasm, int Revision);
-public sealed record MessageOverview(Event Event, IReadOnlyList<OutboundMessage> Messages, BotSettings Settings);
+public sealed record MessageOverview(Event Event, IReadOnlyList<OutboundMessage> Messages, BotSettings Settings,
+    bool AutomaticActorAuthorized = false);
 public sealed record TickResult(int Sent, bool SummaryCreated);
 
 public sealed class MessageService(ILocalStore store, LocalOperations operations, TimeProvider clock)
@@ -14,9 +15,10 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
     public async Task<MessageOverview> ListAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
     {
         var messages = await operations.ReadAsync<OutboundMessage>(actorId, eventId, ct);
+        var settings = await store.FindAsync<BotSettings>(eventId, eventId, ct) ?? new BotSettings(eventId);
         return new(await store.EventAsync(eventId, ct) ?? throw new LocalAccessException(),
             messages.OrderByDescending(x => x.ScheduledAtUtc).ThenBy(x => x.Id).ToArray(),
-            await store.FindAsync<BotSettings>(eventId, eventId, ct) ?? new BotSettings(eventId));
+            settings, settings.AutomaticActorId.HasValue && await store.CanManageAsync(settings.AutomaticActorId.Value, eventId, ct));
     }
     public Task<Guid> SaveDraftAsync(Guid actorId, Guid eventId, Guid? id, MessageEdit input, CancellationToken ct = default) =>
         operations.ChangeAsync(actorId, eventId, async token =>
@@ -73,54 +75,87 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
             }
             return fresh || changed;
         }, ct);
+    public Task<bool> ConfigureAutomaticAsync(Guid actorId, Guid eventId, bool enabled, int revision, bool confirmed,
+        CancellationToken ct = default) => operations.ChangeAsync(actorId, eventId, async token =>
+    {
+        var settings = await store.FindAsync<BotSettings>(eventId, eventId, token);
+        var fresh = settings is null;
+        settings ??= new BotSettings(eventId);
+        LocalOperations.Revision(settings, revision);
+        var changed = settings.SetAutomatic(enabled, actorId, confirmed);
+        if (changed)
+        {
+            if (fresh) store.Add(settings);
+            operations.Audit(eventId, actorId, eventId, "Messages", enabled ? "AutomaticEnabled" : "AutomaticDisabled");
+            await store.SaveAsync(token);
+        }
+        return changed;
+    }, ct);
+
+    public Task<TickResult> TickAutomaticAsync(Guid actorId, Guid eventId, CancellationToken ct = default) =>
+        operations.ChangeAsync(actorId, eventId, async token =>
+        {
+            // The discovery candidate can be stale. Both this check and authorization above
+            // run inside the same transaction as every resulting outbox/audit mutation.
+            var settings = await store.FindAsync<BotSettings>(eventId, eventId, token);
+            if (settings is null || !settings.AutomaticEnabled || settings.AutomaticActorId != actorId)
+                return new TickResult(0, false);
+            return await TickCoreAsync(actorId, eventId, settings, false, token);
+        }, ct);
+
     public Task<TickResult> TickAsync(Guid actorId, Guid eventId, bool confirmed, CancellationToken ct = default) =>
         operations.ChangeAsync(actorId, eventId, async token =>
         {
             if (!confirmed) throw new LocalValidationException("Conferma la simulazione di invio.");
-            var ev = await store.EventAsync(eventId, token) ?? throw new LocalAccessException();
             var settings = await store.FindAsync<BotSettings>(eventId, eventId, token);
-            var fresh = settings is null; settings ??= new BotSettings(eventId);
-            if (settings.Paused) return new TickResult(0, false);
-            var now = clock.GetUtcNow().UtcDateTime;
-            var zone = TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId);
-            // Lists are read-only detached snapshots. Reload tracked rows before state transitions,
-            // and share those same instances with the per-tick daily-cap calculation.
-            var messages = new List<OutboundMessage>();
-            foreach (var row in await store.ListAsync<OutboundMessage>(eventId, token))
-                messages.Add(await store.FindAsync<OutboundMessage>(eventId, row.Id, token) ?? throw new LocalConflictException("Messaggio non più disponibile."));
-            var interval = SchedulePolicy.SummaryIntervalDays(now, ev);
-            var created = false;
-            // Generate deterministic aggregate text only. No names, balances, free-form event details or AI.
-            if (interval.HasValue && (!settings.LastSummaryAtUtc.HasValue || now >= settings.LastSummaryAtUtc.Value.AddDays(interval.Value))
-                && !messages.Any(x => x.Kind == MessageKind.Summary && x.Status == OutboundMessageStatus.Queued))
-            {
-                var snapshot = await store.SnapshotAsync(eventId, token);
-                var fingerprint = string.Create(CultureInfo.InvariantCulture,
-                    $"{snapshot.Confirmed}/{snapshot.Undecided}/{snapshot.Absent}/{snapshot.NoResponse}/{snapshot.OpenTasks}/{snapshot.OpenPolls}/{snapshot.ReadyMenu}");
-                if (fingerprint != settings.LastSummaryFingerprint)
-                {
-                    var body = string.Create(CultureInfo.InvariantCulture,
-                        $"Riepilogo evento: confermati {snapshot.Confirmed}, indecisi {snapshot.Undecided}, assenti {snapshot.Absent}, senza risposta {snapshot.NoResponse}. Attività aperte: {snapshot.OpenTasks}. Sondaggi aperti: {snapshot.OpenPolls}. Voci menu pronte: {snapshot.ReadyMenu}.");
-                    var summary = new OutboundMessage(eventId, Guid.NewGuid(), body, MessageKind.Summary, now);
-                    summary.SetSummaryFingerprint(fingerprint); summary.Queue(true);
-                    messages.Add(summary); store.Add(summary); operations.Audit(eventId, actorId, summary.Id, "Messages", "SummaryQueued"); created = true;
-                }
-            }
-            var sent = 0;
-            foreach (var message in messages.OrderBy(x => x.ScheduledAtUtc).ThenBy(x => x.Id))
-            {
-                // The summary is skipped on event day even when queued during an earlier tick.
-                if (message.Kind == MessageKind.Summary && !interval.HasValue) continue;
-                if (!SchedulePolicy.CanSend(message, settings, now, zone, messages)) continue;
-                message.MarkSent(now); sent++;
-                if (message.SummaryFingerprint is not null) settings.RecordSummary(now, message.SummaryFingerprint);
-                operations.Audit(eventId, actorId, message.Id, "Messages", "SentSimulated");
-            }
-            if (created || sent > 0)
-            {
-                if (fresh) store.Add(settings);
-                await store.SaveAsync(token);
-            }
-            return new TickResult(sent, created);
+            return await TickCoreAsync(actorId, eventId, settings ?? new BotSettings(eventId), settings is null, token);
         }, ct);
+
+    private async Task<TickResult> TickCoreAsync(Guid actorId, Guid eventId, BotSettings settings, bool fresh,
+        CancellationToken token)
+    {
+        var ev = await store.EventAsync(eventId, token) ?? throw new LocalAccessException();
+        if (settings.Paused) return new TickResult(0, false);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId);
+        // Lists are read-only detached snapshots. Reload tracked rows before state transitions,
+        // and share those same instances with the per-tick daily-cap calculation.
+        var messages = new List<OutboundMessage>();
+        foreach (var row in await store.ListAsync<OutboundMessage>(eventId, token))
+            messages.Add(await store.FindAsync<OutboundMessage>(eventId, row.Id, token) ?? throw new LocalConflictException("Messaggio non più disponibile."));
+        var interval = SchedulePolicy.SummaryIntervalDays(now, ev);
+        var created = false;
+        // Generate deterministic aggregate text only. No names, balances, free-form event details or AI.
+        if (interval.HasValue && (!settings.LastSummaryAtUtc.HasValue || now >= settings.LastSummaryAtUtc.Value.AddDays(interval.Value))
+            && !messages.Any(x => x.Kind == MessageKind.Summary && x.Status == OutboundMessageStatus.Queued))
+        {
+            var snapshot = await store.SnapshotAsync(eventId, token);
+            var fingerprint = string.Create(CultureInfo.InvariantCulture,
+                $"{snapshot.Confirmed}/{snapshot.Undecided}/{snapshot.Absent}/{snapshot.NoResponse}/{snapshot.OpenTasks}/{snapshot.OpenPolls}/{snapshot.ReadyMenu}");
+            if (fingerprint != settings.LastSummaryFingerprint)
+            {
+                var body = string.Create(CultureInfo.InvariantCulture,
+                    $"Riepilogo evento: confermati {snapshot.Confirmed}, indecisi {snapshot.Undecided}, assenti {snapshot.Absent}, senza risposta {snapshot.NoResponse}. Attività aperte: {snapshot.OpenTasks}. Sondaggi aperti: {snapshot.OpenPolls}. Voci menu pronte: {snapshot.ReadyMenu}.");
+                var summary = new OutboundMessage(eventId, Guid.NewGuid(), body, MessageKind.Summary, now);
+                summary.SetSummaryFingerprint(fingerprint); summary.Queue(true);
+                messages.Add(summary); store.Add(summary); operations.Audit(eventId, actorId, summary.Id, "Messages", "SummaryQueued"); created = true;
+            }
+        }
+        var sent = 0;
+        foreach (var message in messages.OrderBy(x => x.ScheduledAtUtc).ThenBy(x => x.Id))
+        {
+            // The summary is skipped on event day even when queued during an earlier tick.
+            if (message.Kind == MessageKind.Summary && !interval.HasValue) continue;
+            if (!SchedulePolicy.CanSend(message, settings, now, zone, messages)) continue;
+            message.MarkSent(now); sent++;
+            if (message.SummaryFingerprint is not null) settings.RecordSummary(now, message.SummaryFingerprint);
+            operations.Audit(eventId, actorId, message.Id, "Messages", "SentSimulated");
+        }
+        if (created || sent > 0)
+        {
+            if (fresh) store.Add(settings);
+            await store.SaveAsync(token);
+        }
+        return new TickResult(sent, created);
+    }
 }

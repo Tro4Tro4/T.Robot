@@ -13,6 +13,7 @@ public static class LocalHistoryLabels
         "ExpenseCancelled" => "Spesa annullata", "PaymentDeclared" => "Pagamento dichiarato", "PaymentConfirmed" => "Pagamento confermato manualmente", "PaymentCancelled" => "Pagamento annullato",
         "WeightsConfigured" => "Pesi configurati", "WeightOverridden" => "Peso individuale aggiornato", "Joined" => "Adesione registrata", "Withdrawn" => "Adesione ritirata", "AnswerSimulated" => "Risposta simulata registrata",
         "BringMenu" => "Impegno menu registrato", "ClaimTask" => "Attività presa in carico", "CompleteTask" => "Attività completata",
+        "AutomaticEnabled" => "Scheduler automatico locale abilitato", "AutomaticDisabled" => "Scheduler automatico locale disattivato",
         _ => "Operazione registrata"
     };
 }

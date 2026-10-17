@@ -20,6 +20,7 @@ using TRobot.Application.Simulation;
 using TRobot.Infrastructure.Identity;
 using TRobot.Infrastructure.Persistence;
 using TRobot.Web.Security;
+using TRobot.Web.Services;
 
 var initializeDemo = args.Contains("--initialize-demo", StringComparer.Ordinal);
 var initializeIdentity = args.Contains("--initialize-identity", StringComparer.Ordinal);
@@ -61,6 +62,9 @@ builder.Services.AddScoped<MenuService>();
 builder.Services.AddScoped<PollService>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<IAutomaticSchedulerStore, AutomaticSchedulerStore>();
+if (!initializeDemo && !initializeIdentity)
+    builder.Services.AddHostedService<AutomaticSchedulerWorker>();
 builder.Services.AddIdentityCore<OrganizerUser>(options =>
 {
     options.Password.RequiredLength = 12;

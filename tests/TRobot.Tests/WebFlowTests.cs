@@ -11,6 +11,7 @@ using TRobot.Domain;
 using TRobot.Infrastructure.Persistence;
 using TRobot.Infrastructure.Identity;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
 
 namespace TRobot.Tests;
 
@@ -219,6 +220,8 @@ public sealed class WebFlowTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Development");
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["LocalScheduler:Enabled"] = "false" }));
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TRobotDbContext>();

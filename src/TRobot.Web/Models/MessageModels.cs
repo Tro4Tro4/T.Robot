@@ -35,6 +35,13 @@ public sealed class MessageSettingsInput
     [Range(0,10)] public int Sarcasm { get; set; }
     public SettingsEdit ToEdit() => new(Paused, QuietStart, QuietEnd, Cap, Sarcasm, Revision);
 }
+public sealed class MessageAutomationInput
+{
+    public Guid EventId { get; set; }
+    public bool Enabled { get; set; }
+    [Microsoft.AspNetCore.Mvc.ModelBinding.BindRequired] public int Revision { get; set; }
+    public bool Confirmed { get; set; }
+}
 public static class MessageLabels
 {
     public static string Kind(MessageKind value) => value switch { MessageKind.Operational => "Operativo", MessageKind.Summary => "Riepilogo", MessageKind.Entertainment => "Intrattenimento", _ => "Non valido" };

@@ -1,6 +1,6 @@
 # T.Robot
 
-Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizzatori: eventi, presenze, nuclei, attività, menu, messaggi simulati, sondaggi, contabilità locale e quiz volontari. La milestone 19 estende i comandi del simulatore e rifinisce la UI con Impeccable; build senza errori/avvisi e 310 test superati. Gateway WhatsApp, AI esterna, trasferimenti reali e deploy restano esclusi.
+Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizzatori: eventi, presenze, nuclei, attività, menu, messaggi simulati, sondaggi, contabilità locale e quiz volontari. Le milestone 20–22 aggiungono impegni, sondaggi e quiz dal simulatore e scheduler automatico locale; 380 test superati. UI MVC/Bootstrap rifinita con Impeccable. Gateway WhatsApp, AI esterna, trasferimenti reali e deploy restano esclusi.
 
 ## Struttura
 
@@ -25,7 +25,7 @@ dotnet ef database update --project src/TRobot.Infrastructure
 dotnet test TRobot.sln --no-build --no-restore
 ```
 
-Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db` applicando tutte le migrazioni versionate, comprese `OrganizationTasks`, `Households`, `MenuPlanning`, `SimulatedOutbox`, `LocalPolls`, `LocalAccounting` e `LocalGames`. La milestone 18 non cambia lo schema. Ripeterlo non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Il manifest degli strumenti è `dotnet-tools.json` nella radice (EF CLI 10.0.6). Non usare `EnsureCreated` in alternativa alle migrazioni.
+Il comando EF crea o aggiorna `src/TRobot.Web/trobot.db` applicando tutte le migrazioni versionate, comprese `OrganizationTasks`, `Households`, `MenuPlanning`, `SimulatedOutbox`, `LocalPolls`, `LocalAccounting`, `LocalGames`, `SimulationActions` e `AutomaticLocalScheduler`. Quest'ultima mantiene l'automazione disattivata per gli eventi esistenti. Ripetere l'aggiornamento non duplica lo schema. La factory individua la radice della soluzione; il comando documentato usa Infrastructure anche come startup project, senza avviare Web. Il manifest degli strumenti è `dotnet-tools.json` nella radice (EF CLI 10.0.6). Non usare `EnsureCreated` in alternativa alle migrazioni.
 
 La connection string Web è `ConnectionStrings:TRobot` in `appsettings.Development.json`; i percorsi relativi sono risolti rispetto alla cartella Web. La factory CLI usa il percorso predefinito; per un database diverso passare esplicitamente `--connection "Data Source=C:/percorso/trobot.db;Foreign Keys=True"` a `database update` e configurare la Web con lo stesso percorso. Non inserire credenziali nel repository.
 
@@ -74,7 +74,20 @@ Aprire <http://localhost:5238>, accedere con nome utente e password di `.local/i
 | `!presenza forse` | Indeciso |
 | `!presenza no` | Assente |
 
-Il simulatore supporta anche `!aiuto`, `!menu` e `!todo`: gli ultimi due mostrano solo conteggi aggregati. Per il voto usare `!vota <GUID sondaggio> <numero opzione>` e selezionare la casella di conferma esplicita nel modulo. Il comando con l'identificativo si trova nella scheda sondaggio; possono votare solo adulti confermati dopo l'invio simulato della pubblicazione, prima della scadenza/chiusura. Un nuovo ID messaggio consente di cambiare voto; il reinvio identico non lo duplica. Nessun messaggio reale viene inviato.
+Il simulatore supporta anche questi comandi. I riferimenti sono gli otto caratteri mostrati negli elenchi; il GUID completo resta valido in alternativa e in caso di ambiguità.
+
+| Comando | Risultato |
+| --- | --- |
+| `!aiuto` | Sintassi supportate |
+| `!menu [pagina]`, `!todo [pagina]` | Conteggi e massimo cinque elementi locali con riferimenti |
+| `!porto <voce>` | Impegno per una voce disponibile, senza sostituire altri |
+| `!prendo <attività>`, `!fatto <attività>` | Presa in carico e completamento di un'attività propria |
+| `!sondaggi [pagina]`, `!sondaggio <id>` | Sondaggi aperti e dettaglio di un sondaggio pubblicato |
+| `!vota <id> <numero opzione>` | Voto modificabile fino alla chiusura/scadenza |
+| `!quiz`, `!quiz lista [pagina]`, `!quiz <id>` | Quiz aperti e dettaglio senza soluzione |
+| `!rispondi <id> <numero opzione>` | Unica risposta definitiva con adesione volontaria già attiva |
+
+Voti, risposte e impegni richiedono la casella di conferma esplicita del modulo. Gli impegni e i voti richiedono adulti confermati; per i quiz vale l'adesione volontaria registrata nella pagina Giochi. I sondaggi/quiz devono essere pubblicati con esito Sent e ancora aperti. Un nuovo ID messaggio consente di cambiare voto; il reinvio identico non duplica né ripristina vecchi stati. I titoli negli elenchi restano risultati locali per l'organizzatore: non vengono automaticamente accodati. Nessun messaggio reale viene inviato.
 
 Da VS Code è disponibile **T.Robot · Debug locale**, con compilazione preliminare del progetto C#. Prima di avviarlo fermare eventuali istanze già in ascolto sulla porta 5238. Dettagli dell'incremento e del collaudo in [Milestone 19](docs/MILESTONE_19.md).
 
@@ -162,10 +175,12 @@ La dashboard conserva il simulatore `!presenza si|forse|no`, aggiunge countdown 
 - **Sondaggi:** 2–10 opzioni fisse dalla bozza; anteprima e conferma accodano la pubblicazione. Il voto simulato richiede messaggio Sent e adulto confermato; nessuna delega familiare. Chiusura e decisione sono esplicite; il risultato passa da una seconda anteprima e conferma.
 - **Contabilità:** EUR, spese solo se approvate, quote dinamiche dei partecipanti confermati con pesi e ripartizione deterministica dei centesimi. Anticipi e pagamenti sono registrazioni locali tra persone già partecipanti; un organizzatore che non partecipa non è parte contabile. Cambi a presenze, classificazioni o pesi ricalcolano le quote: non sono rendiconti congelati. Nessun trasferimento di denaro o servizio bancario.
 - **Giochi:** adesione volontaria registrata dall'organizzatore, quiz con una risposta per persona, un punto per risposta corretta dopo chiusura e classifica solo nel sito. Ritiro e riadesione non azzerano risposte storiche. Nessun gioco offensivo o annuncio automatico della classifica.
-- **Messaggi:** anteprima, conferma, coda ed esito Sent sono simulati dai moduli organizzatore. La simulazione manuale rispetta pausa, quiet hours e limite degli interventi spontanei. Non esiste un gateway né un job che invia a WhatsApp. Nessuna AI esterna o DM; saldi e dati personali individuali non entrano nei riepiloghi automatici di gruppo.
+- **Messaggi:** anteprima, conferma, coda ed esito Sent sono simulati. Il tick manuale e lo scheduler automatico rispettano pausa, silenzio e limite degli interventi spontanei; gli operativi già approvati superano silenzio/limite ma non pausa. Non esiste un gateway né un job che invia a WhatsApp. Nessuna AI esterna o DM; saldi e dati personali individuali non entrano nei riepiloghi aggregati.
 
-Tutte le pagine e le simulazioni sono esclusivamente per organizzatori autenticati, in Development su loopback. I partecipanti non accedono al sito. Il parsing locale copre presenze, aiuto, riepiloghi menu/attività e voto; gli altri comandi WhatsApp descritti nel contesto rimangono specifiche future. I moduli e i comandi usano form simulati, senza ricevere messaggi reali. Nessun deploy è stato eseguito.
+Tutte le pagine e le simulazioni sono esclusivamente per organizzatori autenticati, in Development su loopback. I partecipanti non accedono al sito. Il parsing locale copre presenze, aiuto, menu/attività e impegni, sondaggi/voti e quiz/risposte; gli altri comandi WhatsApp descritti nel contesto rimangono specifiche future. I moduli e i comandi usano form simulati, senza ricevere messaggi reali. Nessun deploy è stato eseguito.
 
-Per una verifica manuale locale: accedi, scegli un evento e apri i moduli dalla dashboard. Per pubblicare un sondaggio o quiz, crea la bozza, verifica l'anteprima, approva e poi usa **Messaggi e configurazione → simulazione invii**; soltanto dopo Sent saranno disponibili voto o risposta. Usa dati sintetici in un database separato per le prove che modificano dati.
+Per una verifica manuale locale: accedi, scegli un evento e apri i moduli dalla dashboard. Per pubblicare un sondaggio o quiz, crea la bozza, verifica l'anteprima, approva e poi usa **Messaggi e configurazione → Elaborazione manuale**, oppure attendi lo scheduler automatico se abilitato; soltanto dopo Sent saranno disponibili voto o risposta. Usa dati sintetici in un database separato per le prove che modificano dati.
 
-Dettagli: [roadmap locale](docs/ROADMAP_LOCAL.md), [dashboard e verifica finale](docs/MILESTONE_18.md), [decisioni](docs/DECISIONS.md). Passi successivi da concordare dopo verifica del prototipo; gateway o servizi reali richiedono una richiesta esplicita.
+Per attivare lo scheduler apri **Messaggi e configurazione → Scheduler automatico locale**, seleziona **Abilita l'elaborazione automatica per questo evento**, conferma e salva. Ogni 30 secondi elabora la coda già approvata e i riepiloghi aggregati, solo mentre T.Robot è aperto. Il default è disattivato e l'attivazione resta legata al tuo accesso: se viene revocato l'elaborazione si sospende, se viene ripristinato può riprendere. La pausa blocca tutto; i cicli senza effetti non producono audit o nuove revisioni. Nessuna chiusura automatica di sondaggi o quiz. L'opzione tecnica `LocalScheduler:Enabled=false` disabilita il worker nell'intera istanza (usata nei test HTTP generali).
+
+Dettagli: [roadmap locale](docs/ROADMAP_LOCAL.md), [impegni](docs/MILESTONE_20.md), [sondaggi e quiz](docs/MILESTONE_21.md), [scheduler automatico](docs/MILESTONE_22.md), [decisioni](docs/DECISIONS.md). Passi successivi da concordare dopo verifica del prototipo; gateway o servizi reali richiedono una richiesta esplicita.
