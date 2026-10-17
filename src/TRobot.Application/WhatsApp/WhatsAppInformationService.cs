@@ -8,7 +8,7 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
-    public const string RealHelp = "Comandi attivi: !presenza si|forse|no; !menu [pagina]; !todo [pagina]; !aiuto.";
+    public const string RealHelp = "Comandi attivi: !presenza si|forse|no; !menu [pagina]; !todo [pagina]; !porto <rif>; !prendo <rif>; !fatto <rif>; !conferma <codice>; !aiuto. Gli impegni richiedono conferma entro cinque minuti.";
     private const string UnapprovedList = "Elenco non disponibile: gli organizzatori devono approvare i contenuti aggiornati dal sito.";
 
     public async Task<WhatsAppListPreview> PreviewListAsync(Guid actorId, Guid eventId, WhatsAppListKind kind, CancellationToken ct = default)
@@ -92,7 +92,7 @@ public sealed partial class WhatsAppService
                 .OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id).ToArray();
             heading = $"Menu: {items.Length} voci attive; {items.Count(x => x.Availability == MenuAvailability.Ready)} pronte, {items.Count(x => x.Availability == MenuAvailability.Assigned)} assegnate, {items.Count(x => x.Availability == MenuAvailability.Planned)} da organizzare.";
             command = "!menu";
-            lines = items.Select(x => $"{SimulationReplies.OneLine(x.Name)} — {x.Quantity.ToString("0.###", CultureInfo.InvariantCulture)} {SimulationReplies.OneLine(x.Unit)} — {x.Availability switch { MenuAvailability.Ready => "Pronto", MenuAvailability.Assigned => "Assegnato", _ => "Da organizzare" }}").ToArray();
+            lines = items.Select(x => $"{SimulationReferences.Short(x.Id)} {SimulationReplies.OneLine(x.Name)} — {x.Quantity.ToString("0.###", CultureInfo.InvariantCulture)} {SimulationReplies.OneLine(x.Unit)} — {x.Availability switch { MenuAvailability.Ready => "Pronto", MenuAvailability.Assigned => "Assegnato", _ => "Da organizzare" }}").ToArray();
         }
         else if (kind == WhatsAppListKind.Todo)
         {
@@ -101,7 +101,7 @@ public sealed partial class WhatsAppService
             command = "!todo";
             lines = tasks.Where(x => x.Status is OrganizationTaskStatus.Todo or OrganizationTaskStatus.InProgress)
                 .OrderBy(x => x.Title, StringComparer.Ordinal).ThenBy(x => x.Id)
-                .Select(x => $"{SimulationReplies.OneLine(x.Title)} — {(x.Status == OrganizationTaskStatus.Todo ? "Da iniziare" : "In corso")}").ToArray();
+                .Select(x => $"{SimulationReferences.Short(x.Id)} {SimulationReplies.OneLine(x.Title)} — {(x.Status == OrganizationTaskStatus.Todo ? "Da iniziare" : "In corso")}").ToArray();
         }
         else throw new LocalValidationException("Tipo elenco non valido.");
         var pages = Enumerable.Range(1, Math.Max(1, (lines.Length + 4) / 5))

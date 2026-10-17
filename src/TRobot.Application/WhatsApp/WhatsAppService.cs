@@ -177,8 +177,9 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
         var parts = input.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var command = parts[0].ToLowerInvariant();
         var informational = command is "!aiuto" or "!menu" or "!todo";
+        var operational = command is "!porto" or "!prendo" or "!fatto" or "!conferma";
         ParticipationStatus status = default;
-        if (!informational)
+        if (!informational && !operational)
         {
             try { status = AttendanceService.Parse(input.Text); }
             catch (AttendanceValidationException) { return new(false); }
@@ -205,7 +206,7 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             var messageHash = options.Fingerprint("message", input.GroupId + ":" + input.MessageId);
             var receipt = await identities.ReceiptAsync(connection.EventId, messageHash, token);
             var informationReceipt = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token)).SingleOrDefault(x => x.MessageHash == messageHash);
-            if (informational)
+            if (informational || operational)
             {
                 if (receipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
                 var commandHash = options.Fingerprint("command", input.Text);
@@ -215,10 +216,13 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                         throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
                     return new WhatsAppIncomingResult(true, true);
                 }
-                var reply = await InformationReplyAsync(connection, parts, token);
+                var outcome = operational
+                    ? await OperationalReplyAsync(connection, participant, parts, now, token)
+                    : (Reply: (string?)await InformationReplyAsync(connection, parts, token), Success: false);
                 var informationRecord = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
-                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", "InformationReceived"); await store.SaveAsync(token);
-                return new WhatsAppIncomingResult(true, ReplyText: reply, ReplyOperationId: informationRecord.Id);
+                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", operational ? "OperationalReceived" : "InformationReceived"); await store.SaveAsync(token);
+                return outcome.Success ? new WhatsAppIncomingResult(true, Reaction: "✅")
+                    : new WhatsAppIncomingResult(true, ReplyText: outcome.Reply, ReplyOperationId: informationRecord.Id);
             }
             if (informationReceipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per un comando informativo.");
             if (receipt is not null)

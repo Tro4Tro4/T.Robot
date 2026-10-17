@@ -208,7 +208,7 @@ export class WhatsAppGateway {
         || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) { this.count('contextRejected'); continue; }
       const text = extractPlainText(message.message);
       if (text === null) { this.count('envelopeRejected'); continue; }
-      if (text.length > 100 || !/^!(?:presenza|aiuto|menu|todo)(?:\s|$)/i.test(text)) { this.count('commandRejected'); continue; }
+      if (text.length > 100 || !/^!(?:presenza|aiuto|menu|todo|porto|prendo|fatto|conferma)(?:\s|$)/i.test(text)) { this.count('commandRejected'); continue; }
       const senderIds = [...new Set([key.participant, key.participantAlt].map(normalizeSender).filter(Boolean))];
       if (!senderIds.length) { this.count('senderRejected'); continue; }
       this.trimCaches(now);

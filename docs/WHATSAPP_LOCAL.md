@@ -51,7 +51,23 @@ Dal numero privato o dell'amico associato nel gruppo:
 
 La risposta contiene al massimo cinque elementi per pagina, senza responsabili, note o dati delle anagrafiche. Per continuare usare `!menu 2` oppure `!todo 2`. Prima dell'approvazione, o dopo una modifica ai contenuti o al collegamento, il comando restituisce soltanto un avviso generico: occorre una nuova anteprima e approvazione. I titoli sono testo libero: verificare che non contengano dati personali prima di approvarli.
 
-Le risposte informative arrivano come testo nel gruppo; `!presenza si|forse|no` mantiene la reazione ✅. Gli altri comandi del simulatore non sono ancora attivi nel gruppo. Non sono previsti reinvii automatici delle risposte incerte.
+Le risposte informative arrivano come testo nel gruppo; `!presenza si|forse|no` mantiene la reazione ✅. Gli impegni sono descritti di seguito; sondaggi e quiz restano nel simulatore. Non sono previsti reinvii automatici delle risposte incerte.
+
+## Assumere e completare impegni
+
+Riapprovare menu e attività dal sito dopo questo aggiornamento: gli elenchi includono ora riferimenti brevi stabili. Dal gruppo, un partecipante adulto confermato può usare il riferimento della voce richiesta:
+
+```text
+!porto <idvoce>
+!prendo <idattività>
+!fatto <idattività>
+```
+
+La prima richiesta propone l'operazione e restituisce `!conferma <codice>`: non cambia ancora assegnazioni o attività. Inviare il comando di conferma dallo stesso numero associato entro cinque minuti; una reazione ✅ conferma la registrazione. Il codice visibile nel gruppo funziona solo per il partecipante che ha fatto la richiesta. Ignorandolo la proposta scade. Sono ammesse al massimo tre proposte attive per persona/evento.
+
+Non si possono sostituire incaricati altrui o assumere voci pronte/annullate. `!fatto` completa soltanto un'attività aperta già assegnata al mittente. Se cambia il target dopo la proposta, oppure il collegamento o i permessi, la conferma viene rifiutata: controllare l'elenco e fare una nuova richiesta.
+
+Le modifiche agli stati pubblicabili possono invalidare l'approvazione degli elenchi: l'organizzatore dovrà controllare nuovamente l'anteprima dal sito. I comandi non pubblicano titoli non approvati né nomi degli incaricati. Non inviare i segnaposto `<idvoce>` e `<codice>` letteralmente: usare i valori ricevuti da T.Robot.
 
 ## Riavvio e anomalie
 

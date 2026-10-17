@@ -275,6 +275,27 @@ test('Callback URL fixed loopback, authorization and only generic reaction accep
   assert.equal(result.handled, true); assert.equal(result.reaction, null);
 });
 
+test('Operational whitelist uses the existing callback and rejects unrelated prefixes', async t => {
+  const h = await harness(t); await h.ready();
+  for (const [i, text] of ['!porto abcdef12', '!PRENDO abcdef12', '!fatto abcdef12', '!conferma ' + 'a'.repeat(32), '!portone abcdef12', '!vota 123 1', '!spesa 10'].entries()) {
+    h.sockets[0].handlers.messages({ type: 'notify', messages: [incoming('ops-' + i, { message: { conversation: text } })] });
+    await h.gateway.idle();
+  }
+  assert.equal(h.callbacks.length, 4); assert.equal(h.sockets[0].reactions.length, 4);
+  assert.equal(h.gateway.health().diagnostics.commandRejected, 3);
+});
+
+test('Operational confirmation reply code never enters journal and duplicate suppresses resending', async t => {
+  const code = 'b'.repeat(32); const operationId = randomUUID();
+  const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, reaction: null,
+    replyText: '!conferma ' + code, replyOperationId: operationId }) }); await h.ready();
+  const emit = id => h.sockets[0].handlers.messages({ type: 'notify', messages: [incoming(id, { message: { conversation: '!porto abcdef12' } })] });
+  emit('proposal'); await h.gateway.idle(); assert.equal(h.sockets[0].sent.length, 1);
+  h.gateway.callback = async () => ({ handled: true, duplicate: true, reaction: null });
+  emit('replayed'); await h.gateway.idle(); assert.equal(h.sockets[0].sent.length, 1);
+  for (const file of await readdir(h.directory)) assert.ok(!(await readFile(join(h.directory, file), 'utf8')).includes(code));
+});
+
 test('Real informational commands reply through the persistent journal, never react or replay', async t => {
   const operationId = randomUUID(); const text = 'è'.repeat(2000);
   const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, reaction: null,

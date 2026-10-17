@@ -1502,6 +1502,73 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TRobot.Domain.WhatsAppOperationalProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ConnectionRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TargetRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventId", "CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("EventId", "PersonId", "ExpiresAtUtc");
+
+                    b.ToTable("WhatsAppOperationalProposals", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WhatsAppOperationalProposals_Action", "Action IN (0,1,2)");
+                        });
+                });
+
             modelBuilder.Entity("TRobot.Infrastructure.Identity.OrganizerUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2152,6 +2219,27 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.HasOne("TRobot.Domain.Event", null)
                         .WithMany()
                         .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.WhatsAppOperationalProposal", b =>
+                {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "PersonId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

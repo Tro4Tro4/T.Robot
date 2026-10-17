@@ -88,7 +88,7 @@ public sealed partial class WhatsAppIntegrationTests
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
         var service = Service(p, new FakeGateway(), new Clock()); await Activate(p, f, service);
         var first = await service.IncomingAsync(Incoming("!aiuto", "info")); Assert.Equal(WhatsAppService.RealHelp, first.ReplyText);
-        Assert.DoesNotContain("!porto", first.ReplyText); Assert.DoesNotContain("!vota", first.ReplyText);
+        Assert.Contains("!porto", first.ReplyText); Assert.Contains("!conferma", first.ReplyText); Assert.DoesNotContain("!vota", first.ReplyText);
         Assert.Equal(new WhatsAppIncomingResult(true, true), await service.IncomingAsync(Incoming("!aiuto", "info")));
         await Assert.ThrowsAsync<LocalConflictException>(() => service.IncomingAsync(Incoming("!menu", "info")));
         await Assert.ThrowsAsync<LocalConflictException>(() => service.IncomingAsync(Incoming("!AIUTO", "info")));

@@ -1,0 +1,27 @@
+# Milestone 25 — Impegni dal gruppo con conferma
+
+L'utente richiede di continuare gli incrementi con la nuova orchestrazione. Si sceglie il passo successivo ai comandi informativi: `!porto <riferimento>`, `!prendo <riferimento>`, `!fatto <riferimento>`, seguiti da `!conferma <codice>`. Nessun sondaggio, quiz, contabilità, AI o altro modulo in questo incremento.
+
+## Disegno circoscritto
+
+- Si mantengono gruppo unico, identità associate, attivatore autorizzato, timestamp, rate limit, journal e deduplica già verificati. Menu e attività approvati mostrano riferimenti brevi stabili derivati dal GUID, risolti nel solo evento e tipo di risorsa; GUID completo ammesso, ambiguità rifiutata. Nessun titolo non approvato nelle risposte operative.
+- La richiesta iniziale non modifica menu o attività. Crea una proposta tecnica persistente e risponde con azione/riferimento, istruzione `!conferma <codice>` e scadenza cinque minuti. Codice casuale crittografico di 16 byte (32 hex), restituito una volta e conservato soltanto come HMAC. Nessun testo della chat salvato.
+- La proposta lega evento, gruppo/revisione del collegamento, attore delegante, partecipante, azione, target e revisione target, data UTC e scadenza. Tre proposte ancora attive al massimo per persona/evento; le precedenti scadono senza azioni automatiche. Ignorare una proposta equivale a lasciarla scadere.
+- Prima di proporre e prima di confermare si controlla che il partecipante sia adulto confermato. `!porto` ammette voci pianificate libere o già assegnate a sé, esclude pronte/annullate e altri responsabili. `!prendo` ammette attività aperte libere o proprie; `!fatto` solo attività aperte già assegnate a sé. Stesse regole applicative del simulatore, senza riscrivere mittenti sintetici o ricevute precedenti.
+- Solo lo stesso partecipante nel medesimo gruppo/collegamento, con delegante ancora autorizzato, può usare il codice. Target cambiato, scadenza, riuso, gruppo/attore diverso o perdita dei requisiti impediscono la mutazione. Operazione, consumo della proposta, ricevuta e audit sono atomici. Conferma riuscita tramite reazione ✅; errori brevi generici senza nomi/assegnatari. Ogni messaggio conserva deduplica persistente e conflitto di payload, anche fra presenza, informativi e operativi.
+- Le proposte usano una nuova tabella additiva; le ricevute generiche dei comandi già presenti sono riutilizzate. Il codice non entra nel DB in chiaro, nei log o nell'audit. Nessuna proposta viene creata da un reinvio dello stesso messaggio; eventuale risposta persa richiede una nuova richiesta, senza replay automatico.
+- Aggiungere i riferimenti cambia il contenuto degli elenchi: le approvazioni precedenti diventano non valide. Anche cambi agli stati pubblicabili possono richiedere una nuova approvazione dell'elenco; nessuna approvazione implicita per rendere più comodo il collaudo. I comandi operativi non pubblicano titoli e verificano sempre il target corrente.
+
+## Esecuzione e accettazione
+
+Un implementatore `gpt-6.1-sol` medium, revisore indipendente `gpt-6.1-sol` high solo dopo build e test mirati. Coordinatore integra migrazione in sequenza prima su copia, confronta baseline dati/credenziali, esegue suite complete e riavvia mantenendo sessione e gruppo. Test per scadenza, altro mittente, revoche, adulto/bambino, target obsoleto/occupato, conflitti fra comandi, replay e rollback, riferimenti approvati e filtri Node. Nessun invio di prova reale del coordinatore; prova dal telefono successiva dell'utente.
+
+## Esito
+
+- Implementatore `gpt-6.1-sol` medium e revisore diverso `gpt-6.1-sol` high; review **APPROVED**, nessun rilievo materiale. Un ciclo di correzione nei test per riacquisire istanze EF dopo il distacco del tracking, senza modifica delle regole applicative.
+- Build senza errori o avvisi; **61/61 test WhatsApp mirati**, **441/441 test .NET completi** e **30/30 test Node** superati. La suite aggiunge venti casi .NET e due Node rispetto alla milestone 24. Coperti codice copiato da un altro partecipante senza consumo, tre azioni, scadenza, cambio target/collegamento, revoche, adulto/bambino, replay/collisioni, limite proposte e rollback.
+- Migrazione `AddWhatsAppOperationalProposals` applicata prima alla copia poi all'originale: **37 tabelle precedenti e credenziali conservate**, integrity/FK OK. Modello EF senza differenze pendenti. Backup e copia consistenti in `.local`.
+- Gateway aggiornato e riconnesso conservando autenticazione e journal, stesso gruppo già autorizzato ripristinato. Sito riavviato in Development/loopback. Nessuna proposta o conferma reale creata dal coordinatore; nessuna approvazione implicita degli elenchi.
+- Collaudo browser in sola lettura sulle due anteprime riuscito: destinatario esatto, fingerprint/revisione e CSRF, stato da approvare e desktop/mobile senza overflow. Nessun errore JavaScript; conteggi di proposte, approvazioni, ricevute e messaggi invariati. Report `.local/ui/m24-report.json` riutilizzato dal controllo delle anteprime.
+
+Comandi di verifica: `dotnet test TRobot.sln --no-build --no-restore`, `node --test gateway/TRobot.WhatsApp/test/*.test.js`; risultato completo in `.local/test-results/milestone25-final.trx`. Per provare realmente, riapprovare menu/attività dal sito, richiedere l'elenco nel gruppo e usare il riferimento con un comando operativo, quindi confermare entro cinque minuti. Guida in [WHATSAPP_LOCAL.md](WHATSAPP_LOCAL.md).
