@@ -1,4 +1,3 @@
-using System.Globalization;
 using TRobot.Application.Attendance;
 using TRobot.Application.Local;
 using TRobot.Domain;
@@ -83,31 +82,17 @@ public sealed class SimulationCommandService(AttendanceService attendance, IAtte
         if (command == "!menu")
         {
             var listPage = ListPage(parts);
-            var menu = (await operations.ReadAsync<MenuItem>(actorId, message.EventId, ct))
-                .Where(x => x.Availability != MenuAvailability.Cancelled).ToArray();
-            return new($"Menu: {menu.Length} voci attive; {menu.Count(x => x.Availability == MenuAvailability.Ready)} pronte, "
-                + $"{menu.Count(x => x.Availability == MenuAvailability.Assigned)} assegnate, "
-                + $"{menu.Count(x => x.Availability == MenuAvailability.Planned)} da organizzare."
-                + PageText(menu.OrderBy(x => x.Name).ThenBy(x => x.Id).ToArray(), listPage, "!menu", x =>
-                    $"[{SimulationReferences.Short(x.Id)}] {OneLine(x.Name)} — {x.Quantity.ToString("0.###", CultureInfo.InvariantCulture)} {OneLine(x.Unit)} — {MenuState(x.Availability)}"));
+            var menu = await operations.ReadAsync<MenuItem>(actorId, message.EventId, ct);
+            return new(OperationalListText.Page(OperationalListText.Menu(menu), listPage, "!menu"));
         }
         if (command == "!todo")
         {
             var listPage = ListPage(parts);
             var tasks = await operations.ReadAsync<OrganizationTask>(actorId, message.EventId, ct);
-            return new($"Attività: {tasks.Count(x => x.Status == OrganizationTaskStatus.Todo)} da iniziare, "
-                + $"{tasks.Count(x => x.Status == OrganizationTaskStatus.InProgress)} in corso, "
-                + $"{tasks.Count(x => x.Status == OrganizationTaskStatus.Completed)} completate."
-                + PageText(tasks.Where(x => x.Status is OrganizationTaskStatus.Todo or OrganizationTaskStatus.InProgress)
-                    .OrderBy(x => x.Title).ThenBy(x => x.Id).ToArray(), listPage, "!todo", x =>
-                        $"[{SimulationReferences.Short(x.Id)}] {OneLine(x.Title)} — {(x.Status == OrganizationTaskStatus.Todo ? "Da iniziare" : "In corso")}"));
+            return new(OperationalListText.Page(OperationalListText.Todo(tasks), listPage, "!todo"));
         }
         throw new LocalValidationException(Help);
     }
-
-    private static string MenuState(MenuAvailability state) => state switch
-    { MenuAvailability.Ready => "Pronto", MenuAvailability.Assigned => "Assegnato", _ => "Da organizzare" };
-
 
     private static string Required(string? value, int maximum, string error) =>
         !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= maximum ? value.Trim() : throw new LocalValidationException(error);

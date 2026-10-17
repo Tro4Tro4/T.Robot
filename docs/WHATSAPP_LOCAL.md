@@ -51,11 +51,15 @@ Dal numero privato o dell'amico associato nel gruppo:
 
 La risposta contiene al massimo cinque elementi per pagina, senza responsabili, note o dati delle anagrafiche. Per continuare usare `!menu 2` oppure `!todo 2`. Prima dell'approvazione, o dopo una modifica ai contenuti o al collegamento, il comando restituisce soltanto un avviso generico: occorre una nuova anteprima e approvazione. I titoli sono testo libero: verificare che non contengano dati personali prima di approvarli.
 
+I messaggi sono divisi in blocchi: titolo, riepilogo, singole voci con quantità e stato, poi istruzioni e pagina successiva. Le emoji aiutano a distinguere cosa è pronto, assegnato o da organizzare. Sotto una voce menu libera compare direttamente il comando `!porto` con il riferimento corretto: copiare la riga intera, senza aggiungere il nome del piatto. Le attività riportano il riferimento da usare con `!prendo` o `!fatto`. I comandi da copiare sono su righe separate; emoji e battute restano fuori dal comando.
+
+Dopo l'aggiornamento della formattazione occorre riapprovare **entrambi** gli elenchi: anche il testo presentato fa parte dei contenuti approvati. L'anteprima mostra esattamente le pagine che arriveranno nel gruppo. Non serve ricollegare il dispositivo.
+
 Le risposte informative arrivano come testo nel gruppo; `!presenza si|forse|no` mantiene la reazione ✅. Gli impegni sono descritti di seguito; sondaggi e quiz restano nel simulatore. Non sono previsti reinvii automatici delle risposte incerte.
 
 ## Assumere e completare impegni
 
-Riapprovare menu e attività dal sito dopo questo aggiornamento: gli elenchi includono ora riferimenti brevi stabili. Dal gruppo, un partecipante adulto confermato può usare il riferimento della voce richiesta:
+Dal gruppo, un partecipante adulto confermato può usare il riferimento breve mostrato accanto alla voce richiesta:
 
 ```text
 !porto <idvoce>

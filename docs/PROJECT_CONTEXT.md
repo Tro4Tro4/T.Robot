@@ -19,6 +19,8 @@ Nome definitivo: **T.Robot** (sostituisce CapoDannoBot, tRobot e T-Robot). Conve
 
 ## Moduli funzionali
 
+I testi di menu e attività nel gruppo e nel simulatore usano ora blocchi separati, emoji, quantità/stato e riferimenti leggibili; aiuto e proposte reali hanno istruzioni su righe distinte. Il formato condiviso conserva cinque elementi per pagina e il limite WhatsApp di 2000 caratteri UTF-16, senza nomi degli incaricati o note. Dopo questo aggiornamento serve riapprovare i due elenchi dalla pagina WhatsApp: il fingerprint include le pagine esatte. Il collegamento del dispositivo non cambia.
+
 È già caricato l'evento **SIMULAZIONE — Capodanno al Casale, 20 persone** (30/12/2026–02/01/2027, tre notti): 16 adulti, 4 bambini, 8 nuclei, 30 voci menu, 20 attività, 3 sondaggi, 2 quiz, 3.600 € approvati e quote 200/100 €. Dati inventati inseriti via servizi, contabilità e browser verificati; nessun collegamento WhatsApp o scheduler automatico. Caricatore ripetibile e verifica senza sovrascrittura in `tools/TRobot.ScenarioSeeder`, dettagli in `docs/SCENARIO_CAPODANNO_2027.md`. Non cancellare o ricreare lo scenario durante sviluppi successivi.
 ### 1. Partecipazioni
 Persone, famiglie/nuclei, bambini, accompagnatori esterni anche senza account WhatsApp. Stati: NoResponse, Confirmed, Undecided, Absent. Storico modifiche. Esempio `!presenza si 2 adulti 1 bambino`: il conteggio adulti include il mittente; chiedere chiarimenti in caso di ambiguità. Identità WhatsApp collegabile a persona, ma non obbligatoria per accompagnatori.

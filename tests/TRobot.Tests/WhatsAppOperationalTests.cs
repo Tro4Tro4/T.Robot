@@ -30,6 +30,10 @@ public sealed partial class WhatsAppIntegrationTests
         var request = Incoming($"{command} {SimulationReferences.Short(target.Id)}", "request");
         var pending = await service.IncomingAsync(request); var code = ConfirmationCode(pending);
         Assert.Equal(32, code.Length); Assert.DoesNotContain("TITOLO RISERVATO", pending.ReplyText); Assert.Null(pending.Reaction);
+        Assert.Contains("!conferma " + code, pending.ReplyText!.Split('\n'));
+        Assert.Contains("Nessuna modifica prima della conferma", pending.ReplyText);
+        Assert.Contains("Solo tu", pending.ReplyText); Assert.Contains("cinque minuti", pending.ReplyText);
+        Assert.Contains("Rif. " + SimulationReferences.Short(target.Id), pending.ReplyText);
         Assert.Equal(0, target.Revision); Assert.Equal(new WhatsAppIncomingResult(true, true), await service.IncomingAsync(request));
         var proposal = await db.Set<WhatsAppOperationalProposal>().SingleAsync();
         Assert.NotEqual(code, proposal.CodeHash); Assert.Equal(64, proposal.CodeHash.Length); Assert.Null(proposal.ConsumedAtUtc);

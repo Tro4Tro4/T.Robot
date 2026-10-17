@@ -92,9 +92,9 @@ public sealed class OperationalCommandTests
         await db.SaveChangesAsync(); var service = p.GetRequiredService<SimulationCommandService>();
         var first = (await service.ExecuteAsync(f.OrganizerPersonId, Message(f, command))).Reply;
         var second = (await service.ExecuteAsync(f.OrganizerPersonId, Message(f, command + " 2"))).Reply;
-        Assert.Contains("Pagina 1/2; 7 elementi", first); Assert.Contains($"Pagina successiva: {command} 2", first);
-        Assert.Contains("Pagina 2/2; 7 elementi", second); Assert.DoesNotContain("Pagina successiva:", second);
-        Assert.Equal(5, first.Split('\n').Count(x => x.StartsWith('['))); Assert.Equal(2, second.Split('\n').Count(x => x.StartsWith('[')));
+        Assert.Contains("Pagina 1/2", first); Assert.Contains($"Pagina successiva:\n{command} 2", first);
+        Assert.Contains("Pagina 2/2", second); Assert.DoesNotContain("Pagina successiva:", second);
+        Assert.Equal(5, first.Split('\n').Count(x => x.StartsWith("*", StringComparison.Ordinal))); Assert.Equal(2, second.Split('\n').Count(x => x.StartsWith("*", StringComparison.Ordinal)));
         foreach (var reply in new[] { first, second })
         {
             Assert.DoesNotContain("Nota nascosta", reply); Assert.DoesNotContain("Dettagli nascosti", reply);

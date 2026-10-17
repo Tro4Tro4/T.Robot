@@ -31,6 +31,7 @@ public sealed partial class WhatsAppIntegrationTests
         await ApproveInformation(service, f, preview, operation);
         await ApproveInformation(service, f, preview, operation);
         var reply = await service.IncomingAsync(Incoming("!menu", "approved"));
+        Assert.Equal(preview.Pages[0], reply.ReplyText);
         Assert.Contains("Titolo pubblico sintetico", reply.ReplyText); Assert.DoesNotContain("NOTA PRIVATA", reply.ReplyText);
         Assert.Contains("2 porzioni", reply.ReplyText); Assert.Null(reply.Reaction); Assert.NotNull(reply.ReplyOperationId);
         Assert.True((await service.PreviewListAsync(f.OrganizerPersonId, f.EventId, preview.Kind)).Approved);

@@ -45,8 +45,10 @@ public sealed class SimulationCommandTests
         var service = p.GetRequiredService<SimulationCommandService>();
         var menu = await service.ExecuteAsync(f.OrganizerPersonId, Message(f, "  !MENU  "));
         var todo = await service.ExecuteAsync(f.OrganizerPersonId, Message(f, "!todo"));
-        Assert.StartsWith("Menu: 1 voci attive; 1 pronte, 0 assegnate, 0 da organizzare.\n", menu.Reply);
-        Assert.StartsWith("Attività: 1 da iniziare, 0 in corso, 0 completate.\n", todo.Reply);
+        Assert.StartsWith("🍽️ *MENU · Pagina 1/1*\n", menu.Reply);
+        Assert.Contains("1 voci · ✅ 1 pronte · 📦 0 assegnate · 🛒 0 da organizzare", menu.Reply);
+        Assert.StartsWith("📋 *ATTIVITÀ · Pagina 1/1*\n", todo.Reply);
+        Assert.Contains("1 aperte · ⏳ 1 da iniziare · 🔧 0 in corso · ✅ 0 completate", todo.Reply);
         Assert.Contains("Nome privato menu", menu.Reply); Assert.Contains("Titolo privato", todo.Reply);
         Assert.DoesNotContain("Nota privata", menu.Reply); Assert.DoesNotContain("Dettagli privati", todo.Reply);
         Assert.DoesNotContain("Annullata", menu.Reply);
@@ -174,7 +176,7 @@ public sealed class SimulationCommandTests
             ("Input.MessageId", "http-command"), ("Input.Text", "!menu") };
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/Home/Simulate", Form(values))).StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Home/Simulate", Form(values.Append(("__RequestVerificationToken", token)).ToArray()))).StatusCode);
-        Assert.Contains("Menu: 0 voci attive", await client.GetStringAsync("/?eventId=" + f.EventId));
+        Assert.Contains("Niente in elenco", await client.GetStringAsync("/?eventId=" + f.EventId));
         Guid id; using (var scope = f.Services.CreateScope()) id = await PublishedPoll(scope.ServiceProvider, f);
         var vote = values.Select(x => x.Item1 == "Input.Text" ? (x.Item1, $"!vota {id} 1") : x).Append(("__RequestVerificationToken", token)).ToArray();
         var unconfirmed = await client.PostAsync("/Home/Simulate", Form(vote));

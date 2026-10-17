@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using TRobot.Application.Local;
 using TRobot.Application.Simulation;
@@ -8,8 +7,15 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
-    public const string RealHelp = "Comandi attivi: !presenza si|forse|no; !menu [pagina]; !todo [pagina]; !porto <rif>; !prendo <rif>; !fatto <rif>; !conferma <codice>; !aiuto. Gli impegni richiedono conferma entro cinque minuti.";
-    private const string UnapprovedList = "Elenco non disponibile: gli organizzatori devono approvare i contenuti aggiornati dal sito.";
+    public const string RealHelp = "🤖 *T.Robot · Comandi del gruppo*\n\n"
+        + "👋 *Presenza*\n!presenza si\n!presenza forse\n!presenza no\n\n"
+        + "🍽️ *Menu e attività*\n!menu\n!todo\nPer altre pagine: !menu 2 oppure !todo 2.\n\n"
+        + "🙋 *Impegni*\n!porto <rif>\n!prendo <rif>\n!fatto <rif>\n"
+        + "Usa i riferimenti degli elenchi; completa solo attività assegnate a te.\n"
+        + "Ricevi una proposta: nessuna modifica prima della conferma.\n!conferma <codice>\n"
+        + "Conferma tu, entro cinque minuti, nello stesso gruppo.\n\n"
+        + "❓ *Rivedi questa guida*\n!aiuto\n\nVoi fate casino, io tengo la lista. 🎉";
+    private const string UnapprovedList = "⏳ *Elenco in attesa*\nGli organizzatori devono approvare i contenuti aggiornati dal sito. Riprova dopo l'approvazione.";
 
     public async Task<WhatsAppListPreview> PreviewListAsync(Guid actorId, Guid eventId, WhatsAppListKind kind, CancellationToken ct = default)
     {
@@ -66,14 +72,14 @@ public sealed partial class WhatsAppService
     private async Task<string> InformationReplyAsync(WhatsAppConnection connection, string[] parts, CancellationToken ct)
     {
         var command = parts[0].ToLowerInvariant();
-        if (command == "!aiuto") return parts.Length == 1 ? RealHelp : "Sintassi: !aiuto.";
+        if (command == "!aiuto") return parts.Length == 1 ? RealHelp : "ℹ️ Sintassi:\n!aiuto";
         int page;
         try { page = SimulationReplies.ListPage(parts); }
-        catch (LocalValidationException) { return $"Sintassi: {command} [pagina intera da 1 a 100000]."; }
+        catch (LocalValidationException) { return $"ℹ️ Sintassi:\n{command} [pagina]\nIndica una pagina intera da 1 a 100000."; }
         var kind = command == "!menu" ? WhatsAppListKind.Menu : WhatsAppListKind.Todo;
         var pages = await ListPagesAsync(connection.EventId, kind, ct);
         if (!await IsApprovedAsync(connection, kind, ListFingerprint(connection, kind, pages), ct)) return UnapprovedList;
-        return page <= pages.Count ? pages[page - 1] : $"Pagina inesistente: disponibili {pages.Count} pagine. Usa {command} 1.";
+        return page <= pages.Count ? pages[page - 1] : $"ℹ️ Pagina inesistente.\nDisponibili {pages.Count} pagine. Riparti da:\n{command} 1";
     }
 
     private string ListFingerprint(WhatsAppConnection connection, WhatsAppListKind kind, IReadOnlyList<string> pages) =>
@@ -85,27 +91,12 @@ public sealed partial class WhatsAppService
 
     private async Task<IReadOnlyList<string>> ListPagesAsync(Guid eventId, WhatsAppListKind kind, CancellationToken ct)
     {
-        string heading, command; string[] lines;
-        if (kind == WhatsAppListKind.Menu)
+        IReadOnlyList<string> pages = kind switch
         {
-            var items = (await store.ListAsync<MenuItem>(eventId, ct)).Where(x => x.Availability != MenuAvailability.Cancelled)
-                .OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id).ToArray();
-            heading = $"Menu: {items.Length} voci attive; {items.Count(x => x.Availability == MenuAvailability.Ready)} pronte, {items.Count(x => x.Availability == MenuAvailability.Assigned)} assegnate, {items.Count(x => x.Availability == MenuAvailability.Planned)} da organizzare.";
-            command = "!menu";
-            lines = items.Select(x => $"{SimulationReferences.Short(x.Id)} {SimulationReplies.OneLine(x.Name)} — {x.Quantity.ToString("0.###", CultureInfo.InvariantCulture)} {SimulationReplies.OneLine(x.Unit)} — {x.Availability switch { MenuAvailability.Ready => "Pronto", MenuAvailability.Assigned => "Assegnato", _ => "Da organizzare" }}").ToArray();
-        }
-        else if (kind == WhatsAppListKind.Todo)
-        {
-            var tasks = await store.ListAsync<OrganizationTask>(eventId, ct);
-            heading = $"Attività: {tasks.Count(x => x.Status == OrganizationTaskStatus.Todo)} da iniziare, {tasks.Count(x => x.Status == OrganizationTaskStatus.InProgress)} in corso, {tasks.Count(x => x.Status == OrganizationTaskStatus.Completed)} completate.";
-            command = "!todo";
-            lines = tasks.Where(x => x.Status is OrganizationTaskStatus.Todo or OrganizationTaskStatus.InProgress)
-                .OrderBy(x => x.Title, StringComparer.Ordinal).ThenBy(x => x.Id)
-                .Select(x => $"{SimulationReferences.Short(x.Id)} {SimulationReplies.OneLine(x.Title)} — {(x.Status == OrganizationTaskStatus.Todo ? "Da iniziare" : "In corso")}").ToArray();
-        }
-        else throw new LocalValidationException("Tipo elenco non valido.");
-        var pages = Enumerable.Range(1, Math.Max(1, (lines.Length + 4) / 5))
-            .Select(page => heading + SimulationReplies.PageText(lines, page, command, x => x)).ToArray();
+            WhatsAppListKind.Menu => OperationalListText.Menu(await store.ListAsync<MenuItem>(eventId, ct)),
+            WhatsAppListKind.Todo => OperationalListText.Todo(await store.ListAsync<OrganizationTask>(eventId, ct)),
+            _ => throw new LocalValidationException("Tipo elenco non valido.")
+        };
         if (pages.Any(x => x.Length > 2000)) throw new LocalValidationException("Elenco troppo lungo per la risposta WhatsApp.");
         return pages;
     }

@@ -7,14 +7,14 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
-    private const string OperationalUnavailable = "Operazione non disponibile. Verifica riferimento, requisiti e conferma; poi riprova con una nuova richiesta.";
+    private const string OperationalUnavailable = "⏳ Operazione non disponibile.\nControlla il riferimento e i requisiti con !aiuto, poi invia una nuova richiesta.";
 
     // Shares the authorized transaction with command receipt and audit persistence.
     private async Task<(string? Reply, bool Success)> OperationalReplyAsync(WhatsAppConnection connection,
         EventParticipant participant, string[] parts, DateTime now, CancellationToken ct)
     {
         var eventId = connection.EventId; var personId = participant.PersonId;
-        if (parts.Length != 2) return ($"Sintassi: {parts[0].ToLowerInvariant()} <riferimento o codice>.", false);
+        if (parts.Length != 2) return ($"ℹ️ Sintassi:\n{parts[0].ToLowerInvariant()} {(parts[0].Equals("!conferma", StringComparison.OrdinalIgnoreCase) ? "<codice>" : "<rif>")}", false);
         var child = (await store.ListAsync<HouseholdMember>(eventId, ct))
             .Any(x => x.IsActive && x.PersonId == personId && x.Kind == HouseholdMemberKind.Child);
         if (participant.Status != ParticipationStatus.Confirmed || child) return (OperationalUnavailable, false);
@@ -41,7 +41,7 @@ public sealed partial class WhatsAppService
         {
             action = command switch { "!porto" => SimulationAction.BringMenu, "!prendo" => SimulationAction.ClaimTask, _ => SimulationAction.CompleteTask };
             if (proposals.Count(x => x.PersonId == personId && !x.ConsumedAtUtc.HasValue && x.ExpiresAtUtc > now) >= 3)
-                return ("Hai già tre richieste attive. Confermane una oppure attendi cinque minuti.", false);
+                return ("⏳ Hai già tre richieste attive.\nConfermane una oppure attendi cinque minuti prima di riprovare.", false);
             try
             {
                 var resolved = action == SimulationAction.BringMenu
@@ -72,7 +72,7 @@ public sealed partial class WhatsAppService
             var pending = new WhatsAppOperationalProposal(eventId, personId, connection.ActorId!.Value, connection.GroupId!,
                 connection.Revision, action, target.Id, target.Revision, options.Fingerprint("operation-code", code), now);
             store.Add(pending); operations.Audit(eventId, pending.ActorId, pending.Id, "WhatsApp", "OperationProposed");
-            return ($"Richiesta {command} {SimulationReferences.Short(target.Id)}. Per confermare entro cinque minuti: !conferma {code}", false);
+            return ($"🙋 *Proposta di impegno*\nAzione: {command} · Rif. {SimulationReferences.Short(target.Id)}\n\nNessuna modifica prima della conferma.\nSolo tu puoi confermare, entro cinque minuti, nello stesso gruppo.\n\n👉 Copia e invia:\n!conferma {code}\n\nIo preparo la lista, a te l’ultimo sì. ✅", false);
         }
         if (target is MenuItem menu)
             menu.Update(menu.Name, menu.Category, menu.Quantity, menu.Unit, personId, MenuAvailability.Assigned, menu.Notes);
