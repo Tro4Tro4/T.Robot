@@ -40,7 +40,7 @@ else
     <div class="table-responsive" role="region" aria-label="Voci del menu" tabindex="0"><table class="table"><thead><tr><th>Voce</th><th>Categoria</th><th>Quantità</th><th>Responsabile</th><th>Disponibilità</th><th>Note</th><th></th></tr></thead><tbody>
     @foreach (var item in Model.Page.Items)
     {
-        <tr><td>@item.Name</td><td>@Category(item.Category)</td><td>@item.Quantity @item.Unit</td>
+        <tr><td>@item.Name<br /><code title="@item.Id">@TRobot.Application.Simulation.SimulationReferences.Short(item.Id)</code><br /><small>GUID completo: @item.Id</small></td><td>@Category(item.Category)</td><td>@item.Quantity @item.Unit</td>
         <td>@(Model.Page.People.FirstOrDefault(x => x.Id == item.ResponsiblePersonId)?.Name ?? "Nessuno")</td>
         <td>@Availability(item.Availability)</td><td style="white-space: pre-wrap">@item.Notes</td>
         <td><a asp-action="Edit" asp-route-eventId="@Model.Page.EventId" asp-route-id="@item.Id">Modifica</a></td></tr>

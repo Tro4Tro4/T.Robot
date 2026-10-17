@@ -34,7 +34,7 @@ public sealed class SimulationCommandTests
     }
 
     [Fact]
-    public async Task AggregateCommandsExcludeNamesNotesTitlesAndCancelledItemsAndDoNotWrite()
+    public async Task LocalOperationalListsExcludeAssigneesNotesAndCancelledItemsAndDoNotWrite()
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
         var db = p.GetRequiredService<TRobotDbContext>(); var person = (await db.EventParticipants.SingleAsync()).PersonId;
@@ -45,8 +45,11 @@ public sealed class SimulationCommandTests
         var service = p.GetRequiredService<SimulationCommandService>();
         var menu = await service.ExecuteAsync(f.OrganizerPersonId, Message(f, "  !MENU  "));
         var todo = await service.ExecuteAsync(f.OrganizerPersonId, Message(f, "!todo"));
-        Assert.Equal("Menu: 1 voci attive; 1 pronte, 0 assegnate, 0 da organizzare.", menu.Reply);
-        Assert.Equal("Attività: 1 da iniziare, 0 in corso, 0 completate.", todo.Reply);
+        Assert.StartsWith("Menu: 1 voci attive; 1 pronte, 0 assegnate, 0 da organizzare.\n", menu.Reply);
+        Assert.StartsWith("Attività: 1 da iniziare, 0 in corso, 0 completate.\n", todo.Reply);
+        Assert.Contains("Nome privato menu", menu.Reply); Assert.Contains("Titolo privato", todo.Reply);
+        Assert.DoesNotContain("Nota privata", menu.Reply); Assert.DoesNotContain("Dettagli privati", todo.Reply);
+        Assert.DoesNotContain("Annullata", menu.Reply);
         foreach (var name in await db.People.Select(x => x.DisplayName).ToListAsync())
         { Assert.DoesNotContain(name, menu.Reply); Assert.DoesNotContain(name, todo.Reply); }
         Assert.Contains("!vota", (await service.ExecuteAsync(f.OrganizerPersonId, Message(f, "!aiuto"))).Reply);

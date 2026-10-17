@@ -10,7 +10,7 @@ else
 <div class="table-responsive" role="region" aria-label="Attività evento" tabindex="0"><table class="table"><thead><tr><th>Titolo</th><th>Priorità</th><th>Stato</th><th>Responsabile</th><th>Scadenza</th><th></th></tr></thead><tbody>
 @foreach (var item in Model.Tasks)
 {
-<tr><td>@item.Title</td><td>@TaskLabels.Priority(item.Priority)</td><td>@TaskLabels.Status(item.Status)</td><td>@(Model.People.FirstOrDefault(x => x.Id == item.AssigneeId)?.Name ?? "Non assegnato")</td><td>@(item.DueAtUtc.HasValue ? TimeZoneInfo.ConvertTimeFromUtc(item.DueAtUtc.Value, zone).ToString("dd/MM/yyyy HH:mm") : "—")</td><td><a asp-action="Edit" asp-route-eventId="@Model.Event.Id" asp-route-id="@item.Id">Modifica</a></td></tr>
+<tr><td>@item.Title<br /><code title="@item.Id">@TRobot.Application.Simulation.SimulationReferences.Short(item.Id)</code><br /><small>GUID completo: @item.Id</small></td><td>@TaskLabels.Priority(item.Priority)</td><td>@TaskLabels.Status(item.Status)</td><td>@(Model.People.FirstOrDefault(x => x.Id == item.AssigneeId)?.Name ?? "Non assegnato")</td><td>@(item.DueAtUtc.HasValue ? TimeZoneInfo.ConvertTimeFromUtc(item.DueAtUtc.Value, zone).ToString("dd/MM/yyyy HH:mm") : "—")</td><td><a asp-action="Edit" asp-route-eventId="@Model.Event.Id" asp-route-id="@item.Id">Modifica</a></td></tr>
 }
 </tbody></table></div>
 }

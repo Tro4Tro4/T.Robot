@@ -1179,6 +1179,47 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TRobot.Domain.SimulationActionReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventId", "PersonId");
+
+                    b.HasIndex("EventId", "TargetId");
+
+                    b.ToTable("SimulationActionReceipts", (string)null);
+                });
+
             modelBuilder.Entity("TRobot.Infrastructure.Identity.OrganizerUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1702,6 +1743,27 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("EventId", "QuizId")
                         .HasPrincipalKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.SimulationActionReceipt", b =>
+                {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "PersonId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

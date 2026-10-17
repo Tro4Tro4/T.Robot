@@ -39,6 +39,7 @@ builder.Services.AddScoped<IAttendanceStore>(sp => sp.GetRequiredService<Attenda
 builder.Services.AddScoped<IDemoSetupStore>(sp => sp.GetRequiredService<AttendanceStore>());
 builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<SimulationCommandService>();
+builder.Services.AddScoped<OperationalCommandService>();
 builder.Services.AddScoped<OrganizerAttendanceService>();
 builder.Services.AddScoped<DemoSetupService>();
 builder.Services.AddScoped<IOrganizerAccountStore, OrganizerAccountStore>();
