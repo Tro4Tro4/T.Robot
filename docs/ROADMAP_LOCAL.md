@@ -20,6 +20,7 @@ Il lavoro viene suddiviso in task sviluppati da agenti dedicati e verificati da 
 | 18 | Dashboard aggregata, simulazioni complete, documentazione e verifica finale | Completata: review indipendente OK, build 0 errori/avvisi, 296 test superati, smoke autenticato loopback e verifiche DB OK |
 | 19 | Comandi `!aiuto`, `!menu`, `!todo`, `!vota` nel simulatore; UI responsive rifinita con Impeccable e Debug VS Code | Review indipendenti OK, build 0 errori/avvisi, 310 test superati; collaudo browser su copia SQLite |
 | 20 | Menu/attività paginati, riferimenti brevi, `!porto`, `!prendo`, `!fatto` con ricevute e conferme | Review indipendente OK, build 0 errori/avvisi, 332 test superati |
+| 21 | Sondaggi e quiz pubblicati nel simulatore, riferimenti brevi, voto e risposta unica volontaria | Review indipendente OK, build 0 errori/avvisi, 365 test superati |
 
 ## Disegno comune
 

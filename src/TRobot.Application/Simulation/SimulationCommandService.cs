@@ -1,8 +1,8 @@
 using System.Globalization;
 using TRobot.Application.Attendance;
 using TRobot.Application.Local;
-using TRobot.Application.Polls;
 using TRobot.Domain;
+using static TRobot.Application.Simulation.SimulationReplies;
 
 namespace TRobot.Application.Simulation;
 
@@ -10,13 +10,14 @@ public sealed record SimulationCommandResult(string Reply, bool Duplicate = fals
 
 /// <summary>Deterministic organizer-only local commands; never queues replies for transport.</summary>
 public sealed class SimulationCommandService(AttendanceService attendance, IAttendanceStore attendanceStore,
-    ILocalStore store, LocalOperations operations, PollService polls, OperationalCommandService operational)
+    ILocalStore store, LocalOperations operations, PollQuizCommandService questionnaires, OperationalCommandService operational)
 {
     // The prototype runs in one local process. Share the gate across request scopes
     // so attendance and vote receipts cannot race in this simulator.
     private static readonly SemaphoreSlim WriteGate = new(1, 1);
-    public const string Help = "Comandi: !presenza si|forse|no; !menu [pagina]; !todo [pagina]; !porto <idvoce>; !prendo <idattività>; !fatto <idattività>; !vota <GUID sondaggio> <numero opzione>; !aiuto. "
-        + "Usa i riferimenti brevi mostrati negli elenchi o i GUID completi. Conferma esplicitamente voti e impegni nel simulatore.";
+    public const string Help = "Comandi: !presenza si|forse|no; !menu [pagina]; !todo [pagina]; !porto <idvoce>; !prendo <idattività>; !fatto <idattività>; "
+        + "!sondaggi [pagina]; !sondaggio <id>; !vota <id> <numero opzione>; !quiz; !quiz lista [pagina]; !quiz <id>; !rispondi <id> <numero opzione>; !aiuto. "
+        + "Usa i riferimenti brevi degli elenchi o i GUID completi. Conferma voti, risposte e impegni. Quiz: adesione volontaria dalla pagina Giochi e una sola risposta definitiva.";
 
     public async Task<SimulationCommandResult> ExecuteAsync(Guid actorId, SimulatedMessage message,
         bool confirmVote = false, CancellationToken ct = default)
@@ -26,7 +27,8 @@ public sealed class SimulationCommandService(AttendanceService attendance, IAtte
             || string.Equals(command, "!vota", StringComparison.OrdinalIgnoreCase)
             || string.Equals(command, "!porto", StringComparison.OrdinalIgnoreCase)
             || string.Equals(command, "!prendo", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(command, "!fatto", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(command, "!fatto", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(command, "!rispondi", StringComparison.OrdinalIgnoreCase);
         if (!writes) return await ExecuteCoreAsync(actorId, message, confirmVote, ct);
         await WriteGate.WaitAsync(ct);
         try { return await ExecuteCoreAsync(actorId, message, confirmVote, ct); }
@@ -54,6 +56,8 @@ public sealed class SimulationCommandService(AttendanceService attendance, IAtte
         }
         if (await store.FindAsync<SimulationActionReceipt>(message.EventId, operationId, ct) is not null)
             throw new LocalConflictException("Identificativo messaggio già utilizzato per un impegno.");
+        if (command != "!rispondi" && await store.FindAsync<QuizAnswer>(message.EventId, operationId, ct) is not null)
+            throw new LocalConflictException("Identificativo messaggio già utilizzato per una risposta quiz.");
         var receipt = await store.FindAsync<PollVoteReceipt>(message.EventId, operationId, ct);
         if (command != "!vota" && receipt is not null)
             throw new LocalConflictException("Identificativo messaggio già utilizzato per un voto.");
@@ -74,6 +78,8 @@ public sealed class SimulationCommandService(AttendanceService attendance, IAtte
         if (await attendanceStore.FindReceiptAsync(message.EventId, messageId, ct) is not null)
             throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
         if (parts.Length == 1 && command == "!aiuto") return new(Help);
+        if (command is "!sondaggi" or "!sondaggio" or "!quiz" or "!vota" or "!rispondi")
+            return await questionnaires.ExecuteAsync(actorId, message with { SenderId = sender, MessageId = messageId }, parts, confirmVote, ct);
         if (command == "!menu")
         {
             var listPage = ListPage(parts);
@@ -96,40 +102,12 @@ public sealed class SimulationCommandService(AttendanceService attendance, IAtte
                     .OrderBy(x => x.Title).ThenBy(x => x.Id).ToArray(), listPage, "!todo", x =>
                         $"[{SimulationReferences.Short(x.Id)}] {OneLine(x.Title)} — {(x.Status == OrganizationTaskStatus.Todo ? "Da iniziare" : "In corso")}"));
         }
-        if (command != "!vota" || parts.Length != 3 || !Guid.TryParse(parts[1], out var pollId) || pollId == Guid.Empty
-            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var position) || position < 1)
-            throw new LocalValidationException(Help);
-        if (!confirmVote) throw new LocalValidationException("Conferma esplicitamente il voto selezionando la casella nel simulatore.");
-        var page = await polls.ReadAsync(actorId, message.EventId, pollId, ct);
-        var option = page.Counts.SingleOrDefault(x => x.Option.Position == position)?.Option
-            ?? throw new LocalValidationException("Numero opzione non presente nel sondaggio.");
-        await polls.VoteAsync(actorId, message.EventId, pollId,
-            new(operationId, person.PersonId, option.Id, page.Poll.Revision, true), ct);
-        return new(receipt is null ? "Voto registrato. Nessun messaggio reale inviato." : "Messaggio già elaborato: nessun voto duplicato.", receipt is not null);
+        throw new LocalValidationException(Help);
     }
 
     private static string MenuState(MenuAvailability state) => state switch
     { MenuAvailability.Ready => "Pronto", MenuAvailability.Assigned => "Assegnato", _ => "Da organizzare" };
 
-    private static string OneLine(string text) => text.Replace('\r', ' ').Replace('\n', ' ');
-
-    private static int ListPage(string[] parts)
-    {
-        if (parts.Length == 1) return 1;
-        if (parts.Length == 2 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var page)
-            && page is >= 1 and <= 100000) return page;
-        throw new LocalValidationException("Indica una pagina intera tra 1 e 100000, per esempio !menu 2 oppure !todo 2.");
-    }
-
-    private static string PageText<T>(IReadOnlyList<T> items, int page, string command, Func<T, string> render)
-    {
-        const int size = 5;
-        var pages = Math.Max(1, (items.Count + size - 1) / size);
-        if (page > pages) throw new LocalValidationException($"Pagina inesistente: disponibili {pages} pagine. Usa {command} 1.");
-        return $"\nPagina {page}/{pages}; {items.Count} elementi nell'elenco."
-            + string.Concat(items.Skip((page - 1) * size).Take(size).Select(x => "\n" + render(x)))
-            + (page < pages ? $"\nPagina successiva: {command} {page + 1}" : "");
-    }
 
     private static string Required(string? value, int maximum, string error) =>
         !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= maximum ? value.Trim() : throw new LocalValidationException(error);

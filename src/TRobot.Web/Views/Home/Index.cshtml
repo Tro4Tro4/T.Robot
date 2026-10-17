@@ -46,7 +46,9 @@ else
     <h2 class="h4">Simula un messaggio</h2>
     <p>Imposta la presenza di una sola persona: <code>!presenza si</code>, <code>!presenza forse</code> o <code>!presenza no</code>.</p>
     <p>Consulta <code>!menu [pagina]</code> e <code>!todo [pagina]</code> per conteggi ed elenchi operativi (5 elementi per pagina), oppure <code>!aiuto</code>.
-        Per votare: <code>!vota &lt;GUID sondaggio&gt; &lt;numero opzione&gt;</code>. Copia l'identificativo dalla pagina del sondaggio; il mittente deve essere un adulto confermato.</p>
+        Consulta <code>!sondaggi [pagina]</code> e <code>!sondaggio &lt;id&gt;</code>, poi vota con <code>!vota &lt;id&gt; &lt;numero opzione&gt;</code> (adulto confermato).</p>
+    <p>Quiz: <code>!quiz</code>, <code>!quiz lista [pagina]</code>, <code>!quiz &lt;id&gt;</code> e
+        <code>!rispondi &lt;id&gt; &lt;numero opzione&gt;</code>. Serve un'adesione volontaria già attiva nella pagina Giochi; la risposta è unica e definitiva.</p>
     <p>Un adulto confermato può offrire una voce con <code>!porto &lt;idvoce&gt;</code>, assumere un'attività con
         <code>!prendo &lt;idattività&gt;</code> e completare la propria con <code>!fatto &lt;idattività&gt;</code>.
         Usa i riferimenti di 8 caratteri degli elenchi o il GUID completo. Le risposte restano nel sito riservato; titoli e nomi delle voci sono testo libero, mai inviato al gruppo.</p>
@@ -67,7 +69,7 @@ else
         <p class="form-text">Reinvia lo stesso identificativo per verificare che il messaggio venga elaborato una sola volta.</p>
         <div class="form-check mb-3">
             <input asp-for="Input.ConfirmVote" class="form-check-input" />
-            <label asp-for="Input.ConfirmVote" class="form-check-label">Confermo l'operazione indicata nel messaggio per il mittente selezionato (voto o impegno).</label>
+            <label asp-for="Input.ConfirmVote" class="form-check-label">Confermo l'operazione indicata nel messaggio per il mittente selezionato (voto, risposta definitiva o impegno).</label>
         </div>
         <button type="submit" class="btn btn-primary" disabled="@(dashboard.Senders.Count == 0)">Elabora messaggio simulato</button>
     </form>

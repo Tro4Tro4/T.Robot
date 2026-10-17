@@ -5,9 +5,10 @@
 <p>@Model.Event.Name</p>
 <p><a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a> · <a asp-action="Create" asp-route-eventId="@Model.Event.Id">Nuova bozza</a></p>
 <p>Votazioni simulate registrate dagli organizzatori. Un voto per adulto confermato; nessuna delega familiare.</p>
+<p>Nel simulatore: <code>!sondaggi [pagina]</code>, <code>!sondaggio &lt;riferimento&gt;</code>, <code>!vota &lt;riferimento&gt; &lt;numero opzione&gt;</code>.</p>
 @if (Model.Polls.Count == 0) { <p>Nessun sondaggio.</p> }
 @foreach (var poll in Model.Polls)
 {
     var status = poll.Status switch { TRobot.Domain.PollStatus.Draft => "Bozza", TRobot.Domain.PollStatus.PublicationQueued => "Pubblicazione avviata", TRobot.Domain.PollStatus.Closed => "Chiuso", _ => "Annullato" };
-    <p><a asp-action="Details" asp-route-eventId="@Model.Event.Id" asp-route-id="@poll.Id">@poll.Title</a> — @status</p>
+    <p><a asp-action="Details" asp-route-eventId="@Model.Event.Id" asp-route-id="@poll.Id">@poll.Title</a> — @status · <code>@TRobot.Application.Simulation.SimulationReferences.Short(poll.Id)</code></p>
 }

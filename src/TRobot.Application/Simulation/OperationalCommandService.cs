@@ -21,7 +21,8 @@ public sealed class OperationalCommandService(ILocalStore store, IAttendanceStor
             var messageId = message.MessageId.Trim();
             var operationId = SimulationReferences.MessageId(message.EventId, messageId);
             if (await attendanceStore.FindReceiptAsync(message.EventId, messageId, token) is not null
-                || await store.FindAsync<PollVoteReceipt>(message.EventId, operationId, token) is not null)
+                || await store.FindAsync<PollVoteReceipt>(message.EventId, operationId, token) is not null
+                || await store.FindAsync<QuizAnswer>(message.EventId, operationId, token) is not null)
                 throw new LocalConflictException("Identificativo messaggio già utilizzato per un'altra operazione.");
             var target = action == SimulationAction.BringMenu
                 ? (ILocalRecord)SimulationReferences.Resolve(await store.ListAsync<MenuItem>(message.EventId, token), reference)

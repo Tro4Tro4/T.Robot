@@ -5,8 +5,10 @@
    var state = Model.Poll.Status switch { PollStatus.Draft => "Bozza", PollStatus.Closed => "Chiuso", PollStatus.Cancelled => "Annullato", _ => Model.Open ? "Aperto" : Model.Publication?.Status == OutboundMessageStatus.Sent ? "Scaduto: da chiudere" : "In attesa di invio simulato" };
 }
 <h1>@Model.Poll.Title</h1>
-<p>Comando nel simulatore: <code>!vota @Model.Poll.Id &lt;numero opzione&gt;</code>.
+<p>Comandi nel simulatore: <code>!sondaggio @TRobot.Application.Simulation.SimulationReferences.Short(Model.Poll.Id)</code>;
+    <code>!vota @TRobot.Application.Simulation.SimulationReferences.Short(Model.Poll.Id) &lt;numero opzione&gt;</code>.
     Scegli uno dei numeri elencati sotto e conferma il voto nel simulatore.</p>
+<p>GUID completo alternativo: <code>@Model.Poll.Id</code>.</p>
 <p>@Model.Event.Name · @state · Scadenza @TimeZoneInfo.ConvertTimeFromUtc(Model.Poll.DeadlineUtc, zone).ToString("dd/MM/yyyy HH:mm") (@Model.Event.TimeZoneId)</p>
 <p><a asp-action="Index" asp-route-eventId="@Model.Event.Id">Torna ai sondaggi</a> · <a asp-controller="Messages" asp-action="Index" asp-route-eventId="@Model.Event.Id">Coda e simulazione invii</a></p>
 <h2>Opzioni e conteggi</h2>

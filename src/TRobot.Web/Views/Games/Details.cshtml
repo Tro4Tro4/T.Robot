@@ -3,6 +3,10 @@
 @{ ViewData["Title"] = Model.Quiz.Question;
    var state = Model.Quiz.Status switch { QuizStatus.Draft => "Bozza", QuizStatus.Closed => "Chiuso", QuizStatus.Cancelled => "Annullato", _ => Model.Open ? "Aperto" : Model.Publication?.Status == OutboundMessageStatus.Sent ? "Scaduto: da chiudere" : "In attesa di invio simulato" }; }
 <h1>@Model.Quiz.Question</h1><p>@Model.Event.Name · @state</p>
+<p>Comandi nel simulatore: <code>!quiz @TRobot.Application.Simulation.SimulationReferences.Short(Model.Quiz.Id)</code>;
+    <code>!rispondi @TRobot.Application.Simulation.SimulationReferences.Short(Model.Quiz.Id) &lt;numero opzione&gt;</code>.
+    Conferma la risposta definitiva; serve un'adesione volontaria già attiva nella pagina Giochi.</p>
+<p>GUID completo alternativo: <code>@Model.Quiz.Id</code>.</p>
 <p><a asp-action="Index" asp-route-eventId="@Model.Event.Id">Giochi e classifica riservata</a> · <a asp-controller="Messages" asp-action="Index" asp-route-eventId="@Model.Event.Id">Coda e invio simulato</a></p>
 <h2>Anteprima pubblicazione</h2><pre style="white-space:pre-wrap">@Model.Preview</pre>
 <p>Soluzione riservata: opzione @Model.Quiz.CorrectPosition. Risposte registrate: @Model.Answers.Count. Punti assegnati in classifica dopo la chiusura.</p>

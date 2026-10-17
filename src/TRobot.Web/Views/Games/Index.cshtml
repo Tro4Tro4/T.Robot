@@ -18,6 +18,8 @@
     </form>
 }
 <h2>Quiz</h2>
+<p>Nel simulatore: <code>!quiz</code>, <code>!quiz lista [pagina]</code>, <code>!quiz &lt;riferimento&gt;</code>,
+    <code>!rispondi &lt;riferimento&gt; &lt;numero opzione&gt;</code>. Una risposta definitiva; l'adesione resta volontaria e separata.</p>
 <ul>@foreach (var quiz in Model.Quizzes) { var state = quiz.Status switch { QuizStatus.Draft => "Bozza", QuizStatus.PublicationQueued => "Pubblicazione avviata", QuizStatus.Closed => "Chiuso", _ => "Annullato" }; <li><a asp-action="Details" asp-route-eventId="@Model.Event.Id" asp-route-id="@quiz.Id">@quiz.Question</a> · @state</li> }</ul>
 <h2>Classifica riservata</h2>
 <p>Solo quiz chiusi: 1 punto per risposta corretta, nessuna penalità. Pari punti, stessa posizione. Nessuna classifica viene accodata al gruppo.</p>
