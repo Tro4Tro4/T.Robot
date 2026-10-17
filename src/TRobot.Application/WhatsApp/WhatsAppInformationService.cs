@@ -9,6 +9,8 @@ public sealed partial class WhatsAppService
 {
     public const string RealHelp = "🤖 *T.Robot · Comandi del gruppo*\n\n"
         + "👋 *Presenza*\n!presenza si\n!presenza forse\n!presenza no\n\n"
+        + "Con sì raccogliamo arrivo e giorni (inclusivi), poi chiediamo conferma.\n"
+        + "Durante il dialogo: gg/mm o gg/mm/aaaa, numero da 1 a 31, sì/no.\n!annulla interrompe i dettagli senza revocare la presenza.\n\n"
         + "🍽️ *Menu e attività*\n!menu\n!todo\nPer altre pagine: !menu 2 oppure !todo 2.\n\n"
         + "🙋 *Impegni*\n!porto <rif>\n!prendo <rif>\n!fatto <rif>\n"
         + "Usa i riferimenti degli elenchi; completa solo attività assegnate a te.\n"

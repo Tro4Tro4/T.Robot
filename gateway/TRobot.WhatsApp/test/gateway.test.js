@@ -285,6 +285,85 @@ test('Operational whitelist uses the existing callback and rejects unrelated pre
   assert.equal(h.gateway.health().diagnostics.commandRejected, 3);
 });
 
+test('Attendance candidates and cancellation reach Application with exact original text and no dialog state', async t => {
+  const forwarded = [];
+  const h = await harness(t, { callback: async payload => {
+    forwarded.push(payload);
+    // Application may ignore every candidate: the gateway neither opens nor requires a dialog.
+    return { handled: false, duplicate: false, reaction: null };
+  } }); await h.ready();
+  const texts = ['30/12', '1.2.2027', '01-02-2027', '99/99/0000', '31/02', '0', '32', '999', '4', 'si', 'SÌ', 'NO', '  sì\n', ' 30/12/2026 ', '!annulla', '!ANNULLA'];
+  h.sockets[0].handlers.messages({ type: 'notify', messages: texts.map((text, i) => incoming('attendance-' + i, {
+    key: { ...incoming().key, id: 'attendance-' + i, participant: String(1000 + i) + '@lid' },
+    message: { conversation: text }
+  })) });
+  await h.gateway.idle();
+  assert.deepEqual(forwarded.map(x => x.text), texts);
+  assert.equal(h.gateway.health().diagnostics.callbackIgnored, texts.length);
+  assert.equal(h.sockets[0].sent.length, 0); assert.equal(h.sockets[0].reactions.length, 0);
+  assert.deepEqual(await readdir(h.directory), []);
+});
+
+test('Attendance candidates do not widen forwarding to ordinary chat or change command prefix rules', async t => {
+  const h = await harness(t); await h.ready();
+  const rejected = ['ciao', 'arrivo il 30/12', '30/12 grazie', 'sì per tutti', 'no grazie', '1000', '-1', '3,5', '1/2/26', '2026/12/30', 'si?', 'sì!', '!annullamento', ' !annulla', '!vota 1 2', ' '.repeat(100) + '4'];
+  h.sockets[0].handlers.messages({ type: 'notify', messages: rejected.map((text, i) => incoming('ordinary-' + i, { message: { conversation: text } })) });
+  await h.gateway.idle();
+  assert.equal(h.callbacks.length, 0);
+  assert.equal(h.gateway.health().diagnostics.commandRejected, rejected.length);
+});
+
+test('Attendance candidates preserve live group sender timestamp and plain-text envelope filters', async t => {
+  const h = await harness(t); await h.ready();
+  const candidate = { ...incoming(), message: { conversation: '30/12' } };
+  const rejects = [
+    { type: 'append', messages: [candidate] },
+    { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, fromMe: true } }] },
+    { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, remoteJid: '222@s.whatsapp.net' } }] },
+    { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, remoteJid: otherGroup } }] },
+    { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, participant: null } }] },
+    { type: 'notify', messages: [{ ...candidate, messageTimestamp: now / 1000 - 121 }] },
+    { type: 'notify', messages: [{ ...candidate, messageTimestamp: now / 1000 - 1 }] },
+    { type: 'notify', messages: [{ ...candidate, messageTimestamp: now / 1000 + 31 }] },
+    { type: 'notify', messages: [{ ...candidate, message: { imageMessage: { caption: '30/12' } } }] },
+    { type: 'notify', messages: [{ ...candidate, message: { editedMessage: { message: { conversation: '4' } } } }] }
+  ];
+  for (const batch of rejects) h.sockets[0].handlers.messages(batch);
+  await h.gateway.idle(); assert.equal(h.callbacks.length, 0);
+  h.sockets[0].handlers.messages({ type: 'notify', messages: [candidate, candidate] });
+  await h.gateway.idle(); assert.equal(h.callbacks.length, 1);
+  assert.equal(h.callbacks[0].text, '30/12');
+});
+
+test('Attendance candidates retain per-sender six-per-minute rate and fifty-message queue bounds', async t => {
+  let release; const response = new Promise(resolve => { release = resolve; }); let count = 0;
+  const h = await harness(t, { callback: async () => { count++; return response; } }); await h.ready();
+  const messages = Array.from({ length: 8 }, (_, i) => incoming('candidate-rate-' + i, { message: { conversation: '4' } }));
+  messages.push(...Array.from({ length: 60 }, (_, i) => incoming('candidate-bound-' + i, {
+    key: { ...incoming().key, id: 'candidate-bound-' + i, participant: String(1000 + i) + '@lid' },
+    message: { conversation: 'sì' }
+  })));
+  h.sockets[0].handlers.messages({ type: 'notify', messages });
+  assert.equal(h.gateway.queued, 50);
+  assert.equal(h.gateway.health().diagnostics.rateRejected, 2);
+  release({ handled: false, duplicate: false, reaction: null }); await h.gateway.idle();
+  assert.equal(count, 50); assert.equal(h.gateway.queued, 0);
+});
+
+test('Attendance candidate callbacks cannot survive same-group repin or a changed socket', async t => {
+  const h = await harness(t); await h.ready();
+  const originalSocket = h.sockets[0];
+  let release; h.gateway.callbackTail = new Promise(resolve => { release = resolve; });
+  originalSocket.handlers.messages({ type: 'notify', messages: [incoming('candidate-repin', { message: { conversation: '4' } })] });
+  await h.gateway.group(group); release();
+  await h.gateway.idle(); assert.equal(h.callbacks.length, 0);
+  originalSocket.handlers.messages({ type: 'notify', messages: [incoming('candidate-reconnect', { message: { conversation: 'sì' } })] });
+  h.gateway.disconnect(); await h.ready(); await h.gateway.idle();
+  originalSocket.handlers.messages({ type: 'notify', messages: [incoming('candidate-stale', { message: { conversation: 'no' } })] });
+  await h.gateway.idle(); assert.equal(h.callbacks.length, 0);
+  assert.ok(h.sockets.every(socket => socket.sent.length === 0 && socket.reactions.length === 0));
+});
+
 test('Operational confirmation reply code never enters journal and duplicate suppresses resending', async t => {
   const code = 'b'.repeat(32); const operationId = randomUUID();
   const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, reaction: null,

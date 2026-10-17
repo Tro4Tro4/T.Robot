@@ -17,6 +17,7 @@
     <a asp-action="Details" asp-route-id="@Model.Details.Event.Id" class="btn btn-link">Ricarica dati salvati</a>
 </form>
 <h2 class="h4">Partecipanti (@Model.Details.Participants.Count)</h2>
+<p><a asp-controller="Stays" asp-action="Index" asp-route-eventId="@Model.Details.Event.Id">Soggiorni e presenze giornaliere</a></p>
 @if (Model.Details.Participants.Count == 0)
 {
     <p>Non ci sono ancora partecipanti.</p>

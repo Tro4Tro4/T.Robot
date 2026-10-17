@@ -32,10 +32,22 @@ Il gateway ascolta su `127.0.0.1:5240`; il sito su `http://localhost:5238`. L'av
 2. Confermare il collegamento del numero dedicato e premere **Collega dispositivo e mostra QR**. Sul telefono aprire WhatsApp → **Dispositivi collegati** → **Collega un dispositivo**, quindi scansionare il QR della pagina riservata.
 3. Selezionare il gruppo di prova e premere **Attiva questo gruppo**, spuntando la conferma. Per un gateway è ammesso un solo gruppo/evento attivo.
 4. Associare un membro a un partecipante già registrato nell'evento. Non vengono importate persone e non vengono alterati i mittenti sintetici del simulatore.
-5. Dal telefono del membro associato inviare nel gruppo `!presenza si`, poi eventualmente `!presenza forse` e `!presenza no`. Il numero collegato al gateway non può collaudare se stesso: i messaggi propri vengono ignorati. La presenza deve aggiornarsi sul sito e il messaggio ricevere una reazione generica.
+5. Dal telefono del membro associato inviare nel gruppo `!presenza si` e seguire le domande su arrivo e durata descritte sotto; `!presenza forse` e `!presenza no` aggiornano il solo mittente con reazione ✅. Il numero collegato al gateway non può collaudare se stesso: i messaggi propri vengono ignorati.
 6. Per provare un invio, preparare un nuovo avviso operativo dalla pagina WhatsApp e controllare nell'anteprima **Nome attuale del gruppo**, ID del gruppo e testo. Il nome viene risolto per il destinatario esatto della bozza; se il collegamento è cambiato o il destinatario non è verificabile, la conferma non è disponibile e la pagina ne spiega il motivo. La preparazione della bozza non invia nulla. Confermare solo dopo il controllo e verificare il messaggio nel gruppo prima di ripetere qualunque operazione con esito incerto.
 
 DM, altri gruppi, messaggi vecchi, allegati e identità non associate sono ignorati. I test automatici usano trasporti finti e non attestano il funzionamento del proprio account: la prova con telefono resta necessaria.
+
+## Presenza, arrivo e giorni
+
+Inviare `!presenza si`: la presenza personale viene confermata e T.Robot chiede quando si arriva. Rispondere nel gruppo con una data numerica, per esempio `30/12` oppure `30/12/2026`, poi con il solo numero di giorni, per esempio `4`. Non aggiungere parole come «giorni» alla risposta. Il riepilogo mostrerà arrivo, ultimo giorno e notti: **30/12 + 4 giorni = fino al 02/01, tre notti**. Le date sono riferite al fuso dell'evento; senza anno viene scelta la data più vicina all'inizio dell'evento.
+
+Per un adulto appartenente a un nucleo attivo, il bot chiede se applicare lo stesso soggiorno a tutta la famiglia. Rispondere `sì` per confermare presenza e date dei membri attivi del nucleo, oppure `no` per registrare le date soltanto per sé. I familiari potranno poi indicare un soggiorno differente ripetendo il proprio percorso. Chi non può confermare un nucleo riceve la richiesta di conferma individuale. Non vengono aggiunti accompagnatori nuovi e non vengono elencati i nomi dei familiari nel gruppo.
+
+I dettagli del soggiorno vengono salvati alla conferma finale. Ogni persona ha un dialogo separato, valido 15 minuti nello stesso gruppo e collegamento; risposte brevi fuori da un dialogo attivo sono ignorate. Durante la compilazione, date, numeri e sì/no inviati dal medesimo mittente sono interpretati come risposte alla domanda corrente. Per evitare equivoci, completare la sequenza oppure interromperla con `!annulla`. Questo comando interrompe soltanto la compilazione: non revoca la presenza e non cancella date già registrate. Per correggere, ripartire da `!presenza si`.
+
+`!presenza no` e `!presenza forse` interrompono la compilazione e aggiornano soltanto il mittente. Un eventuale soggiorno precedente resta nello storico, ma non contribuisce al quadro giornaliero finché la persona non è confermata. Se cambiano nucleo, presenze o soggiorni dopo il riepilogo, la conferma obsoleta viene rifiutata: ricominciare senza sovrascrivere le modifiche altrui.
+
+Sono ammessi da 1 a 31 giorni e un arrivo entro 31 giorni prima/dopo la data iniziale dell'evento. Il sito riservato mostra soggiorni e conteggi giornalieri; per i confermati privi di date segnala i dettagli mancanti senza inventare un soggiorno. Queste informazioni non cambiano automaticamente le quote economiche.
 
 ## Aiuto, menu e attività
 
@@ -55,7 +67,7 @@ I messaggi sono divisi in blocchi: titolo, riepilogo, singole voci con quantità
 
 Dopo l'aggiornamento della formattazione occorre riapprovare **entrambi** gli elenchi: anche il testo presentato fa parte dei contenuti approvati. L'anteprima mostra esattamente le pagine che arriveranno nel gruppo. Non serve ricollegare il dispositivo.
 
-Le risposte informative arrivano come testo nel gruppo; `!presenza si|forse|no` mantiene la reazione ✅. Gli impegni sono descritti di seguito; sondaggi e quiz restano nel simulatore. Non sono previsti reinvii automatici delle risposte incerte.
+Le risposte informative arrivano come testo nel gruppo; la presenza positiva avvia il dialogo descritto sopra, mentre `!presenza forse|no` mantiene la reazione ✅. Gli impegni sono descritti di seguito; sondaggi e quiz restano nel simulatore. Non sono previsti reinvii automatici delle risposte incerte.
 
 ## Assumere e completare impegni
 

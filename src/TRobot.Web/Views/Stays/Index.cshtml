@@ -1,0 +1,23 @@
+@model TRobot.Application.WhatsApp.AttendanceOverview
+@using TRobot.Domain
+@{ ViewData["Title"] = "Soggiorni"; }
+<h1>Soggiorni · @Model.EventName</h1>
+<partial name="_EventNavigation" model="Model.EventId" />
+<p>Quadro riservato agli organizzatori. Arrivo e ultimo giorno inclusi; notti = giorni meno uno. I conteggi comprendono solo presenze confermate con soggiorno completo.</p>
+<div class="table-responsive"><table class="table">
+<thead><tr><th>Persona</th><th>Presenza</th><th>Arrivo</th><th>Giorni</th><th>Ultimo giorno</th><th>Notti</th></tr></thead>
+<tbody>
+@foreach (var person in Model.People)
+{
+    var status = person.Status switch { ParticipationStatus.Confirmed => "Confermato", ParticipationStatus.Absent => "Assente", ParticipationStatus.Undecided => "Indeciso", _ => "Senza risposta" };
+    <tr><td>@person.Name</td><td>@status</td><td>@(person.Stay?.Arrival.ToString("dd/MM/yyyy") ?? (person.Status == ParticipationStatus.Confirmed ? "Da completare" : "—"))</td><td>@person.Stay?.Days</td><td>@person.Stay?.LastDay.ToString("dd/MM/yyyy")</td><td>@person.Stay?.Nights</td></tr>
+}
+</tbody></table></div>
+<h2 class="h4">Presenze giornaliere</h2>
+@if (Model.Days.Count == 0) { <p>Nessun soggiorno confermato completo.</p> }
+else
+{
+    <table class="table"><thead><tr><th>Giorno</th><th>Persone</th></tr></thead><tbody>
+    @foreach (var day in Model.Days) { <tr><td>@day.Day.ToString("dd/MM/yyyy")</td><td>@day.People</td></tr> }
+    </tbody></table>
+}

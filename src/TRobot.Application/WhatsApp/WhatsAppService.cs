@@ -178,8 +178,9 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
         var command = parts[0].ToLowerInvariant();
         var informational = command is "!aiuto" or "!menu" or "!todo";
         var operational = command is "!porto" or "!prendo" or "!fatto" or "!conferma";
+        var attendanceAnswer = command == "!annulla" && parts.Length == 1 || AttendanceCandidate(input.Text);
         ParticipationStatus status = default;
-        if (!informational && !operational)
+        if (!informational && !operational && !attendanceAnswer)
         {
             try { status = AttendanceService.Parse(input.Text); }
             catch (AttendanceValidationException) { return new(false); }
@@ -206,7 +207,7 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             var messageHash = options.Fingerprint("message", input.GroupId + ":" + input.MessageId);
             var receipt = await identities.ReceiptAsync(connection.EventId, messageHash, token);
             var informationReceipt = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token)).SingleOrDefault(x => x.MessageHash == messageHash);
-            if (informational || operational)
+            if (informational || operational || attendanceAnswer)
             {
                 if (receipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
                 var commandHash = options.Fingerprint("command", input.Text);
@@ -216,11 +217,14 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                         throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
                     return new WhatsAppIncomingResult(true, true);
                 }
-                var outcome = operational
+                var outcome = attendanceAnswer
+                    ? (Reply: await AttendanceReplyAsync(connection, participant, input.Text.Trim(), now, timestamp, token), Success: false)
+                    : operational
                     ? await OperationalReplyAsync(connection, participant, parts, now, token)
                     : (Reply: (string?)await InformationReplyAsync(connection, parts, token), Success: false);
+                if (attendanceAnswer && outcome.Reply is null) return new WhatsAppIncomingResult(false);
                 var informationRecord = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
-                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", operational ? "OperationalReceived" : "InformationReceived"); await store.SaveAsync(token);
+                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", attendanceAnswer ? "AttendanceAnswerReceived" : operational ? "OperationalReceived" : "InformationReceived"); await store.SaveAsync(token);
                 return outcome.Success ? new WhatsAppIncomingResult(true, Reaction: "✅")
                     : new WhatsAppIncomingResult(true, ReplyText: outcome.Reply, ReplyOperationId: informationRecord.Id);
             }
@@ -234,6 +238,12 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             var previous = participant.Status; participant.ChangeStatus(status, now);
             var record = new WhatsAppIncomingReceipt(connection.EventId, messageHash, participant.PersonId, actor, previous, status, now);
             store.Add(record); operations.Audit(connection.EventId, actor, record.Id, "WhatsApp", "PresenceReceived"); await store.SaveAsync(token);
+            if (status == ParticipationStatus.Confirmed)
+            {
+                var reply = await StartAttendanceAsync(connection, participant, now, token); await store.SaveAsync(token);
+                return new WhatsAppIncomingResult(true, ReplyText: reply, ReplyOperationId: record.Id);
+            }
+            if (await CloseAttendanceAsync(connection.EventId, participant.PersonId, token)) await store.SaveAsync(token);
             return new WhatsAppIncomingResult(true, false, "✅");
         }, ct);
     }

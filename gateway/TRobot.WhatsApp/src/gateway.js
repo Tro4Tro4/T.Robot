@@ -208,7 +208,10 @@ export class WhatsAppGateway {
         || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) { this.count('contextRejected'); continue; }
       const text = extractPlainText(message.message);
       if (text === null) { this.count('envelopeRejected'); continue; }
-      if (text.length > 100 || !/^!(?:presenza|aiuto|menu|todo|porto|prendo|fatto|conferma)(?:\s|$)/i.test(text)) { this.count('commandRejected'); continue; }
+      // Only Application knows whether this sender has an authorized attendance dialog.
+      // Trim solely for candidate recognition; preserve the exact text in the callback.
+      if (text.length > 100 || (!/^!(?:presenza|aiuto|menu|todo|porto|prendo|fatto|conferma|annulla)(?:\s|$)/i.test(text)
+        && !/^(?:\d{1,2}[/\.\-]\d{1,2}(?:[/\.\-]\d{4})?|\d{1,3}|s[iì]|no)$/i.test(text.trim()))) { this.count('commandRejected'); continue; }
       const senderIds = [...new Set([key.participant, key.participantAlt].map(normalizeSender).filter(Boolean))];
       if (!senderIds.length) { this.count('senderRejected'); continue; }
       this.trimCaches(now);

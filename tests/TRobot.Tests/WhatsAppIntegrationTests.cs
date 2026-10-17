@@ -42,7 +42,8 @@ public sealed partial class WhatsAppIntegrationTests
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
         var gateway = new FakeGateway(); var clock = new Clock(); var service = Service(p, gateway, clock);
         var person = await Activate(p, f, service); var message = Incoming();
-        Assert.Equal(new WhatsAppIncomingResult(true, false, "✅"), await service.IncomingAsync(message));
+        var started = await service.IncomingAsync(message);
+        Assert.True(started.Handled); Assert.Contains("Quando arrivi", started.ReplyText); Assert.NotNull(started.ReplyOperationId);
         Assert.Equal(new WhatsAppIncomingResult(true, true), await service.IncomingAsync(message));
         clock.Utc = Now.AddSeconds(1);
         await service.IncomingAsync(Incoming("!presenza no", "second-message"));
