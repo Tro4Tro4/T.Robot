@@ -6,7 +6,7 @@ import { join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { SendJournal, GatewayError } from '../src/journal.js';
-import { WhatsAppGateway, normalizeSender } from '../src/gateway.js';
+import { WhatsAppGateway, normalizeSender, extractPlainText } from '../src/gateway.js';
 import { createCallback, createGatewayServer } from '../src/http.js';
 
 const token = 'a'.repeat(64); // Synthetic test token, never used by the local configuration.
@@ -161,6 +161,69 @@ test('Callbacks are serialized and bounded per sender; duplicate callback has no
   h.setTime(now + 61000);
   h.sockets[0].handlers.messages({ type: 'notify', messages: [incoming('fresh', { messageTimestamp: (now + 61000) / 1000 })] });
   await h.gateway.idle(); assert.equal(h.gateway.rates.values().next().value.count, 1);
+});
+
+test('Real decoded group text with sender-key metadata and ephemeral text reach the callback without metadata', async t => {
+  const h = await harness(t); await h.ready();
+  // rc14 decode-wa-message processes this metadata but retains it in fullMessage.message.
+  const senderKeyDistributionMessage = { groupId: group, axolotlSenderKeyDistributionMessage: Buffer.from('synthetic-key') };
+  const contents = [
+    { conversation: '!presenza si', senderKeyDistributionMessage },
+    { extendedTextMessage: { text: '!presenza forse', contextInfo: { stanzaId: 'synthetic-quote' } }, senderKeyDistributionMessage },
+    { ephemeralMessage: { message: { conversation: '!presenza no', senderKeyDistributionMessage } }, senderKeyDistributionMessage },
+    { ephemeralMessage: { message: { extendedTextMessage: { text: '!presenza si' }, messageContextInfo: {} } }, messageContextInfo: {} }
+  ];
+  h.sockets[0].handlers.messages({ type: 'notify', messages: contents.map((message, i) => incoming('decoded-' + i, { message })) });
+  await h.gateway.idle();
+  assert.deepEqual(h.callbacks.map(x => x.text), ['!presenza si', '!presenza forse', '!presenza no', '!presenza si']);
+  assert.ok(h.callbacks.every(x => !('message' in x) && !('senderKeyDistributionMessage' in x)));
+  assert.equal(h.sockets[0].reactions.length, 4);
+  const diagnostics = h.gateway.health().diagnostics;
+  assert.equal(diagnostics.received, 4); assert.equal(diagnostics.envelopeRejected, 0);
+  assert.equal(diagnostics.callbackHandled, 4); assert.equal(diagnostics.reactionSent, 4);
+  for (const privateValue of [group, 'decoded-', '!presenza', 'synthetic-key', token])
+    assert.ok(!JSON.stringify(diagnostics).includes(privateValue));
+  diagnostics.received = 999; assert.equal(h.gateway.health().diagnostics.received, 4);
+});
+
+test('Plain-text extraction never unwraps edits, view-once, protocol or media and limits disappearing wrapper depth', async t => {
+  const h = await harness(t); await h.ready();
+  const text = { conversation: '!presenza si' };
+  const rejected = [
+    { senderKeyDistributionMessage: {} },
+    { imageMessage: { caption: '!presenza si' }, senderKeyDistributionMessage: {} },
+    { ephemeralMessage: { message: { imageMessage: { caption: '!presenza si' } } } },
+    { editedMessage: { message: text } },
+    { viewOnceMessage: { message: text } },
+    { ephemeralMessage: { message: { viewOnceMessageV2: { message: text } } } },
+    { documentWithCaptionMessage: { message: text } },
+    { conversation: '!presenza si', protocolMessage: {} },
+    { conversation: '!presenza si', extendedTextMessage: { text: '!presenza no' } }
+  ];
+  let nested = text;
+  for (let i = 0; i < 5; i++) nested = { ephemeralMessage: { message: nested } };
+  assert.equal(extractPlainText(nested), '!presenza si');
+  rejected.push({ ephemeralMessage: { message: nested } });
+  for (const content of rejected) assert.equal(extractPlainText(content), null);
+  h.sockets[0].handlers.messages({ type: 'notify', messages: rejected.map((message, i) => incoming('rejected-envelope-' + i, { message })) });
+  await h.gateway.idle(); assert.equal(h.callbacks.length, 0);
+  assert.equal(h.gateway.health().diagnostics.envelopeRejected, rejected.length);
+});
+
+test('RAM diagnostics distinguish callback failure, ignored command and reaction failure without exception details', async t => {
+  const h = await harness(t, { callback: async () => { throw new Error('private exception details'); } }); await h.ready();
+  const emit = id => h.sockets[0].handlers.messages({ type: 'notify', messages: [incoming(id)] });
+  emit('failure'); await h.gateway.idle();
+  h.gateway.callback = async () => ({ handled: false, duplicate: false, reaction: null });
+  emit('ignored'); await h.gateway.idle();
+  h.gateway.callback = async () => ({ handled: true, duplicate: false, reaction: '✅' });
+  h.sockets[0].react = async () => { throw new Error('private reaction details'); };
+  emit('reaction-failure'); await h.gateway.idle();
+  const diagnostics = h.gateway.health().diagnostics;
+  assert.equal(diagnostics.callbackAttempts, 3); assert.equal(diagnostics.callbackFailed, 1);
+  assert.equal(diagnostics.callbackIgnored, 1); assert.equal(diagnostics.callbackHandled, 1);
+  assert.equal(diagnostics.reactionFailed, 1); assert.equal(diagnostics.reactionSent, 0);
+  assert.ok(!JSON.stringify(diagnostics).includes('private'));
 });
 
 test('Global callback queue stays bounded even across many distinct senders', async t => {

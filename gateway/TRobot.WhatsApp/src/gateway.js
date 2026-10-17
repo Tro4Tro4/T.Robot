@@ -9,6 +9,28 @@ export const normalizeSender = jid => {
   return match ? match[1] + '@' + match[2] : null;
 };
 
+// Baileys keeps group-key distribution metadata next to the decrypted message.
+// Disappearing text is also a normal live message. Do not use its broad normalizer:
+// that would unwrap edited messages, view-once media and other unsupported content.
+export function extractPlainText(content) {
+  const metadata = ['senderKeyDistributionMessage', 'messageContextInfo'];
+  for (let depth = 0; depth <= 5; depth++) {
+    if (!content || typeof content !== 'object' || Array.isArray(content)) return null;
+    const keys = Object.keys(content).filter(key => !metadata.includes(key));
+    if (keys.length !== 1) return null;
+    if (keys[0] === 'ephemeralMessage') {
+      if (depth === 5) return null;
+      content = content.ephemeralMessage?.message;
+      continue;
+    }
+    if (keys[0] === 'conversation') return typeof content.conversation === 'string' ? content.conversation : null;
+    if (keys[0] === 'extendedTextMessage')
+      return typeof content.extendedTextMessage?.text === 'string' ? content.extendedTextMessage.text : null;
+    return null;
+  }
+  return null;
+}
+
 export class WhatsAppGateway {
   constructor({ transportFactory, journal, token, callback, now = () => Date.now(), timers = globalThis }) {
     Object.assign(this, { transportFactory, journal, token, callback, now, timers });
@@ -18,8 +40,15 @@ export class WhatsAppGateway {
     this.startTail = Promise.resolve(); this.closing = Promise.resolve();
     this.sendTail = Promise.resolve(); this.callbackTail = Promise.resolve(); this.queued = 0;
     this.seen = new Map(); this.rates = new Map();
+    // Fixed, aggregate counters only. Never retain IDs, JIDs, text, QR or exception payloads.
+    this.diagnostics = { notifyBatches: 0, received: 0, contextRejected: 0, envelopeRejected: 0,
+      commandRejected: 0, senderRejected: 0, duplicateOrBusy: 0, rateRejected: 0, queued: 0,
+      callbackAttempts: 0, callbackHandled: 0, callbackIgnored: 0, callbackDuplicate: 0,
+      callbackFailed: 0, reactionSent: 0, reactionFailed: 0 };
   }
-  health() { return { status: this.status, qrDataUrl: this.qrDataUrl, activeGroupId: this.activeGroupId, errorCode: this.errorCode }; }
+  health() { return { status: this.status, qrDataUrl: this.qrDataUrl, activeGroupId: this.activeGroupId,
+    errorCode: this.errorCode, diagnostics: { ...this.diagnostics } }; }
+  count(name) { this.diagnostics[name] = Math.min(Number.MAX_SAFE_INTEGER, this.diagnostics[name] + 1); }
   async connect() {
     if (this.requested && ['connecting', 'qr', 'connected'].includes(this.status)) return this.health();
     this.requested = true; this.retries = 0;
@@ -153,7 +182,9 @@ export class WhatsAppGateway {
   }
   incoming(epoch, batch) {
     if (epoch !== this.epoch || this.status !== 'connected' || batch?.type !== 'notify' || !this.activeGroupId) return;
+    this.count('notifyBatches');
     for (const message of batch.messages ?? []) {
+      this.count('received');
       const key = message.key;
       const groupId = key?.remoteJid;
       const timestamp = Number(message.messageTimestamp);
@@ -161,33 +192,37 @@ export class WhatsAppGateway {
       if (key?.fromMe || !validGroup(groupId) || groupId !== this.activeGroupId || !key?.participant
         || typeof key.id !== 'string' || !key.id || key.id.length > 200 || !Number.isSafeInteger(timestamp) || timestamp <= 0
         || timestamp * 1000 < Math.max(this.activation, this.socketStarted) - 999
-        || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) continue;
-      // Accept only plain text containers. Media/captions, edits and history are never interpreted.
-      const content = message.message;
-      if (!content || Object.keys(content).some(k => !['conversation', 'extendedTextMessage', 'messageContextInfo'].includes(k))) continue;
-      const text = content.conversation ?? content.extendedTextMessage?.text;
-      if (typeof text !== 'string' || text.length > 100 || !/^!presenza(?:\s|$)/i.test(text)) continue;
+        || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) { this.count('contextRejected'); continue; }
+      const text = extractPlainText(message.message);
+      if (text === null) { this.count('envelopeRejected'); continue; }
+      if (text.length > 100 || !/^!presenza(?:\s|$)/i.test(text)) { this.count('commandRejected'); continue; }
       const senderIds = [...new Set([key.participant, key.participantAlt].map(normalizeSender).filter(Boolean))];
-      if (!senderIds.length) continue;
+      if (!senderIds.length) { this.count('senderRejected'); continue; }
       this.trimCaches(now);
       const seenId = this.digest('incoming:' + groupId + ':' + key.id);
-      if (this.seen.has(seenId) || this.queued >= 50) continue;
+      if (this.seen.has(seenId) || this.queued >= 50) { this.count('duplicateOrBusy'); continue; }
       const sender = this.digest('sender:' + senderIds[0]);
       const rate = this.rates.get(sender) ?? { count: 0, until: now + 60000 };
-      if (rate.count >= 6) continue;
+      if (rate.count >= 6) { this.count('rateRejected'); continue; }
       rate.count++; this.rates.set(sender, rate); this.seen.set(seenId, now + 600000);
       this.queued++;
+      this.count('queued');
       const pinEpoch = this.pinEpoch; const socket = this.socket;
       const payload = { groupId, senderIds, messageId: key.id, text, timestampUnixSeconds: timestamp };
       this.callbackTail = this.callbackTail.then(async () => {
         if (epoch !== this.epoch || pinEpoch !== this.pinEpoch || groupId !== this.activeGroupId || socket !== this.socket) return;
-        try {
-          const result = await this.callback(payload);
-          if (result?.handled && !result.duplicate && result.reaction
-            && epoch === this.epoch && pinEpoch === this.pinEpoch && groupId === this.activeGroupId
-            && socket === this.socket && this.status === 'connected')
-            await socket.react(groupId, key, '✅');
-        } catch { /* Callback/reaction failure is contained; no raw chat text is persisted or logged. */ }
+        this.count('callbackAttempts');
+        let result;
+        try { result = await this.callback(payload); }
+        catch { this.count('callbackFailed'); return; }
+        this.count(result?.handled ? 'callbackHandled' : 'callbackIgnored');
+        if (result?.duplicate) this.count('callbackDuplicate');
+        if (result?.handled && !result.duplicate && result.reaction
+          && epoch === this.epoch && pinEpoch === this.pinEpoch && groupId === this.activeGroupId
+          && socket === this.socket && this.status === 'connected') {
+          try { await socket.react(groupId, key, '✅'); this.count('reactionSent'); }
+          catch { this.count('reactionFailed'); }
+        }
       }).finally(() => { this.queued--; });
     }
   }

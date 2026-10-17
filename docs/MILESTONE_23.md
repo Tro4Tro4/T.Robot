@@ -60,3 +60,11 @@ Fonti primarie: [repository Baileys](https://github.com/WhiskeySockets/Baileys),
 - Migrazione applicata anche all'originale dopo le verifiche: baseline delle 31 tabelle e credenziali invariata, integrity/FK OK. Smoke autenticato sul vero host: tutti i moduli, nuova pagina WhatsApp e stato ottenuto tramite il client .NET dal Node effettivo, CSS/no-store/logout riusciti. Nessuna mutazione business o attivazione di gruppo sull'originale.
 
 **Passaggio ancora necessario:** scansione del QR con il numero dedicato, selezione del gruppo, associazione di un membro e prova `!presenza` dal suo telefono. Nessun pairing o invio reale è dichiarato riuscito. Procedura riproducibile in [WHATSAPP_LOCAL.md](WHATSAPP_LOCAL.md).
+
+## Correzione durante il collaudo reale
+
+L'utente ha successivamente collegato l'account aziendale, selezionato un gruppo di prova con tre numeri e associato i due mittenti di prova. Il gateway risulta connesso, il gruppo coincide con il binding DB, l'attivatore è autorizzato e gli alias corrispondono ai membri. La prima prova `!presenza si` non ha prodotto ricevute.
+
+I sorgenti Baileys rc14 installati (`lib/Utils/decode-wa-message.js`) mostrano che `senderKeyDistributionMessage` viene elaborato ma resta insieme al testo nel messaggio decifrato. Il filtro precedente respingeva questa struttura. La correzione accetta soltanto metadati crittografici/context e un contenuto testuale, anche dentro massimo cinque wrapper effimeri; media, modifiche, protocollo e view-once restano esclusi. Un test riproduce il caso reale; ulteriori test verificano esclusioni e privacy della diagnostica.
+
+Review indipendente positiva e **17/17 test Node superati** dal coordinatore. Nessun cambiamento .NET o schema: la suite .NET rimane quella precedente di 401 test superati. Contatori tecnici aggregati solo RAM nella health autenticata distinguono scarto, callback ed esito della reazione, senza testo, identità o eccezioni. Gateway riavviato conservando l'autenticazione, sessione riconnessa e stesso gruppo già autorizzato ripristinato; nessun messaggio di prova inviato dal coordinatore. La conferma della causa dell'episodio e del funzionamento richiede un nuovo comando dal telefono dell'utente.
