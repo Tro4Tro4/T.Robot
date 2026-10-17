@@ -49,6 +49,14 @@ I dettagli del soggiorno vengono salvati alla conferma finale. Ogni persona ha u
 
 Sono ammessi da 1 a 31 giorni e un arrivo entro 31 giorni prima/dopo la data iniziale dell'evento. Il sito riservato mostra soggiorni e conteggi giornalieri; per i confermati privi di date segnala i dettagli mancanti senza inventare un soggiorno. Queste informazioni non cambiano automaticamente le quote economiche.
 
+## Riepilogo delle presenze
+
+Inviare `!riepilogo` nel gruppo dal numero associato a un partecipante dell'evento. Il bot mostra i presenti **confermati**, la ripartizione adulti/bambini e il conteggio dei confermati per nucleo, includendo i bambini registrati e confermati anche se non hanno un numero WhatsApp. Ogni persona conta una sola volta. I familiari ancora indecisi, assenti o senza risposta non diventano presenti soltanto perché un adulto del nucleo ha confermato per sé.
+
+Chi non ha una classificazione attiva nel nucleo viene incluso nel totale con età non specificata. Il riepilogo distingue inoltre gli stati generali e segnala in forma aggregata i soggiorni ancora da completare: una presenza confermata senza date conta comunque fra i confermati. Vengono mostrati i nomi dei nuclei e i relativi conteggi, senza nomi individuali, date personali, note o saldi.
+
+Con molti nuclei, proseguire con `!riepilogo 2`: massimo cinque nuclei per pagina, totale generale ripetuto in ogni pagina. Il comando consulta le presenze senza modificarle e può essere usato anche durante una compilazione aperta. Non richiede l'approvazione degli elenchi menu/attività. La guida `!aiuto` resta dedicata alla presenza.
+
 ## Aiuto, menu e attività
 
 Dal numero privato o dell'amico associato nel gruppo:

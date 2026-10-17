@@ -176,7 +176,7 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             return new(false);
         var parts = input.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var command = parts[0].ToLowerInvariant();
-        var informational = command is "!aiuto" or "!menu" or "!todo";
+        var informational = command is "!aiuto" or "!menu" or "!todo" or "!riepilogo";
         var operational = command is "!porto" or "!prendo" or "!fatto" or "!conferma";
         var attendanceAnswer = command == "!annulla" && parts.Length == 1 || AttendanceCandidate(input.Text);
         ParticipationStatus status = default;

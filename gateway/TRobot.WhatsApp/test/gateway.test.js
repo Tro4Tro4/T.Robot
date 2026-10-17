@@ -392,6 +392,42 @@ test('Real informational commands reply through the persistent journal, never re
   await assert.rejects(h.gateway.send({ operationId: randomUUID(), groupId: group, text }), e => e.code === 'invalid_send');
 });
 
+test('Attendance summary forwards exact bounded commands and journals only one reply per operation', async t => {
+  const operationId = randomUUID();
+  const h = await harness(t); await h.ready();
+  h.gateway.callback = async payload => {
+    h.callbacks.push(payload);
+    return { handled: true, duplicate: false, reaction: null, replyText: 'Riepilogo sintetico', replyOperationId: operationId };
+  };
+  for (const [index, text] of ['!riepilogo', '!RIEPILOGO 2'].entries()) {
+    h.sockets[0].handlers.messages({ type: 'notify', messages: [incoming('summary-' + index, { message: { conversation: text } })] });
+    await h.gateway.idle();
+    assert.equal(h.callbacks[index].text, text);
+    assert.equal(h.callbacks[index].groupId, group);
+    assert.deepEqual(h.callbacks[index].senderIds, ['111@lid', '222@s.whatsapp.net']);
+  }
+  assert.deepEqual(h.sockets[0].sent, [[group, 'Riepilogo sintetico']]);
+  assert.equal(h.sockets[0].reactions.length, 0);
+  const stored = await readFile(join(h.directory, (await readdir(h.directory))[0]), 'utf8');
+  assert.ok(!stored.includes('Riepilogo sintetico')); assert.ok(!stored.includes('!riepilogo'));
+});
+
+test('Attendance summary preserves channel, envelope, prefix and length filters', async t => {
+  const h = await harness(t); await h.ready();
+  const messages = [
+    incoming('summary-prefix', { message: { conversation: '!riepilogo2' } }),
+    incoming('summary-chat', { message: { conversation: 'riepilogo' } }),
+    incoming('summary-long', { message: { conversation: '!riepilogo ' + '1'.repeat(91) } }),
+    incoming('summary-other', { key: { remoteJid: otherGroup, participant: '111@lid', id: 'summary-other' }, message: { conversation: '!riepilogo' } }),
+    incoming('summary-dm', { key: { remoteJid: '222@s.whatsapp.net', participant: '111@lid', id: 'summary-dm' }, message: { conversation: '!riepilogo' } }),
+    incoming('summary-old', { messageTimestamp: now / 1000 - 121, message: { conversation: '!riepilogo' } }),
+    incoming('summary-media', { message: { imageMessage: { caption: '!riepilogo' } } })
+  ];
+  h.sockets[0].handlers.messages({ type: 'notify', messages }); await h.gateway.idle();
+  assert.equal(h.callbacks.length, 0); assert.equal(h.sockets[0].sent.length, 0);
+  assert.equal(h.gateway.health().diagnostics.commandRejected, 3);
+});
+
 test('Callback reply fields are bounded and typed, mutually exclusive and cannot choose a recipient', async () => {
   const valid = { handled: true, duplicate: false, reaction: null, replyText: 'Risposta', replyOperationId: randomUUID() };
   for (const changed of [ { replyText: 3 }, { replyText: '' }, { replyText: ' '.repeat(3) }, { replyText: 'x'.repeat(2001) },

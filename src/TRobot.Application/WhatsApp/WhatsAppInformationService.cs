@@ -83,6 +83,7 @@ public sealed partial class WhatsAppService
         int page;
         try { page = SimulationReplies.ListPage(parts); }
         catch (LocalValidationException) { return $"ℹ️ Sintassi:\n{command} [pagina]\nIndica una pagina intera da 1 a 100000."; }
+        if (command == "!riepilogo") return await AttendanceSummaryReplyAsync(connection.EventId, page, ct);
         var kind = command == "!menu" ? WhatsAppListKind.Menu : WhatsAppListKind.Todo;
         var pages = await ListPagesAsync(connection.EventId, kind, ct);
         if (!await IsApprovedAsync(connection, kind, ListFingerprint(connection, kind, pages), ct)) return UnapprovedList;
