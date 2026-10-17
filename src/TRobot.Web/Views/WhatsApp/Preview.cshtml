@@ -1,0 +1,20 @@
+@model WhatsAppPreview
+@{ ViewData["Title"] = "Anteprima invio WhatsApp reale"; var message = Model.Message; }
+<h1>Anteprima invio WhatsApp reale</h1>
+<partial name="_EventNavigation" model="message.EventId" />
+<p>@Model.EventName · Gruppo approvato: <strong>@message.GroupId</strong> · Stato: <strong id="live-message-status">@message.Status</strong>.</p>
+<pre style="white-space: pre-wrap">@message.Body</pre>
+@if (message.Status == TRobot.Domain.WhatsAppLiveMessageStatus.Draft)
+{
+    <form asp-action="Send" method="post">
+        <input type="hidden" name="EventId" value="@message.EventId" /><input type="hidden" name="Id" value="@message.Id" /><input type="hidden" name="Revision" value="@message.Revision" />
+        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo questo testo e il gruppo indicato. Il messaggio verrà inviato realmente; non contiene saldi o dati personali individuali.</label>
+        <button class="btn btn-primary" type="submit">Invia realmente al gruppo</button>
+    </form>
+}
+else if (message.Status is TRobot.Domain.WhatsAppLiveMessageStatus.Sending or TRobot.Domain.WhatsAppLiveMessageStatus.Uncertain)
+{
+    <p class="alert alert-warning">Esito da verificare nel gruppo: il messaggio potrebbe essere già arrivato. Nessun reinvio automatico è consentito.</p>
+}
+else { <p class="alert alert-success">Invio confermato dal gateway.</p> }
+<p><a asp-action="Index" asp-route-eventId="@message.EventId">Torna a WhatsApp</a></p>

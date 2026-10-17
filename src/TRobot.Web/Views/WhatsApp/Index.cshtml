@@ -1,0 +1,80 @@
+@model TRobot.Application.WhatsApp.WhatsAppPage
+@{ ViewData["Title"] = "WhatsApp sperimentale"; }
+<h1>WhatsApp sperimentale — @Model.Event.Name</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<p>Gateway non ufficiale per il numero dedicato e il gruppo di prova. Le operazioni in questa pagina possono comunicare realmente con WhatsApp; la simulazione resta separata.</p>
+@if (!Model.GatewayEnabled)
+{
+    <p class="alert alert-info">Gateway disattivato in questa istanza. Configurazione locale richiesta prima del collegamento.</p>
+}
+else
+{
+    <p>Gruppo per questo evento: <strong>@(Model.Connection?.Enabled == true ? Model.Connection.GroupId : "Nessuno attivo")</strong>.</p>
+    @if (Model.CanManageDevice)
+    {
+        <section id="whatsapp-device" data-event-id="@Model.Event.Id" data-status-url="@Url.Action("Status", new { eventId = Model.Event.Id })" data-groups-url="@Url.Action("Groups", new { eventId = Model.Event.Id })" data-members-url="@Url.Action("Members", new { eventId = Model.Event.Id })" data-binding-group="@(Model.Connection?.Enabled == true ? Model.Connection.GroupId : "")">
+        <h2>Collegamento dispositivo</h2>
+        <p id="whatsapp-status" role="status">Controllo stato del gateway…</p>
+        <img id="whatsapp-qr" alt="Codice QR per collegare il numero dedicato a WhatsApp" width="280" height="280" hidden />
+        <p>Scansiona il QR con WhatsApp del numero dedicato, in Dispositivi collegati. Dopo una disconnessione o un riavvio seleziona nuovamente il gruppo. Nessuna connessione viene avviata dal solo caricamento di questa pagina.</p>
+        <form asp-action="Connect" method="post" class="mb-3">
+            <input type="hidden" name="EventId" value="@Model.Event.Id" />
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo il collegamento del dispositivo dedicato.</label>
+            <button class="btn btn-primary" type="submit">Collega dispositivo e mostra QR</button>
+        </form>
+        <form asp-action="Disconnect" method="post" class="mb-3">
+            <input type="hidden" name="EventId" value="@Model.Event.Id" />
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la disconnessione e la disattivazione del gruppo.</label>
+            <button class="btn btn-outline-secondary" type="submit">Disconnetti dispositivo</button>
+        </form>
+        <h2>Gruppo di prova</h2>
+        <form asp-action="SelectGroup" method="post" class="mb-3">
+            <input type="hidden" name="EventId" value="@Model.Event.Id" />
+            <input type="hidden" name="Revision" value="@(Model.Connection?.Revision ?? 0)" />
+            <label for="whatsapp-group">Gruppo del dispositivo</label>
+            <select id="whatsapp-group" name="GroupId" class="form-select" required><option value="">Collega il dispositivo per caricare i gruppi</option></select>
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo che è il gruppo di prova autorizzato per questo evento.</label>
+            <button class="btn btn-primary" type="submit">Attiva questo gruppo</button>
+        </form>
+        @if (Model.Connection?.Enabled == true)
+        {
+            <h2>Associa membri a partecipanti esistenti</h2>
+            <p>Le associazioni non importano persone e non cambiano le identità usate dal simulatore. Nel gruppo viene elaborato solo <code>!presenza si|forse|no</code>.</p>
+            <form asp-action="Map" method="post" class="mb-3">
+                <input type="hidden" name="EventId" value="@Model.Event.Id" />
+                <input type="hidden" name="Revision" value="@Model.Connection.Revision" />
+                <label for="whatsapp-member">Membro del gruppo attivo</label>
+                <select id="whatsapp-member" name="MemberId" class="form-select" required><option value="">Caricamento membri…</option></select>
+                <label for="whatsapp-person">Partecipante già registrato nell'evento</label>
+                <select id="whatsapp-person" name="PersonId" class="form-select" required>
+                @foreach (var person in Model.Participants) { <option value="@person.Id">@person.Name</option> }
+                </select>
+                <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo l'identità della persona selezionata.</label>
+                <button class="btn btn-primary" type="submit">Associa identità</button>
+            </form>
+            <p>Identità tecniche associate: @Model.Aliases.Count(x => x.IsActive). Le persone e lo storico esistenti sono conservati.</p>
+        }
+        </section>
+    }
+    else { <p>Collegamento, scelta gruppo e associazioni sono riservati a un amministratore globale assegnato all'evento.</p> }
+    @if (Model.Connection?.Enabled == true)
+    {
+        <h2>Nuovo messaggio operativo reale</h2>
+        <p>Prepara una nuova bozza per il gruppo attivo. Nessun messaggio della coda simulata viene inviato da questa pagina.</p>
+        <form asp-action="Draft" method="post">
+            <input type="hidden" name="EventId" value="@Model.Event.Id" /><input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+            <label for="live-body">Testo operativo per il gruppo (massimo 1000 caratteri)</label>
+            <textarea id="live-body" name="Body" class="form-control" rows="4" maxlength="1000" required></textarea>
+            <button class="btn btn-primary" type="submit">Prepara anteprima</button>
+        </form>
+    }
+}
+<h2>Messaggi reali di questo evento</h2>
+@if (Model.Messages.Count == 0) { <p>Nessun messaggio reale preparato.</p> }
+else
+{
+    <div class="table-responsive" role="region" aria-label="Messaggi WhatsApp reali" tabindex="0"><table class="table"><thead><tr><th>Data UTC</th><th>Stato</th><th>Anteprima</th></tr></thead><tbody>
+    @foreach (var message in Model.Messages) { <tr><td>@message.CreatedAtUtc.ToString("u")</td><td>@message.Status</td><td><a asp-action="Preview" asp-route-eventId="@Model.Event.Id" asp-route-id="@message.Id">@(message.Body.Length > 100 ? message.Body[..100] + "…" : message.Body)</a></td></tr> }
+    </tbody></table></div>
+}
+@section Scripts { <script src="~/js/whatsapp.js" asp-append-version="true"></script> }

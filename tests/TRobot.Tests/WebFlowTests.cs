@@ -221,7 +221,7 @@ public sealed class WebFlowTests
         {
             builder.UseEnvironment("Development");
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?> { ["LocalScheduler:Enabled"] = "false" }));
+                new Dictionary<string, string?> { ["LocalScheduler:Enabled"] = "false", ["WhatsAppGateway:Enabled"] = "false" }));
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TRobotDbContext>();

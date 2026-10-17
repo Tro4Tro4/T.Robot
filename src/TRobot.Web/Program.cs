@@ -21,10 +21,13 @@ using TRobot.Infrastructure.Identity;
 using TRobot.Infrastructure.Persistence;
 using TRobot.Web.Security;
 using TRobot.Web.Services;
+using TRobot.Application.WhatsApp;
+using TRobot.Infrastructure.WhatsApp;
 
 var initializeDemo = args.Contains("--initialize-demo", StringComparer.Ordinal);
 var initializeIdentity = args.Contains("--initialize-identity", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(args.Where(x => x != "--initialize-demo" && x != "--initialize-identity").ToArray());
+builder.Configuration.AddJsonFile(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".local", "whatsapp", "gateway.json")), optional: true, reloadOnChange: false);
 if (!builder.Environment.IsDevelopment())
     throw new InvalidOperationException("T.Robot: prototipo solo Development. Configurare HTTPS e chiavi prima del deploy.");
 
@@ -35,6 +38,17 @@ builder.WebHost.ConfigureKestrel(options => options.ListenLocalhost(5238));
 builder.Services.AddControllersWithViews();
 builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1;[::1]";
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    return new WhatsAppGatewayOptions(configuration.GetValue("WhatsAppGateway:Enabled", false),
+        configuration["WhatsAppGateway:BaseUrl"] ?? "http://127.0.0.1:5240", configuration["WhatsAppGateway:Token"] ?? "");
+});
+builder.Services.AddScoped<IWhatsAppStore, WhatsAppStore>();
+builder.Services.AddScoped<WhatsAppService>();
+builder.Services.AddHttpClient<IWhatsAppGateway, WhatsAppGatewayClient>(client => client.Timeout = TimeSpan.FromSeconds(15))
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false });
 builder.Services.AddScoped<AttendanceStore>();
 builder.Services.AddScoped<IAttendanceStore>(sp => sp.GetRequiredService<AttendanceStore>());
 builder.Services.AddScoped<IDemoSetupStore>(sp => sp.GetRequiredService<AttendanceStore>());
@@ -89,6 +103,8 @@ builder.Services.AddAuthorization(options => options.FallbackPolicy = new Author
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("whatsapp-incoming", _ => RateLimitPartition.GetFixedWindowLimiter("whatsapp-loopback", _ => new FixedWindowRateLimiterOptions
+    { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     options.AddPolicy("login", _ => RateLimitPartition.GetFixedWindowLimiter("local-login", _ => new FixedWindowRateLimiterOptions
     {
         PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
@@ -127,6 +143,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapStaticAssets().AllowAnonymous();
+app.MapControllers();
 app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}").WithStaticAssets();
 app.Run();
 
