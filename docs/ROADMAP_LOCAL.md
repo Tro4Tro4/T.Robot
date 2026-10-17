@@ -25,6 +25,7 @@ Il lavoro viene suddiviso in task sviluppati da agenti dedicati e verificati da 
 | 21 | Sondaggi e quiz pubblicati nel simulatore, riferimenti brevi, voto e risposta unica volontaria | Review indipendente OK, build 0 errori/avvisi, 365 test superati |
 | 22 | Scheduler automatico locale opt-in per evento, attivatore autorizzato e worker ogni 30 secondi | Completata: review indipendente OK, build 0 errori/avvisi, 44 test mirati e 380 test completi, collaudo browser dei comandi e timer reale su copia riusciti; dati originali conservati |
 | 23 | Gateway locale Baileys, QR riservato, gruppo unico, mapping PN/LID, presenza reale e nuovi avvisi con anteprima | Implementazione e review indipendente OK; build 0 errori/avvisi, 411 test .NET e 17 Node superati; presenze reali e isolamento mittenti verificati, anteprima con nome esatto gruppo e blocco bozze obsolete; prova invio operativo dal sito in corso |
+| 24 | Aiuto, menu e attività nel gruppo reale; approvazione esplicita dei titoli, ricevute e journal delle risposte | Review APPROVED, build senza avvisi, 421 test .NET e 28 Node superati; nuovi comandi da verificare sul telefono |
 
 ## Disegno comune
 

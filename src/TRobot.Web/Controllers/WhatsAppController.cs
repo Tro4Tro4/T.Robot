@@ -6,6 +6,14 @@ namespace TRobot.Web.Controllers;
 
 public sealed class WhatsAppController(WhatsAppService service) : LocalControllerBase
 {
+    [HttpGet] public Task<IActionResult> ListPreview(Guid eventId, TRobot.Domain.WhatsAppListKind kind, CancellationToken ct) => ExecuteAsync(async () =>
+        View(await service.PreviewListAsync(ActorId, eventId, kind, ct)));
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> ApproveList(WhatsAppListApprovalInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!ModelState.IsValid) return BadRequest();
+        await service.ApproveListAsync(ActorId, input.EventId, input.OperationId, input.Kind, input.GroupId, input.ConnectionRevision, input.Fingerprint, input.Confirmed, ct);
+        return RedirectToAction(nameof(ListPreview), new { input.EventId, input.Kind });
+    });
     [HttpGet] public Task<IActionResult> Index(Guid eventId, CancellationToken ct) => ExecuteAsync(async () => View(await service.ReadAsync(ActorId, eventId, ct)));
     [HttpGet] public Task<IActionResult> Status(Guid eventId, CancellationToken ct) => ExecuteAsync(async () => Json(await service.HealthAsync(ActorId, eventId, ct)));
     [HttpGet] public Task<IActionResult> Groups(Guid eventId, CancellationToken ct) => ExecuteAsync(async () => Json(await service.GroupsAsync(ActorId, eventId, ct)));

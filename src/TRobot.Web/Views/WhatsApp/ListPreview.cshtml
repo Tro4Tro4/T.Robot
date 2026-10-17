@@ -1,0 +1,24 @@
+@model TRobot.Application.WhatsApp.WhatsAppListPreview
+@{ ViewData["Title"] = "Approvazione elenco WhatsApp"; }
+<h1>Anteprima @(Model.Kind == TRobot.Domain.WhatsAppListKind.Menu ? "menu" : "attività") per WhatsApp</h1>
+<partial name="_EventNavigation" model="Model.EventId" />
+<p>Gruppo destinatario: <strong>@Model.GroupName</strong></p>
+<p>ID gruppo: <code>@Model.GroupId</code> · Revisione collegamento: @Model.ConnectionRevision</p>
+<p>Controlla i titoli e le unità: il testo approvato potrà essere richiesto dai partecipanti associati nel gruppo. Responsabili, note e dati personali delle anagrafiche non sono inclusi.</p>
+@foreach (var pageText in Model.Pages)
+{
+    <pre class="border rounded p-3" style="white-space:pre-wrap">@pageText</pre>
+}
+<p role="status">@(Model.Approved ? "Contenuti attuali già approvati per questo collegamento." : "Contenuti attuali non ancora approvati per questo collegamento.")</p>
+<form asp-action="ApproveList" method="post">
+    <input type="hidden" name="EventId" value="@Model.EventId" />
+    <input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+    <input type="hidden" name="Kind" value="@Model.Kind" />
+    <input type="hidden" name="GroupId" value="@Model.GroupId" />
+    <input type="hidden" name="ConnectionRevision" value="@Model.ConnectionRevision" />
+    <input type="hidden" name="Fingerprint" value="@Model.Fingerprint" />
+    <label><input type="checkbox" name="Confirmed" value="true" required /> Ho controllato tutte le pagine e approvo esattamente questi contenuti per il gruppo indicato.</label>
+    <button type="submit" class="btn btn-primary">Approva condivisione elenco</button>
+</form>
+<p>Questa approvazione non invia messaggi. Ogni modifica ai contenuti pubblicabili o al collegamento richiede una nuova anteprima.</p>
+<a asp-action="Index" asp-route-eventId="@Model.EventId">Torna a WhatsApp</a>

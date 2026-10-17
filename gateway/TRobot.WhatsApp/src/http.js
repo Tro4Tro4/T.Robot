@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { GatewayError } from './journal.js';
+import { validateCallback } from './gateway.js';
 
 const json = (response, status, body) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
@@ -88,11 +89,10 @@ export function createCallback(callbackUrl, token, fetcher = fetch) {
     let length = 0; const chunks = [];
     for await (const chunk of response.body) {
       length += chunk.length;
-      if (length > 4096) { await response.body.cancel().catch(() => {}); throw new Error('callback_invalid'); }
+      if (length > 16384) { throw new Error('callback_invalid'); }
       chunks.push(chunk);
     }
     const result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    return { handled: result.handled === true, duplicate: result.duplicate === true,
-      reaction: result.reaction === '✅' ? '✅' : null };
+    return validateCallback(result);
   };
 }

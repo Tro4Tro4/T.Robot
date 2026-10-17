@@ -27,7 +27,10 @@ public sealed record GatewayGroup(string Id, string Name);
 public sealed record GatewayMember(string Id, IReadOnlyList<string> AlternateIds, string Label);
 public sealed record GatewaySendResult(string Status, string? MessageId = null);
 public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds);
-public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null);
+public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null,
+    string? ReplyText = null, Guid? ReplyOperationId = null);
+public sealed record WhatsAppListPreview(Guid EventId, WhatsAppListKind Kind, string GroupId, int ConnectionRevision,
+    string GroupName, IReadOnlyList<string> Pages, string Fingerprint, bool Approved);
 public sealed record WhatsAppPage(Event Event, WhatsAppConnection? Connection, IReadOnlyList<LocalPerson> Participants,
     IReadOnlyList<WhatsAppIdentityAlias> Aliases, IReadOnlyList<WhatsAppLiveMessage> Messages, bool CanManageDevice, bool GatewayEnabled);
 public sealed record WhatsAppMessagePreview(string EventName, WhatsAppLiveMessage Message, string? GroupName,

@@ -39,7 +39,7 @@ else
         @if (Model.Connection?.Enabled == true)
         {
             <h2>Associa membri a partecipanti esistenti</h2>
-            <p>Le associazioni non importano persone e non cambiano le identità usate dal simulatore. Nel gruppo viene elaborato solo <code>!presenza si|forse|no</code>.</p>
+            <p>Le associazioni non importano persone e non cambiano le identità usate dal simulatore. Comandi reali: <code>!presenza si|forse|no</code>, <code>!aiuto</code>, <code>!menu [pagina]</code> e <code>!todo [pagina]</code>.</p>
             <form asp-action="Map" method="post" class="mb-3">
                 <input type="hidden" name="EventId" value="@Model.Event.Id" />
                 <input type="hidden" name="Revision" value="@Model.Connection.Revision" />
@@ -59,6 +59,9 @@ else
     else { <p>Collegamento, scelta gruppo e associazioni sono riservati a un amministratore globale assegnato all'evento.</p> }
     @if (Model.Connection?.Enabled == true)
     {
+        <h2>Elenchi condivisibili nel gruppo</h2>
+        <p>I titoli sono testo libero: controlla tutte le pagine e approva la condivisione nel gruppo. Una modifica dei contenuti o del collegamento richiede una nuova approvazione. Approvare non invia messaggi.</p>
+        <p><a asp-action="ListPreview" asp-route-eventId="@Model.Event.Id" asp-route-kind="Menu">Anteprima e approvazione menu</a> · <a asp-action="ListPreview" asp-route-eventId="@Model.Event.Id" asp-route-kind="Todo">Anteprima e approvazione attività</a></p>
         <h2>Nuovo messaggio operativo reale</h2>
         <p>Prepara una nuova bozza per il gruppo attivo. Nessun messaggio della coda simulata viene inviato da questa pagina.</p>
         <form asp-action="Draft" method="post">

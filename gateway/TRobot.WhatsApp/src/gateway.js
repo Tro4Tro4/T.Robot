@@ -3,6 +3,18 @@ import { GatewayError } from './journal.js';
 
 export const validGroup = id => typeof id === 'string' && /^\d{1,30}(?:-\d{1,30})?@g\.us$/.test(id);
 const validOperation = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+export function validateCallback(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || Object.keys(result).some(key => !['handled', 'duplicate', 'reaction', 'replyText', 'replyOperationId'].includes(key))
+    || typeof result.handled !== 'boolean' || typeof result.duplicate !== 'boolean'
+    || (result.reaction != null && typeof result.reaction !== 'string')) throw new Error('callback_invalid');
+  const replyText = result.replyText ?? null; const replyOperationId = result.replyOperationId ?? null;
+  if ((replyText === null) !== (replyOperationId === null)
+    || (replyText !== null && (typeof replyText !== 'string' || !replyText.trim() || replyText.length > 2000
+      || !validOperation(replyOperationId) || result.reaction != null))) throw new Error('callback_invalid');
+  return { handled: result.handled, duplicate: result.duplicate,
+    reaction: result.reaction === '✅' ? '✅' : null, replyText, replyOperationId };
+}
 export const normalizeSender = jid => {
   if (typeof jid !== 'string') return null;
   const match = /^(\d{1,30})(?::\d+)?@(s\.whatsapp\.net|lid)$/.exec(jid);
@@ -151,14 +163,15 @@ export class WhatsAppGateway {
     this.sendTail = task.catch(() => {});
     return task;
   }
-  async sendOnce({ operationId, groupId, text }) {
+  async sendOnce({ operationId, groupId, text }, original = null, maximum = 1000) {
     if (!validOperation(operationId) || !validGroup(groupId) || typeof text !== 'string'
-      || !text.trim() || text.length > 1000) throw new GatewayError('invalid_send');
+      || !text.trim() || text.length > maximum) throw new GatewayError('invalid_send');
+    const { socket, epoch, pinEpoch } = original ?? { socket: this.socket, epoch: this.epoch, pinEpoch: this.pinEpoch };
     operationId = operationId.toLowerCase();
     const digest = this.journal.fingerprint(groupId, text);
     const prior = await this.journal.get(operationId, digest);
     if (prior) return prior;
-    const socket = this.connected(); const epoch = this.epoch; const pinEpoch = this.pinEpoch;
+    this.connected();
     if (groupId !== this.activeGroupId) throw new GatewayError('inactive_group', 403);
     await this.journal.pending(operationId, digest);
     let result = { status: 'uncertain', messageId: null };
@@ -195,7 +208,7 @@ export class WhatsAppGateway {
         || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) { this.count('contextRejected'); continue; }
       const text = extractPlainText(message.message);
       if (text === null) { this.count('envelopeRejected'); continue; }
-      if (text.length > 100 || !/^!presenza(?:\s|$)/i.test(text)) { this.count('commandRejected'); continue; }
+      if (text.length > 100 || !/^!(?:presenza|aiuto|menu|todo)(?:\s|$)/i.test(text)) { this.count('commandRejected'); continue; }
       const senderIds = [...new Set([key.participant, key.participantAlt].map(normalizeSender).filter(Boolean))];
       if (!senderIds.length) { this.count('senderRejected'); continue; }
       this.trimCaches(now);
@@ -213,10 +226,18 @@ export class WhatsAppGateway {
         if (epoch !== this.epoch || pinEpoch !== this.pinEpoch || groupId !== this.activeGroupId || socket !== this.socket) return;
         this.count('callbackAttempts');
         let result;
-        try { result = await this.callback(payload); }
+        try { result = validateCallback(await this.callback(payload)); }
         catch { this.count('callbackFailed'); return; }
         this.count(result?.handled ? 'callbackHandled' : 'callbackIgnored');
         if (result?.duplicate) this.count('callbackDuplicate');
+        if (result.handled && !result.duplicate && result.replyText !== null) {
+          // Preserve the originating socket and pin through both the send queue and
+          // every journal await. A new socket or same-group repin cannot adopt it.
+          const task = this.sendTail.then(() => this.sendOnce({ operationId: result.replyOperationId,
+            groupId, text: result.replyText }, { socket, epoch, pinEpoch }, 2000));
+          this.sendTail = task.catch(() => {});
+          await task.catch(() => {});
+        }
         if (result?.handled && !result.duplicate && result.reaction
           && epoch === this.epoch && pinEpoch === this.pinEpoch && groupId === this.activeGroupId
           && socket === this.socket && this.status === 'connected') {

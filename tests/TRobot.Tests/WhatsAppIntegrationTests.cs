@@ -17,7 +17,7 @@ using LocalWebFactory = TRobot.Tests.WebFlowTests.LocalWebFactory;
 
 namespace TRobot.Tests;
 
-public sealed class WhatsAppIntegrationTests
+public sealed partial class WhatsAppIntegrationTests
 {
     private const string Group = "synthetic-group@g.us";
     private const string Sender = "synthetic-user@lid";

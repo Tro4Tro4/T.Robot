@@ -6,7 +6,7 @@ import { join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { SendJournal, GatewayError } from '../src/journal.js';
-import { WhatsAppGateway, normalizeSender, extractPlainText } from '../src/gateway.js';
+import { WhatsAppGateway, normalizeSender, extractPlainText, validateCallback } from '../src/gateway.js';
 import { createCallback, createGatewayServer } from '../src/http.js';
 
 const token = 'a'.repeat(64); // Synthetic test token, never used by the local configuration.
@@ -140,7 +140,7 @@ test('Incoming only notify, pinned group, participant, fresh plain !presenza; PN
     { type: 'notify', messages: [incoming('beforeactivation', { messageTimestamp: now / 1000 - 1 })] },
     { type: 'notify', messages: [incoming('future', { messageTimestamp: now / 1000 + 31 })] },
     { type: 'notify', messages: [incoming('media', { message: { imageMessage: { caption: '!presenza si' } } })] },
-    { type: 'notify', messages: [incoming('othercommand', { message: { conversation: '!menu' } })] },
+    { type: 'notify', messages: [incoming('othercommand', { message: { conversation: '!budget' } })] },
     { type: 'notify', messages: [incoming('prefix', { message: { conversation: '!presenzaqualcosa' } })] },
     { type: 'notify', messages: [incoming('long', { message: { conversation: '!presenza ' + 's'.repeat(100) } })] }
   ];
@@ -274,3 +274,66 @@ test('Callback URL fixed loopback, authorization and only generic reaction accep
   assert.equal(options.headers.Authorization, 'Bearer ' + token); assert.equal(options.redirect, 'error');
   assert.equal(result.handled, true); assert.equal(result.reaction, null);
 });
+
+test('Real informational commands reply through the persistent journal, never react or replay', async t => {
+  const operationId = randomUUID(); const text = 'è'.repeat(2000);
+  const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, reaction: null,
+    replyText: text, replyOperationId: operationId }) }); await h.ready();
+  const emit = (id, command) => h.sockets[0].handlers.messages({ type: 'notify', messages: [incoming(id, { message: { conversation: command } })] });
+  emit('info-one', '!menu 2'); await h.gateway.idle();
+  assert.deepEqual(h.sockets[0].sent, [[group, text]]); assert.equal(h.sockets[0].reactions.length, 0);
+  emit('info-two', '!todo'); await h.gateway.idle(); assert.equal(h.sockets[0].sent.length, 1);
+  h.gateway.callback = async () => ({ handled: true, duplicate: true, reaction: null, replyText: text, replyOperationId: randomUUID() });
+  emit('info-three', '!aiuto'); await h.gateway.idle(); assert.equal(h.sockets[0].sent.length, 1);
+  h.gateway.callback = async () => ({ handled: false, duplicate: false, reaction: null, replyText: text, replyOperationId: randomUUID() });
+  emit('info-four', '!aiuto'); await h.gateway.idle(); assert.equal(h.sockets[0].sent.length, 1);
+  const stored = await readFile(join(h.directory, (await readdir(h.directory))[0]), 'utf8');
+  assert.ok(!stored.includes(text)); assert.ok(!stored.includes(group)); assert.ok(!stored.includes(operationId));
+  await assert.rejects(h.gateway.send({ operationId: randomUUID(), groupId: group, text }), e => e.code === 'invalid_send');
+});
+
+test('Callback reply fields are bounded and typed, mutually exclusive and cannot choose a recipient', async () => {
+  const valid = { handled: true, duplicate: false, reaction: null, replyText: 'Risposta', replyOperationId: randomUUID() };
+  for (const changed of [ { replyText: 3 }, { replyText: '' }, { replyText: ' '.repeat(3) }, { replyText: 'x'.repeat(2001) },
+    { replyOperationId: 'not-guid' }, { replyOperationId: null }, { replyText: null }, { reaction: '✅' },
+    { groupId: otherGroup }, { recipient: '111@s.whatsapp.net' }, { handled: 'true' }, { duplicate: 0 }, { reaction: {} } ])
+    assert.throws(() => validateCallback({ ...valid, ...changed }), /callback_invalid/);
+  assert.deepEqual(validateCallback(valid), valid);
+});
+
+test('Callback HTTP response accepts 16 KiB UTF8 and escaped text but rejects overflow', async () => {
+  const valid = { handled: true, duplicate: false, reaction: null, replyText: 'è'.repeat(2000), replyOperationId: randomUUID() };
+  const body = JSON.stringify(valid).replaceAll('è', '\\u00e8');
+  assert.ok(Buffer.byteLength(body) > 4096); assert.ok(Buffer.byteLength(body) < 16384);
+  const callback = data => createCallback('http://127.0.0.1:5238/internal/whatsapp/incoming', token, async () => new Response(data));
+  assert.equal((await callback(body)({})).replyText, valid.replyText);
+  await assert.rejects(callback(' '.repeat(16385))({}), /callback_invalid/);
+  await assert.rejects(callback(JSON.stringify({ ...valid, groupId: otherGroup }))({}), /callback_invalid/);
+});
+
+for (const boundary of ['callback', 'sendTail', 'journal-get', 'journal-pending']) {
+  for (const change of ['repin', 'reconnect']) {
+    test(`Reply preserves original connection through ${boundary} across ${change}`, async t => {
+      const operationId = randomUUID(); const reply = { handled: true, duplicate: false, reaction: null,
+        replyText: 'Risposta sintetica', replyOperationId: operationId };
+      let release; let entered;
+      const gate = new Promise(resolve => { release = resolve; });
+      const started = new Promise(resolve => { entered = resolve; });
+      const h = await harness(t); await h.ready(); const originalSocket = h.sockets[0];
+      h.gateway.callback = async () => { if (boundary === 'callback') { entered(); await gate; } return reply; };
+      if (boundary === 'sendTail') h.gateway.sendTail = Promise.resolve().then(async () => { entered(); await gate; });
+      if (boundary === 'journal-get' || boundary === 'journal-pending') {
+        const method = boundary === 'journal-get' ? 'get' : 'pending'; const original = h.journal[method].bind(h.journal);
+        h.journal[method] = async (...args) => { const result = await original(...args); entered(); await gate; return result; };
+      }
+      originalSocket.handlers.messages({ type: 'notify', messages: [incoming('fenced-info', { message: { conversation: '!aiuto' } })] });
+      await started;
+      if (change === 'repin') await h.gateway.group(group);
+      else { h.gateway.disconnect(); await h.ready(); }
+      release(); await h.gateway.idle();
+      assert.ok(h.sockets.every(socket => socket.sent.length === 0 && socket.reactions.length === 0));
+      // A fenced or uncertain operation is never replayed automatically after restart.
+      if (boundary !== 'callback' && change === 'repin') assert.equal((await h.journal.get(operationId, h.journal.fingerprint(group, reply.replyText))).status, 'uncertain');
+    });
+  }
+}

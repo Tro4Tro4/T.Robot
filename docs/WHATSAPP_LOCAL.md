@@ -35,7 +35,23 @@ Il gateway ascolta su `127.0.0.1:5240`; il sito su `http://localhost:5238`. L'av
 5. Dal telefono del membro associato inviare nel gruppo `!presenza si`, poi eventualmente `!presenza forse` e `!presenza no`. Il numero collegato al gateway non può collaudare se stesso: i messaggi propri vengono ignorati. La presenza deve aggiornarsi sul sito e il messaggio ricevere una reazione generica.
 6. Per provare un invio, preparare un nuovo avviso operativo dalla pagina WhatsApp e controllare nell'anteprima **Nome attuale del gruppo**, ID del gruppo e testo. Il nome viene risolto per il destinatario esatto della bozza; se il collegamento è cambiato o il destinatario non è verificabile, la conferma non è disponibile e la pagina ne spiega il motivo. La preparazione della bozza non invia nulla. Confermare solo dopo il controllo e verificare il messaggio nel gruppo prima di ripetere qualunque operazione con esito incerto.
 
-DM, altri gruppi, messaggi vecchi, allegati, identità non associate e comandi diversi da `!presenza si|forse|no` sono ignorati. I test automatici usano trasporti finti e non attestano il funzionamento del proprio account: la prova con telefono resta necessaria.
+DM, altri gruppi, messaggi vecchi, allegati e identità non associate sono ignorati. I test automatici usano trasporti finti e non attestano il funzionamento del proprio account: la prova con telefono resta necessaria.
+
+## Aiuto, menu e attività
+
+Dal numero privato o dell'amico associato nel gruppo:
+
+```text
+!aiuto
+!menu
+!todo
+```
+
+`!aiuto` elenca soltanto i comandi realmente attivi. Menu e attività richiedono prima l'approvazione dei contenuti dal sito: **WhatsApp → Elenchi condivisibili nel gruppo → Anteprima e approvazione menu/attività**. Controllare il nome del gruppo e tutte le pagine, spuntare la conferma e premere **Approva condivisione elenco**. Approvare non invia messaggi.
+
+La risposta contiene al massimo cinque elementi per pagina, senza responsabili, note o dati delle anagrafiche. Per continuare usare `!menu 2` oppure `!todo 2`. Prima dell'approvazione, o dopo una modifica ai contenuti o al collegamento, il comando restituisce soltanto un avviso generico: occorre una nuova anteprima e approvazione. I titoli sono testo libero: verificare che non contengano dati personali prima di approvarli.
+
+Le risposte informative arrivano come testo nel gruppo; `!presenza si|forse|no` mantiene la reazione ✅. Gli altri comandi del simulatore non sono ancora attivi nel gruppo. Non sono previsti reinvii automatici delle risposte incerte.
 
 ## Riavvio e anomalie
 

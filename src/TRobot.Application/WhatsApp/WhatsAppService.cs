@@ -4,7 +4,7 @@ using TRobot.Domain;
 
 namespace TRobot.Application.WhatsApp;
 
-public sealed class WhatsAppService(ILocalStore store, IWhatsAppStore identities, LocalOperations operations,
+public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore identities, LocalOperations operations,
     IWhatsAppGateway gateway, WhatsAppGatewayOptions options, TimeProvider clock)
 {
     private static readonly SemaphoreSlim DeviceGate = new(1, 1);
@@ -174,9 +174,15 @@ public sealed class WhatsAppService(ILocalStore store, IWhatsAppStore identities
         if (string.IsNullOrWhiteSpace(input.GroupId) || input.GroupId.Length > 200 || !input.GroupId.EndsWith("@g.us", StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(input.MessageId) || input.MessageId.Length > 200 || string.IsNullOrWhiteSpace(input.Text) || input.Text.Length > 100)
             return new(false);
-        ParticipationStatus status;
-        try { status = AttendanceService.Parse(input.Text); }
-        catch (AttendanceValidationException) { return new(false); }
+        var parts = input.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var command = parts[0].ToLowerInvariant();
+        var informational = command is "!aiuto" or "!menu" or "!todo";
+        ParticipationStatus status = default;
+        if (!informational)
+        {
+            try { status = AttendanceService.Parse(input.Text); }
+            catch (AttendanceValidationException) { return new(false); }
+        }
         string[] hashes;
         try { hashes = HashAliases(input.SenderIds); } catch (LocalValidationException) { return new(false); }
         DateTime timestamp;
@@ -198,6 +204,23 @@ public sealed class WhatsAppService(ILocalStore store, IWhatsAppStore identities
             if (participant is null) return new WhatsAppIncomingResult(false);
             var messageHash = options.Fingerprint("message", input.GroupId + ":" + input.MessageId);
             var receipt = await identities.ReceiptAsync(connection.EventId, messageHash, token);
+            var informationReceipt = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token)).SingleOrDefault(x => x.MessageHash == messageHash);
+            if (informational)
+            {
+                if (receipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
+                var commandHash = options.Fingerprint("command", input.Text);
+                if (informationReceipt is not null)
+                {
+                    if (informationReceipt.PersonId != participant.PersonId || informationReceipt.ActorId != actor || informationReceipt.CommandHash != commandHash)
+                        throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
+                    return new WhatsAppIncomingResult(true, true);
+                }
+                var reply = await InformationReplyAsync(connection, parts, token);
+                var informationRecord = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
+                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", "InformationReceived"); await store.SaveAsync(token);
+                return new WhatsAppIncomingResult(true, ReplyText: reply, ReplyOperationId: informationRecord.Id);
+            }
+            if (informationReceipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per un comando informativo.");
             if (receipt is not null)
             {
                 if (receipt.PersonId != participant.PersonId || receipt.Status != status || receipt.ActorId != actor)
