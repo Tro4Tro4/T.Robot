@@ -4,6 +4,8 @@ Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizz
 
 ## Struttura
 
+È disponibile uno scenario completo **SIMULAZIONE — Capodanno al Casale, 20 persone**: 30 dicembre 2026–2 gennaio 2027, 16 adulti e 4 bambini, 8 nuclei, 30 voci menu, 20 attività, sondaggi, quiz e contabilità riconciliata. Selezionarlo negli eventi dopo il login. Il suo traffico è solo simulato. Dettagli e verifiche in [Scenario Capodanno 2027](docs/SCENARIO_CAPODANNO_2027.md); caricatore ripetibile in [tools/TRobot.ScenarioSeeder](tools/TRobot.ScenarioSeeder/README.md).
+
 - `TRobot.sln`: Web MVC → Application + Infrastructure; Application → Domain; Infrastructure → Application + Domain. Domain senza dipendenze esterne.
 - `src/TRobot.Domain`: entità e invarianti dei moduli, revisioni e ricevute, senza dipendenze esterne.
 - `src/TRobot.Application`: servizi validati e autorizzati per evento, presenze, nuclei, attività, menu, outbox, sondaggi, contabilità, giochi, dashboard e storico.
