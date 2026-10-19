@@ -40,7 +40,7 @@ public sealed class AttendanceStayChange : ILocalRecord
     public int Revision { get; private set; }
 }
 
-public enum AttendanceDialogueStep { Closed, Arrival, Days, Confirmation }
+public enum AttendanceDialogueStep { Closed, Arrival, Days, Confirmation, EditChoice }
 
 /// <summary>One current technical dialogue per participant; never stores chat text or names.</summary>
 public sealed class AttendanceDialogue : ILocalRecord
@@ -59,10 +59,25 @@ public sealed class AttendanceDialogue : ILocalRecord
     public int? Days { get; private set; }
     public Guid? HouseholdId { get; private set; }
     public string? SnapshotHash { get; private set; }
+    public string? InitialSnapshotHash { get; private set; }
+    public bool IsEdit { get; private set; }
+    public bool PreserveDays { get; private set; }
     public int Revision { get; private set; }
     public void Start(Guid actor, string group, int connectionRevision, DateTime utc)
     { ActorId = actor; GroupId = group; ConnectionRevision = connectionRevision; StartedAtUtc = utc; ExpiresAtUtc = utc.AddMinutes(15);
-        Step = AttendanceDialogueStep.Arrival; Arrival = null; Days = null; HouseholdId = null; SnapshotHash = null; Revision++; }
+        Step = AttendanceDialogueStep.Arrival; Arrival = null; Days = null; HouseholdId = null; SnapshotHash = null;
+        InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; Revision++; }
+    public void BeginEdit(DateOnly? arrival, int? days, Guid? household, string snapshot)
+    { IsEdit = true; Arrival = arrival; Days = days; HouseholdId = household; InitialSnapshotHash = snapshot;
+        Step = arrival.HasValue && days.HasValue ? AttendanceDialogueStep.EditChoice : AttendanceDialogueStep.Arrival; Revision++; }
+    public void ChooseEdit(int choice)
+    {
+        if (Step != AttendanceDialogueStep.EditChoice || choice is < 1 or > 3) throw new InvalidOperationException("Scelta modifica non valida.");
+        PreserveDays = choice == 1; Step = choice == 2 ? AttendanceDialogueStep.Days : AttendanceDialogueStep.Arrival;
+        if (choice != 2) Arrival = null;
+        if (choice != 1) Days = null;
+        Revision++;
+    }
     public void SetArrival(DateOnly arrival) { Arrival = arrival; Step = AttendanceDialogueStep.Days; Revision++; }
     public void Summarize(int days, Guid? household, string snapshot)
     { Days = days; HouseholdId = household; SnapshotHash = snapshot; Step = AttendanceDialogueStep.Confirmation; Revision++; }

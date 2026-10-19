@@ -15,12 +15,12 @@ public sealed partial class WhatsAppService
         + "Esempio: arrivo 30/12 e 4 giorni = fino al 02/01, per 3 notti.\n\n"
         + "🏡 *Tutta la famiglia o missione in solitaria?*\n"
         + "Se sei un adulto del nucleo, ti chiedo se confermare le stesse date per tutti:\n"
-        + "• sì = tutta la famiglia;\n• no = soltanto tu.\n"
+        + "• sì = tutta la famiglia;\n• no = tu e i bambini collegati a te, con le tue date.\n"
         + "Se compili per te, basta confermare il tuo riepilogo con sì. I dettagli si salvano alla conferma finale.\n\n"
         + "🤔 *Devo ancora decidere*\n!presenza forse\n\n"
         + "😢 *Non riesco a venire*\n!presenza no\n"
         + "Forse e no aggiornano soltanto la tua presenza.\n\n"
-        + "✏️ Per correggere le date, riparti da !presenza si. Hai 15 minuti per completare le risposte.\n\n"
+        + "✏️ *Vuoi correggere le date?*\n!presenza modifica\nScegli 1 per l'arrivo, 2 per la durata, 3 per entrambi. Hai 15 minuti per completare le risposte.\n\n"
         + "Tu prepara la valigia: al conto dei giorni ci penso io. 😎";
     private const string UnapprovedList = "⏳ *Elenco in attesa*\nGli organizzatori devono approvare i contenuti aggiornati dal sito. Riprova dopo l'approvazione.";
 
@@ -79,7 +79,19 @@ public sealed partial class WhatsAppService
     private async Task<string> InformationReplyAsync(WhatsAppConnection connection, string[] parts, CancellationToken ct)
     {
         var command = parts[0].ToLowerInvariant();
-        if (command == "!aiuto") return parts.Length == 1 ? RealHelp : "ℹ️ Sintassi:\n!aiuto";
+        if (command == "!aiuto") return parts.Length == 1 ? await WithAttendanceDeadlineAsync(connection.EventId, RealHelp, ct) : "ℹ️ Sintassi:\n!aiuto";
+        if (command == "!riepilogo" && parts.Length > 1 && parts[1].Contains('/'))
+        {
+            var ev = (await store.EventAsync(connection.EventId, ct))!;
+            var eventDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(ev.StartsAtUtc, TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId)));
+            var date = ParseArrival(parts[1], eventDate);
+            int datePage;
+            try { datePage = SimulationReplies.ListPage(parts.Length == 3 ? [command, parts[2]] : [command]); }
+            catch (LocalValidationException) { return "ℹ️ Sintassi:\n!riepilogo gg/mm[/aaaa] [pagina]\nIndica una data valida e una pagina intera da 1 a 100000."; }
+            if (parts.Length > 3 || !date.HasValue || !System.Text.RegularExpressions.Regex.IsMatch(parts[1], @"^\d{1,2}/\d{1,2}(?:/\d{4})?$"))
+                return "ℹ️ Sintassi:\n!riepilogo gg/mm[/aaaa] [pagina]\nIndica una data valida e una pagina intera da 1 a 100000.";
+            return await AttendanceSummaryReplyAsync(connection.EventId, datePage, ct, date);
+        }
         int page;
         try { page = SimulationReplies.ListPage(parts); }
         catch (LocalValidationException) { return $"ℹ️ Sintassi:\n{command} [pagina]\nIndica una pagina intera da 1 a 100000."; }

@@ -181,7 +181,7 @@ public sealed partial class WhatsAppIntegrationTests
     }
 
     [Fact]
-    public async Task TwoSendersStayIsolatedAndChildCanConfirmOnlyOwnDates()
+    public async Task TwoSendersStayIsolatedAndChildDatesRequireParent()
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
         var service = Service(p, new FakeGateway(), new Clock()); var person = await Activate(p, f, service); await SetStayEvent(p, f);
@@ -195,9 +195,10 @@ public sealed partial class WhatsAppIntegrationTests
         Assert.False((await service.IncomingAsync(Incoming("30/12", "other-outside") with { SenderIds = ["child@lid"] })).Handled);
         foreach (var (text, id) in new[] { ("!presenza si", "c-start"), ("31/12", "c-arrival"), ("1", "c-days") })
             await service.IncomingAsync(Incoming(text, id) with { SenderIds = ["child@lid"] });
-        Assert.Null((await db.Set<AttendanceDialogue>().SingleAsync(x => x.Id == child.Id)).HouseholdId);
+        Assert.False(await db.Set<AttendanceDialogue>().AnyAsync(x => x.Id == child.Id));
         await service.IncomingAsync(Incoming("si", "c-confirm") with { SenderIds = ["child@lid"] });
-        Assert.Equal(child.Id, (await db.Set<AttendanceStay>().SingleAsync()).Id);
+        Assert.Empty(await db.Set<AttendanceStay>().ToListAsync());
+        Assert.Contains("genitore", (await service.IncomingAsync(Incoming("!presenza modifica", "child-edit") with { SenderIds = ["child@lid"] })).ReplyText);
         Assert.Equal(AttendanceDialogueStep.Arrival, (await db.Set<AttendanceDialogue>().SingleAsync(x => x.Id == person)).Step);
     }
 

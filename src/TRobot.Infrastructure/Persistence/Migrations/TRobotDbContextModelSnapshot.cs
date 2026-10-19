@@ -143,6 +143,33 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.ToTable("AccountingSettings", (string)null);
                 });
 
+            modelBuilder.Entity("TRobot.Domain.AttendanceCollectionSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeadlineUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.ToTable("AttendanceCollectionSettings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AttendanceCollectionSettings_Event", "Id = EventId");
+                        });
+                });
+
             modelBuilder.Entity("TRobot.Domain.AttendanceDialogue", b =>
                 {
                     b.Property<Guid>("EventId")
@@ -173,6 +200,16 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("HouseholdId")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("InitialSnapshotHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEdit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("PreserveDays")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Revision")
                         .IsConcurrencyToken()
@@ -1830,6 +1867,15 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("TRobot.Domain.AccountingSettings", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AttendanceCollectionSettings", b =>
                 {
                     b.HasOne("TRobot.Domain.Event", null)
                         .WithMany()

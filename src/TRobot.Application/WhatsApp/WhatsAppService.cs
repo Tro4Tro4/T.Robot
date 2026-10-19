@@ -178,9 +178,10 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
         var command = parts[0].ToLowerInvariant();
         var informational = command is "!aiuto" or "!menu" or "!todo" or "!riepilogo";
         var operational = command is "!porto" or "!prendo" or "!fatto" or "!conferma";
+        var attendanceEdit = parts.Length == 2 && command == "!presenza" && parts[1].Equals("modifica", StringComparison.OrdinalIgnoreCase);
         var attendanceAnswer = command == "!annulla" && parts.Length == 1 || AttendanceCandidate(input.Text);
         ParticipationStatus status = default;
-        if (!informational && !operational && !attendanceAnswer)
+        if (!informational && !operational && !attendanceAnswer && !attendanceEdit)
         {
             try { status = AttendanceService.Parse(input.Text); }
             catch (AttendanceValidationException) { return new(false); }
@@ -207,7 +208,7 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             var messageHash = options.Fingerprint("message", input.GroupId + ":" + input.MessageId);
             var receipt = await identities.ReceiptAsync(connection.EventId, messageHash, token);
             var informationReceipt = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token)).SingleOrDefault(x => x.MessageHash == messageHash);
-            if (informational || operational || attendanceAnswer)
+            if (informational || operational || attendanceAnswer || attendanceEdit)
             {
                 if (receipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
                 var commandHash = options.Fingerprint("command", input.Text);
@@ -217,7 +218,9 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                         throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
                     return new WhatsAppIncomingResult(true, true);
                 }
-                var outcome = attendanceAnswer
+                var outcome = attendanceEdit
+                    ? (Reply: (string?)await StartAttendanceEditAsync(connection, participant, now, token), Success: false)
+                    : attendanceAnswer
                     ? (Reply: await AttendanceReplyAsync(connection, participant, input.Text.Trim(), now, timestamp, token), Success: false)
                     : operational
                     ? await OperationalReplyAsync(connection, participant, parts, now, token)

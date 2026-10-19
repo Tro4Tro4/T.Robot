@@ -100,13 +100,13 @@ public sealed class OperationalListTextTests
     public void RealHelpFocusesOnPresenceAndExplainsDatesDaysAndFamily()
     {
         var lines = WhatsAppService.RealHelp.Split('\n');
-        foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no" })
+        foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no", "!presenza modifica" })
             Assert.Contains(command, lines);
         var commands = System.Text.RegularExpressions.Regex.Matches(WhatsAppService.RealHelp, @"![\p{L}]+")
             .Select(x => x.Value).Distinct().ToArray();
         Assert.Equal(new[] { "!presenza" }, commands);
         Assert.Contains("30/12", WhatsAppService.RealHelp); Assert.Contains("02/01", WhatsAppService.RealHelp);
-        Assert.Contains("3 notti", WhatsAppService.RealHelp); Assert.Contains("soltanto tu", WhatsAppService.RealHelp);
+        Assert.Contains("3 notti", WhatsAppService.RealHelp); Assert.Contains("bambini collegati a te", WhatsAppService.RealHelp);
         Assert.InRange(WhatsAppService.RealHelp.Length, 1, 2000);
     }
 }

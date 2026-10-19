@@ -41,13 +41,25 @@ DM, altri gruppi, messaggi vecchi, allegati e identità non associate sono ignor
 
 Inviare `!presenza si`: la presenza personale viene confermata e T.Robot chiede quando si arriva. Rispondere nel gruppo con una data numerica, per esempio `30/12` oppure `30/12/2026`, poi con il solo numero di giorni, per esempio `4`. Non aggiungere parole come «giorni» alla risposta. Il riepilogo mostrerà arrivo, ultimo giorno e notti: **30/12 + 4 giorni = fino al 02/01, tre notti**. Le date sono riferite al fuso dell'evento; senza anno viene scelta la data più vicina all'inizio dell'evento.
 
-Per un adulto appartenente a un nucleo attivo, il bot chiede se applicare lo stesso soggiorno a tutta la famiglia. Rispondere `sì` per confermare presenza e date dei membri attivi del nucleo, oppure `no` per registrare le date soltanto per sé. I familiari potranno poi indicare un soggiorno differente ripetendo il proprio percorso. Chi non può confermare un nucleo riceve la richiesta di conferma individuale. Non vengono aggiunti accompagnatori nuovi e non vengono elencati i nomi dei familiari nel gruppo.
+Per un adulto appartenente a un nucleo attivo, il bot chiede se applicare lo stesso soggiorno a tutta la famiglia. Rispondere `sì` per confermare presenza e date dei membri attivi del nucleo, oppure `no` per registrare le date per sé e per i bambini collegati al proprio riferimento. Gli altri adulti possono rispondere per sé, scegliendo a loro volta di non includere tutto il nucleo. I bambini seguono le stesse date del genitore collegato; non compilano un soggiorno indipendente. Non vengono aggiunti accompagnatori nuovi e non vengono elencati i nomi dei familiari nel gruppo.
+
+Per configurare il collegamento: dal sito **Nuclei → Modifica** sul bambino, scegliere il genitore nel campo **Accompagnatore di** e confermare il salvataggio. Deve essere un adulto primario attivo dello stesso nucleo. Il bot non sceglie un genitore automaticamente quando il riferimento manca.
 
 I dettagli del soggiorno vengono salvati alla conferma finale. Ogni persona ha un dialogo separato, valido 15 minuti nello stesso gruppo e collegamento; risposte brevi fuori da un dialogo attivo sono ignorate. Durante la compilazione, date, numeri e sì/no inviati dal medesimo mittente sono interpretati come risposte alla domanda corrente. Per evitare equivoci, completare la sequenza oppure interromperla con `!annulla`. Questo comando interrompe soltanto la compilazione: non revoca la presenza e non cancella date già registrate. Per correggere, ripartire da `!presenza si`.
 
 `!presenza no` e `!presenza forse` interrompono la compilazione e aggiornano soltanto il mittente. Un eventuale soggiorno precedente resta nello storico, ma non contribuisce al quadro giornaliero finché la persona non è confermata. Se cambiano nucleo, presenze o soggiorni dopo il riepilogo, la conferma obsoleta viene rifiutata: ricominciare senza sovrascrivere le modifiche altrui.
 
 Sono ammessi da 1 a 31 giorni e un arrivo entro 31 giorni prima/dopo la data iniziale dell'evento. Il sito riservato mostra soggiorni e conteggi giornalieri; per i confermati privi di date segnala i dettagli mancanti senza inventare un soggiorno. Queste informazioni non cambiano automaticamente le quote economiche.
+
+### Modificare le date
+
+Inviare `!presenza modifica` per rivedere il soggiorno registrato. Rispondere `1` per cambiare l'arrivo, `2` per cambiare i giorni oppure `3` per cambiare entrambi. Il campo non modificato viene conservato. Seguire le domande e controllare il riepilogo prima della conferma; nel percorso individuale anche i bambini collegati ricevono le stesse date. Annullamento, scadenza o modifiche concorrenti non sovrascrivono i dati precedenti. Chi è confermato ma non ha ancora date può completarle; chi non è confermato deve prima usare `!presenza si`.
+
+### Scadenza e promemoria
+
+In **Evento e partecipanti → Soggiorni**, l'organizzatore può impostare o rimuovere il termine delle adesioni, usando data e ora nel fuso dell'evento e confermando il salvataggio. Gli eventi esistenti partono senza termine. Il bot mostra la scadenza nella guida e all'avvio della compilazione; dopo il termine avvisa ma continua ad accettare risposte e correzioni.
+
+La stessa pagina elenca chi deve rispondere o completare le date. **Prepara promemoria WhatsApp** genera soltanto una bozza generica, senza nomi o dati personali: nell'anteprima WhatsApp controllare il nome del gruppo e confermare l'invio manuale. Nessun invio automatico, messaggio privato o timer. Non sono inclusi fra gli incompleti gli assenti già registrati.
 
 ## Riepilogo delle presenze
 
@@ -56,6 +68,8 @@ Inviare `!riepilogo` nel gruppo dal numero associato a un partecipante dell'even
 Chi non ha una classificazione attiva nel nucleo viene incluso nel totale con età non specificata. Il riepilogo distingue inoltre gli stati generali e segnala in forma aggregata i soggiorni ancora da completare: una presenza confermata senza date conta comunque fra i confermati. Vengono mostrati i nomi dei nuclei e i relativi conteggi, senza nomi individuali, date personali, note o saldi.
 
 Con molti nuclei, proseguire con `!riepilogo 2`: massimo cinque nuclei per pagina, totale generale ripetuto in ogni pagina. Il comando consulta le presenze senza modificarle e può essere usato anche durante una compilazione aperta. Non richiede l'approvazione degli elenchi menu/attività. La guida `!aiuto` resta dedicata alla presenza.
+
+Per un giorno specifico usare `!riepilogo 31/12` oppure `!riepilogo 31/12/2026`; per le altre pagine, per esempio, `!riepilogo 31/12/2026 2`. Contano soltanto i confermati con soggiorno completo che comprende quel giorno, inclusi arrivo e ultimo giorno. I bambini sono inclusi; i confermati senza date sono segnalati separatamente e non assegnati a un giorno inventato. Senza data il comando mantiene il totale generale dell'evento.
 
 ## Aiuto, menu e attività
 

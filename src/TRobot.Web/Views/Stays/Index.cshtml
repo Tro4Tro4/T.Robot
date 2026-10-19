@@ -4,6 +4,43 @@
 <h1>Soggiorni · @Model.EventName</h1>
 <partial name="_EventNavigation" model="Model.EventId" />
 <p>Quadro riservato agli organizzatori. Arrivo e ultimo giorno inclusi; notti = giorni meno uno. I conteggi comprendono solo presenze confermate con soggiorno completo.</p>
+<section class="card card-body mb-4" aria-labelledby="collection-title">
+    <h2 id="collection-title" class="h4">Raccolta adesioni</h2>
+    @if (Model.Collection.DeadlineLocal is { } deadline)
+    {
+        <p>Termine: <strong>@deadline.ToString("dd/MM/yyyy HH:mm")</strong> (@Model.Collection.TimeZoneId) · @(Model.Collection.Expired ? "Scaduto" : "Ancora aperto").</p>
+    }
+    else { <p>Nessun termine impostato.</p> }
+    <p>La scadenza è informativa: risposte e correzioni tardive sono sempre ammesse.</p>
+    <form asp-action="Deadline" method="post">
+        <input type="hidden" name="EventId" value="@Model.EventId" />
+        <input type="hidden" name="Revision" value="@Model.Collection.Revision" />
+        <label for="deadline-local" class="form-label">Data e ora nel fuso @Model.Collection.TimeZoneId</label>
+        <input id="deadline-local" class="form-control mb-2" type="datetime-local" name="DeadlineLocal" value="@Model.Collection.DeadlineLocal?.ToString("yyyy-MM-ddTHH:mm")" />
+        <p class="form-text">Lascia vuoto per rimuovere il termine. Le ore ambigue o inesistenti al cambio dell'ora non sono ammesse.</p>
+        <div class="form-check mb-2"><input id="deadline-confirm" class="form-check-input" type="checkbox" name="Confirmed" value="true" required /><label for="deadline-confirm" class="form-check-label">Confermo la modifica del termine</label></div>
+        <button class="btn btn-primary" type="submit">Salva termine</button>
+    </form>
+</section>
+<section class="mb-4" aria-labelledby="pending-title">
+    <h2 id="pending-title" class="h4">Da completare · @Model.Pending.Count</h2>
+    @if (Model.Pending.Count == 0) { <p>Tutte le risposte e le date sono complete.</p> }
+    else
+    {
+        <ul>
+        @foreach (var person in Model.Pending)
+        {
+            <li>@person.Name · @(person.Status == ParticipationStatus.Confirmed ? "Soggiorno da completare" : person.Status == ParticipationStatus.Undecided ? "Indeciso" : "Senza risposta")</li>
+        }
+        </ul>
+        <form asp-action="Reminder" method="post">
+            <input type="hidden" name="EventId" value="@Model.EventId" />
+            <input type="hidden" name="OperationId" value="@Guid.NewGuid()" />
+            <button class="btn btn-outline-primary" type="submit">Prepara promemoria WhatsApp</button>
+        </form>
+        <p class="form-text">Crea una bozza generica senza nomi. Nell'anteprima verifichi il gruppo e confermi l'invio manualmente.</p>
+    }
+</section>
 <div class="table-responsive"><table class="table">
 <thead><tr><th>Persona</th><th>Presenza</th><th>Arrivo</th><th>Giorni</th><th>Ultimo giorno</th><th>Notti</th></tr></thead>
 <tbody>

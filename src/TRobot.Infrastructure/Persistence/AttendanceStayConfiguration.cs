@@ -22,6 +22,7 @@ internal sealed class AttendanceDialogueConfiguration : IEntityTypeConfiguration
         b.HasOne<EventParticipant>().WithMany().HasForeignKey(x => new { x.EventId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Person>().WithMany().HasForeignKey(x => x.ActorId).OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.GroupId).HasMaxLength(200).IsRequired(); b.Property(x => x.SnapshotHash).HasMaxLength(64);
+        b.Property(x => x.InitialSnapshotHash).HasMaxLength(64);
         b.Property(x => x.StartedAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));
         b.Property(x => x.ExpiresAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));
     }
