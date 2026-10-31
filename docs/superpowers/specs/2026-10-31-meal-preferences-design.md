@@ -1,6 +1,6 @@
 # T.Robot - Consultazione e preferenze pasti
 
-Stato: disegno raccolto nel brainstorming del 31 ottobre 2026. Funzione non implementata. Le scelte concordate sono separate dai default tecnici di questo documento. Nessun rilascio, migrazione operativa o invio reale autorizzato da questa specifica.
+Stato: disegno approvato nel brainstorming del 31 ottobre 2026, seguito dall'incarico esplicito di implementazione locale. Stato dell'attuazione e verifiche in `docs/MILESTONE_34.md`. Le scelte concordate sono separate dai default tecnici di questo documento. Nessun rilascio, migrazione operativa o invio reale autorizzato da questa specifica.
 
 ## Obiettivo e contesto
 
@@ -82,7 +82,7 @@ Nomi dei figli sono mostrati soltanto al mittente che puo gestirli. Gli elenchi 
 
 ## Architettura prevista
 
-Nuove entita Domain per ciclo/tornata, voci pubblicate collegate alle proposte originali, preferenze e relativo storico, snapshot della chiusura e sessione privata. Nomi definitivi da scegliere nell'implementazione seguendo `TRobot.*`; non sono classi gia presenti.
+Entita Domain introdotte nell'attuazione: `MealVotingCycle`, `MealVotingEntry`, `MealVotingSource`, `MealPreferenceBallot`, `MealPreferenceChange` in `src/TRobot.Domain/MealVoting.cs` e `MealPreferenceSession` in `src/TRobot.Domain/MealPreferenceSession.cs`. Lo snapshot della chiusura e persistito nel ciclo e contiene conteggi e dettaglio delle schede/classificazioni.
 
 Application gestisce preparazione, conferme, stato della raccolta, eleggibilita, deleghe ai bambini, salvataggi e conteggi. Riutilizza gli accessi per evento e gli store senza scritture dai controller o dall'AI.
 

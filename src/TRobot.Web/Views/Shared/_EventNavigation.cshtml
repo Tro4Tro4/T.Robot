@@ -6,7 +6,7 @@
     var currentLabel = currentController?.ToLowerInvariant() switch
     {
         "home" => "Presenze", "events" => "Evento e partecipanti", "households" => "Nuclei",
-        "stays" => "Soggiorni", "lodging" => "Alloggi", "mealproposals" => "Proposte pasti", "whatsapp" => "WhatsApp",
+        "stays" => "Soggiorni", "lodging" => "Alloggi", "mealproposals" => "Proposte pasti", "mealvoting" => "Preferenze pasti", "whatsapp" => "WhatsApp",
         "messages" => "Messaggi", "accounting" => "Contabilità", "history" => "Storico",
         "tasks" => "Attività", "menu" => "Menu", "polls" => "Sondaggi", "games" => "Giochi",
         _ => "Evento"
@@ -24,6 +24,7 @@
     <a asp-controller="Stays" aria-current="@Current("Stays")" asp-action="Index" asp-route-eventId="@Model">Soggiorni</a>
     <a asp-controller="Lodging" aria-current="@Current("Lodging")" asp-action="Index" asp-route-eventId="@Model">Alloggi</a>
     <a asp-controller="MealProposals" aria-current="@Current("MealProposals")" asp-action="Index" asp-route-eventId="@Model">Proposte pasti</a>
+    <a asp-controller="MealVoting" aria-current="@Current("MealVoting")" asp-action="Index" asp-route-eventId="@Model">Preferenze pasti</a>
     </div></div>
     <div class="event-nav-group" role="group" aria-label="Comunica">
     <span class="event-nav-label">Comunica</span>

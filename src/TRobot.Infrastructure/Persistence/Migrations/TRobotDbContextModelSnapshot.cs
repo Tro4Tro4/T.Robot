@@ -856,6 +856,209 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TRobot.Domain.MealPreferenceBallot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Meal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SelectionJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventId", "PersonId");
+
+                    b.HasIndex("EventId", "CycleId", "PersonId", "Day", "Meal")
+                        .IsUnique();
+
+                    b.ToTable("MealPreferenceBallots", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MealPreferenceBallots_Meal", "Meal IN (0,1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealPreferenceChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("BallotRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Meal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PayloadFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviousJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SelectionJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("VoterId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventId", "CycleId");
+
+                    b.HasIndex("EventId", "PersonId");
+
+                    b.HasIndex("EventId", "VoterId");
+
+                    b.ToTable("MealPreferenceChanges", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MealPreferenceChanges_Meal", "Meal IN (0,1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealPreferenceSession", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("BallotRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConnectionRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CycleRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("Day")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EligibilityFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IdentityFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Meal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Page")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PersonOptions")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewedPages")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SelectedIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Step")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("EventId", "Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("EventId");
+
+                    b.ToTable("MealPreferenceSessions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MealPreferenceSessions_Meal", "Meal IS NULL OR Meal IN (0,1,2)");
+
+                            t.HasCheckConstraint("CK_MealPreferenceSessions_Page", "Page >= 1");
+
+                            t.HasCheckConstraint("CK_MealPreferenceSessions_Step", "Step BETWEEN 0 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("TRobot.Domain.MealProposal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -968,6 +1171,128 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_MealProposalSessions_Step", "Step BETWEEN 0 AND 5");
                         });
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealVotingCycle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClosedSnapshotJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("OpenedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique()
+                        .HasFilter("State <> 3");
+
+                    b.HasIndex("EventId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("MealVotingCycles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MealVotingCycles_State", "State BETWEEN 0 AND 3");
+                        });
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealVotingEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsExcluded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Meal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.ToTable("MealVotingEntries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MealVotingEntries_Meal", "Meal IN (0,1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealVotingSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EntryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProposalId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventId", "ProposalId");
+
+                    b.HasIndex("EventId", "CycleId", "EntryId");
+
+                    b.HasIndex("EventId", "CycleId", "ProposalId")
+                        .IsUnique();
+
+                    b.ToTable("MealVotingSources", (string)null);
                 });
 
             modelBuilder.Entity("TRobot.Domain.MenuItem", b =>
@@ -2397,6 +2722,83 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TRobot.Domain.MealPreferenceBallot", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.MealVotingCycle", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "CycleId")
+                        .HasPrincipalKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealPreferenceChange", b =>
+                {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.MealVotingCycle", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "CycleId")
+                        .HasPrincipalKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "VoterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealPreferenceSession", b =>
+                {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TRobot.Domain.MealProposal", b =>
                 {
                     b.HasOne("TRobot.Domain.Event", null)
@@ -2429,6 +2831,54 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.HasOne("TRobot.Domain.EventParticipant", null)
                         .WithMany()
                         .HasForeignKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealVotingCycle", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealVotingEntry", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.MealVotingCycle", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "CycleId")
+                        .HasPrincipalKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.MealVotingSource", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.MealProposal", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "ProposalId")
+                        .HasPrincipalKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.MealVotingEntry", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "CycleId", "EntryId")
+                        .HasPrincipalKey("EventId", "CycleId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

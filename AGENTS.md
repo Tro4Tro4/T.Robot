@@ -1,6 +1,6 @@
 # Istruzioni per Codex - T.Robot
 
-Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. Il nome pubblico definitivo è **T.Robot** (non CapoDannoBot, tRobot o T-Robot). Usa `TRobot` per namespace e nomi dei progetti C#, `TRobot.sln` per la soluzione, `T.Robot` per il repository e `trobot.db` per SQLite. L'utente è esperto in C#/.NET, EF Core e MVC; preferisce iterazioni piccole, verificabili, guidate in italiano.
+Leggi `PROJECT_CONTEXT.md` (root, analisi verificata sul codice) prima di progettare o modificare funzionalità; `docs/PROJECT_CONTEXT.md` resta l'handoff datato da consultare come storico, insieme ad `AGENTS.md`. Il nome pubblico definitivo è **T.Robot** (non CapoDannoBot, tRobot o T-Robot). Usa `TRobot` per namespace e nomi dei progetti C#, `TRobot.sln` per la soluzione, `T.Robot` per il repository e `trobot.db` per SQLite. L'utente è esperto in C#/.NET, EF Core e MVC; preferisce iterazioni piccole, verificabili, guidate in italiano.
 
 ## Regole di lavoro
 - Preferenza permanente dell'utente: non usare mai il carattere Unicode U+2014 (trattino lungo); usare sempre il trattino semplice ASCII `-` al suo posto, nelle risposte e nei nuovi testi.
@@ -10,7 +10,7 @@ Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. 
 - Prima di intervenire, ispeziona repository, SDK, file e stato Git; non assumere che il codice esista.
 - Procedi per milestone; non implementare tutti i moduli contemporaneamente.
 - Mantieni Domain indipendente; usa Application per le regole; Infrastructure per persistenza/integrations; Web per UI e API.
-- I partecipanti usano WhatsApp; il sito è **solo per organizzatori**. Regola generale nel gruppo, con eccezione M33: `!proponi` nel gruppo avvia il dialogo privato personale per le proposte pasti, approvato il 31 ottobre 2026. Nessun altro DM implicito.
+- I partecipanti usano WhatsApp; il sito è **solo per organizzatori**. Eccezioni esplicite del 31 ottobre 2026: `!proponi` (M33) e `!preferenze` (M34) nel gruppo autorizzato avviano i rispettivi dialoghi privati personali. M34 comprende preferenze distinte per i figli collegati. Nessun altro DM implicito.
 - Il gateway WhatsApp è sperimentale e **non ufficiale**: non aggiungerlo né collegarlo in produzione senza richiesta esplicita.
 - Tutte le azioni che cambiano dati passano da servizi validati e autorizzati; l'AI non modifica il DB direttamente.
 - Preferisci EF Core SQLite inizialmente, migration versionate, `decimal` per importi, UTC per timestamp e timezone evento configurabile.
@@ -21,6 +21,8 @@ Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. 
 - Rispondi in italiano: breve piano iniziale, poi implementazione, riepilogo finale con file, comandi, test e prossimo passo.
 
 ## Milestone corrente
+
+M34 rilasciata su Azure il 31 ottobre 2026 su richiesta esplicita: preparazione dell'elenco dei piatti, correzione/esclusione/accorpamento, apertura e chiusura manuali del voto. `!preferenze` nel gruppo avvia il dialogo privato con preferenze multiple per giorno/pasto, personali e distinte per i figli collegati; voto solo nei giorni del soggiorno confermato, risultati adulti/bambini/totale anche durante il voto. Scelte storiche conservate, conteggi correnti escludono gli assenti, snapshot alla chiusura separato. Web e gateway in `m34-20261031-arm64`, migrazione conservativa con backup/rehearsal e righe precedenti conservate, stessa identita e gruppo ripristinati. Nessun ciclo/voto o messaggio di prova creato, scheduler Production escluso. Dettagli e verifiche in `docs/MILESTONE_34.md`. M33 dal telefono e salvataggio confermati dall'utente; nuovo flusso voto ancora da collaudare dal telefono dopo preparazione e apertura dal pannello.
 
 M33 autorizzata il 31 ottobre 2026: raccolta proposte pasti con giorno, colazione/pranzo/cena, piatto e disponibilita facoltativa a cucinare. `!proponi` nel gruppo autorizzato avvia automaticamente il dialogo privato con il mittente associato; conferma personale prima del salvataggio, `!annulla`, scadenza fissa di cinque minuti dall'avvio senza estensioni. Proposte confermate conservate sul sito riservato; menu definitivo e spesa successivi. Disegno e stato in `docs/MILESTONE_33.md`. Il gateway locale resta disabilitato; sviluppo e test non autorizzano invii reali di prova.
 

@@ -1,0 +1,133 @@
+@model TRobot.Web.Models.MealVotingOrganizerPage
+@using TRobot.Domain
+@using TRobot.Application.Menu
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Preferenze pasti";
+    var voting = Model.Voting;
+    var cycle = voting.CurrentCycle;
+    var entries = voting.Entries.Where(x => x.CycleId == cycle?.Id).OrderBy(x => x.Day).ThenBy(x => x.Meal).ThenBy(x => x.Name).ToArray();
+    string MealName(MealKind meal) => meal switch { MealKind.Breakfast => "Colazione", MealKind.Lunch => "Pranzo", _ => "Cena" };
+    string StateName(MealVotingState state) => state switch { MealVotingState.Collection => "Raccolta proposte", MealVotingState.Preparation => "Preparazione elenco", MealVotingState.Open => "Votazione aperta", _ => "Votazione chiusa" };
+    string ChoiceNames(string json) => string.Join(", ", (JsonSerializer.Deserialize<Guid[]>(json) ?? []).Select(id => voting.Entries.Single(x => x.Id == id).Name));
+}
+<h1>Preferenze pasti · @voting.EventName</h1>
+<partial name="_EventNavigation" model="voting.EventId" />
+<p><a asp-controller="MealProposals" asp-action="Index" asp-route-eventId="@voting.EventId">Archivio delle proposte originali</a></p>
+<p>Prima raccogli le proposte, poi prepara l'elenco e apri il voto. Ogni persona puo indicare piu piatti graditi: le preferenze non sono porzioni o incarichi.</p>
+@if (TempData["MealVotingError"] is string error) { <div class="alert alert-warning" role="alert">@error</div> }
+@if (cycle is null || cycle.State == MealVotingState.Closed)
+{
+    <form asp-action="Start" method="post" class="card card-body mb-4">
+        <h2 class="h4">@(cycle is null ? "Gestisci la raccolta" : "Nuovo ciclo pasti")</h2>
+        <input type="hidden" name="EventId" value="@voting.EventId" />
+        <input type="hidden" name="CycleId" value="@Guid.NewGuid()" />
+        <p>Le proposte originali restano conservate. Il nuovo ciclo parte dalla raccolta e non copia i voti precedenti; in preparazione potrai scegliere quali piatti ripubblicare.</p>
+        <label class="mb-2"><input type="checkbox" name="Confirmed" value="true" required /> Confermo l'avvio del ciclo</label>
+        <button class="btn btn-primary align-self-start" type="submit">Avvia raccolta</button>
+    </form>
+}
+@if (cycle is not null)
+{
+    <h2 class="h4">@StateName(cycle.State)</h2>
+    @if (cycle.State == MealVotingState.Collection)
+    {
+        <form asp-action="Prepare" method="post" class="card card-body mb-4">
+            <input type="hidden" name="EventId" value="@voting.EventId" /><input type="hidden" name="CycleId" value="@cycle.Id" /><input type="hidden" name="Revision" value="@cycle.Revision" />
+            <p>Chiudi la raccolta per correggere, accorpare o escludere i piatti. Le proposte incomplete su WhatsApp non potranno piu essere confermate in questo ciclo.</p>
+            <label class="mb-2"><input type="checkbox" name="Confirmed" value="true" required /> Confermo la chiusura della raccolta</label>
+            <button type="submit" class="btn btn-primary align-self-start">Prepara elenco</button>
+        </form>
+    }
+    @if (cycle.State == MealVotingState.Preparation)
+    {
+        <p>Modifica una voce alla volta e salva. Per accorpare, seleziona tutte le proposte originali dello stesso giorno e pasto da associare alla voce. Le fonti vengono spostate, non cancellate. Un piatto senza fonti non verra pubblicato.</p>
+        <p class="alert alert-info">Se una correzione cambia il significato del piatto, ricontrolla con gli autori la disponibilita a cucinare: l'offerta originale non viene assegnata automaticamente al piatto corretto.</p>
+        @foreach (var entry in entries)
+        {
+            var sourceIds = voting.Sources.Where(x => x.CycleId == cycle.Id && x.EntryId == entry.Id).Select(x => x.ProposalId).ToHashSet();
+            <details class="card card-body mb-3">
+                <summary><strong>@entry.Day.ToString("dd/MM/yyyy") · @MealName(entry.Meal) · @entry.Name</strong> @(entry.IsExcluded || sourceIds.Count == 0 ? "(escluso)" : "")</summary>
+                <form asp-action="Entry" method="post" class="mt-3">
+                    <input type="hidden" name="EventId" value="@voting.EventId" /><input type="hidden" name="CycleId" value="@cycle.Id" /><input type="hidden" name="Revision" value="@cycle.Revision" />
+                    <input type="hidden" name="Id" value="@entry.Id" /><input type="hidden" name="EntryRevision" value="@entry.Revision" />
+                    <label class="form-label" for="name-@entry.Id">Nome da mostrare ai partecipanti</label>
+                    <input id="name-@entry.Id" class="form-control mb-3" name="Name" value="@entry.Name" maxlength="200" required />
+                    <fieldset><legend class="h6">Proposte originali da associare</legend>
+                    @foreach (var proposal in Model.Archive.Proposals.Where(x => x.Day == entry.Day && x.Meal == entry.Meal && x.WithdrawnAtUtc is null))
+                    {
+                        <label class="d-block mb-2"><input type="checkbox" name="ProposalIds" value="@proposal.Id" checked="@sourceIds.Contains(proposal.Id)" /> @proposal.DishName · @proposal.PersonName @(proposal.OffersToCook ? "(disponibile a cucinare)" : "(suggerimento)")</label>
+                    }
+                    </fieldset>
+                    <label class="d-block mb-2"><input type="checkbox" name="IsExcluded" value="true" checked="@entry.IsExcluded" /> Escludi questo piatto dalla votazione</label>
+                    <label class="d-block mb-2"><input type="checkbox" name="Confirmed" value="true" required /> Confermo la modifica</label>
+                    <button type="submit" class="btn btn-outline-primary">Salva piatto</button>
+                </form>
+            </details>
+        }
+        <section class="card card-body mb-4">
+            <h3 class="h5">Anteprima dell'elenco destinato ai partecipanti</h3>
+            @foreach (var entry in entries.Where(x => !x.IsExcluded && voting.Sources.Any(s => s.CycleId == cycle.Id && s.EntryId == x.Id)))
+            { <p>@entry.Day.ToString("dd/MM/yyyy") · @MealName(entry.Meal) · @entry.Name</p> }
+            <form asp-action="Open" method="post">
+                <input type="hidden" name="EventId" value="@voting.EventId" /><input type="hidden" name="CycleId" value="@cycle.Id" /><input type="hidden" name="Revision" value="@cycle.Revision" />
+                <label class="d-block mb-2"><input type="checkbox" name="Confirmed" value="true" required /> Approvo questo elenco per la consultazione privata e apro il voto</label>
+                <button type="submit" class="btn btn-primary">Apri votazione</button>
+            </form>
+        </section>
+    }
+    @if (cycle.State is MealVotingState.Open or MealVotingState.Closed)
+    {
+        <p>Scrivi <code>!preferenze</code> nel gruppo per proseguire in privato. Le scelte dei figli collegati sono distinte dalle preferenze del genitore.</p>
+        <h3 class="h5">@(cycle.State == MealVotingState.Open ? "Risultati provvisori" : "Conteggio aggiornato sulle presenze correnti")</h3>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Giorno e pasto</th><th>Piatto</th><th>Adulti</th><th>Bambini</th><th>Totale</th><th>Preferenze escluse</th></tr></thead><tbody>
+        @foreach (var count in voting.CurrentCounts)
+        {
+            var entry = entries.Single(x => x.Id == count.EntryId);
+            <tr><td>@entry.Day.ToString("dd/MM/yyyy") · @MealName(entry.Meal)</td><td>@entry.Name</td><td>@count.Adults</td><td>@count.Children</td><td>@count.Total</td>
+                <td>@foreach (var excluded in count.Excluded) { <div>@Model.PersonNames.GetValueOrDefault(excluded.PersonId, "Partecipante") · @excluded.Reason</div> }</td></tr>
+        }
+        </tbody></table></div>
+        @if (cycle.State == MealVotingState.Open)
+        {
+            <form asp-action="Close" method="post" class="card card-body mb-4">
+                <input type="hidden" name="EventId" value="@voting.EventId" /><input type="hidden" name="CycleId" value="@cycle.Id" /><input type="hidden" name="Revision" value="@cycle.Revision" />
+                <p>La chiusura blocca le modifiche alle preferenze e conserva il risultato di questo momento. I conteggi sulle presenze correnti restano consultabili separatamente.</p>
+                <label class="mb-2"><input type="checkbox" name="Confirmed" value="true" required /> Confermo la chiusura del voto</label>
+                <button class="btn btn-primary align-self-start" type="submit">Chiudi votazione</button>
+            </form>
+        }
+    }
+}
+@foreach (var closed in voting.Cycles.Where(x => x.State == MealVotingState.Closed))
+{
+    var snapshot = JsonSerializer.Deserialize<MealVotingSnapshot>(closed.ClosedSnapshotJson!);
+    <details class="card card-body mb-3" open="@(closed.Id == cycle?.Id)">
+        <summary>Risultato conservato alla chiusura · Ciclo @closed.Number · @closed.ClosedAtUtc?.ToString("dd/MM/yyyy HH:mm") UTC</summary>
+        <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Giorno e pasto</th><th>Piatto</th><th>Adulti</th><th>Bambini</th><th>Totale</th></tr></thead><tbody>
+        @foreach (var count in snapshot!.Counts)
+        {
+            var entry = voting.Entries.Single(x => x.Id == count.EntryId);
+            <tr><td>@entry.Day.ToString("dd/MM/yyyy") · @MealName(entry.Meal)</td><td>@entry.Name</td><td>@count.Adults</td><td>@count.Children</td><td>@count.Total</td></tr>
+        }
+        </tbody></table></div>
+    </details>
+}
+<section class="mt-4" aria-labelledby="preference-history">
+    <h2 id="preference-history" class="h4">Storico delle preferenze</h2>
+    <p>Conserva le scelte confermate e le modifiche, anche quando una persona non risulta piu presente. I conteggi correnti escludono le scelte non eleggibili.</p>
+    @if (Model.History.Changes.Count == 0) { <p>Nessuna preferenza registrata in questa pagina.</p> }
+    @foreach (var change in Model.History.Changes)
+    {
+        <details class="card card-body mb-2">
+            <summary>@Model.PersonNames.GetValueOrDefault(change.PersonId, "Partecipante") · @change.Day.ToString("dd/MM/yyyy") · @MealName(change.Meal) · @change.AtUtc.ToString("dd/MM/yyyy HH:mm") UTC</summary>
+            <p class="mt-2">Registrata da @Model.PersonNames.GetValueOrDefault(change.VoterId, "Partecipante")</p>
+            <p>Prima: @(change.PreviousJson == "[]" ? "nessuna preferenza" : ChoiceNames(change.PreviousJson))</p>
+            <p class="mb-0">Dopo: @(change.SelectionJson == "[]" ? "nessuna preferenza" : ChoiceNames(change.SelectionJson))</p>
+        </details>
+    }
+    <nav class="d-flex gap-3" aria-label="Pagine storico preferenze">
+    @if (Model.History.Page > 1) { <a asp-action="Index" asp-route-eventId="@voting.EventId" asp-route-historyPage="@(Model.History.Page - 1)" asp-fragment="preference-history">Precedenti</a> }
+    @if (Model.History.HasNext) { <a asp-action="Index" asp-route-eventId="@voting.EventId" asp-route-historyPage="@(Model.History.Page + 1)" asp-fragment="preference-history">Successive</a> }
+    </nav>
+</section>

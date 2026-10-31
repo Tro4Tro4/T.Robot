@@ -218,7 +218,7 @@ export class WhatsAppGateway {
       // Only Application knows whether this sender has an authorized attendance dialog.
       // Trim solely for candidate recognition; preserve the exact text in the callback.
       if (isPrivate ? (!text.trim() || text.length > 300) : (text.length > 100 || (!/^!(?:presenza|aiuto|menu|todo|riepilogo|porto|prendo|fatto|conferma|annulla)(?:\s|$)/i.test(text)
-        && !/^!proponi$/i.test(text.trim())
+        && !/^!(?:proponi|preferenze)$/i.test(text.trim())
         && !/^(?:\d{1,2}[/\.\-]\d{1,2}(?:[/\.\-]\d{4})?|\d{1,3}|s[iì]|no)$/i.test(text.trim())))) { this.count('commandRejected'); continue; }
       const senderIds = [...new Set((isPrivate ? [remoteJid, key.remoteJidAlt] : [key.participant, key.participantAlt]).map(normalizeSender).filter(Boolean))];
       if (!senderIds.length) { this.count('senderRejected'); continue; }
@@ -243,7 +243,7 @@ export class WhatsAppGateway {
         // Private text can only go back to the verified author of this message.
         // Application owns persisted dialog authorization and its five-minute expiry.
         if ((isPrivate && !result.replyPrivately && result.replyText !== null)
-          || (result.replyPrivately && !isPrivate && !/^!proponi$/i.test(text.trim()))) {
+          || (result.replyPrivately && !isPrivate && !/^!(?:proponi|preferenze)$/i.test(text.trim()))) {
           this.count('callbackFailed'); return;
         }
         this.count(result?.handled ? 'callbackHandled' : 'callbackIgnored');

@@ -1,5 +1,7 @@
 # T.Robot - Contesto per un agente di coding
 
+**Aggiornamento operativo M34, 31 ottobre 2026:** Web e gateway rilasciati su Azure in `m34-20261031-arm64`. Consultazione e preferenze multiple tramite `!preferenze` dal gruppo al dialogo privato, scelte distinte dei figli collegati, preparazione dell'elenco nel pannello e risultati adulti/bambini. Backup privato sulla VM, rehearsal e migrazione con righe precedenti conservate, stessa identita e gruppo ripristinati. 651/651 test .NET, 60/60 Node, 18 controlli HTTP/navigazione, review indipendenti APPROVED, 48 controlli browser pubblici e quattro senza JavaScript positivi. Raccolta rimasta aperta, nessun ciclo o voto dimostrativo creato. M33 dal telefono e salvataggio confermati dall'utente; voto M34 dal telefono ancora da collaudare dopo preparazione e apertura. Dettagli in `docs/MILESTONE_34.md`. Le sezioni seguenti conservano l'analisi precedente a M34 e vanno lette come snapshot storico.
+
 Analisi del repository locale al 31 ottobre 2026, commit `4db2767`. Il codice applicativo non e stato modificato. Stato Git iniziale pulito. SDK rilevato: 10.0.401; Node nel PATH: 26.13.0, fuori dall'intervallo richiesto dal gateway. E presente anche la cartella del runtime portabile Node 24.22.0; eseguibilita da verificare.
 
 Questo documento distingue codice presente, verifiche storiche documentate e verifiche ancora necessarie. Non sono stati avviati servizi, eseguite migrazioni, letti database operativi o inviati messaggi. Build e test non rieseguiti durante questa analisi.

@@ -97,6 +97,7 @@ builder.Services.AddScoped<HouseholdService>();
 builder.Services.AddScoped<TRobot.Application.Lodging.LodgingService>();
 builder.Services.AddScoped<MenuService>();
 builder.Services.AddScoped<TRobot.Application.Menu.MealProposalService>();
+builder.Services.AddScoped<TRobot.Application.Menu.MealVotingService>();
 builder.Services.AddScoped<PollService>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<MessageService>();

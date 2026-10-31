@@ -44,11 +44,25 @@ public sealed partial class WhatsAppService
             }
             if (await identities.ReceiptAsync(connection.EventId, messageHash, token) is not null)
                 throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
+            var receipt = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
+            var preference = await PreferenceIncomingAsync(input, connection, participant.PersonId, actor, identity, now, receipt.Id, token);
+            if (preference is not null)
+            {
+                if (preference.Handled) store.Add(receipt);
+                await store.SaveAsync(token); return preference;
+            }
             var session = await store.FindAsync<MealProposalSession>(connection.EventId, participant.PersonId, token);
             var valid = session is not null && session.Step != MealProposalStep.Closed && session.ActorId == actor
                 && session.GroupId == connection.GroupId && session.ConnectionRevision == connection.Revision
                 && session.IdentityFingerprint == identity && now >= session.StartedAtUtc && now < session.ExpiresAtUtc;
             if (session is not null && session.Step != MealProposalStep.Closed && !valid) session.Close();
+            var cycles = await store.ListAsync<MealVotingCycle>(connection.EventId, token);
+            if ((!input.IsPrivate || valid) && cycles.Any() && cycles.All(x => x.State != MealVotingState.Collection))
+            {
+                session?.Close(); store.Add(receipt); await store.SaveAsync(token);
+                return new(true, ReplyText: "La raccolta delle proposte e chiusa. Scrivi !preferenze nel gruppo per consultare la votazione.",
+                    ReplyOperationId: receipt.Id, ReplyPrivately: true);
+            }
             string? reply;
             var success = false;
             if (!input.IsPrivate)
@@ -101,7 +115,6 @@ public sealed partial class WhatsAppService
                     reply = success ? "Proposta registrata per gli organizzatori. Grazie!" : MealPrompt(session, eventDate);
                 }
             }
-            var receipt = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
             store.Add(receipt); await store.SaveAsync(token);
             return new WhatsAppIncomingResult(true, Reaction: !input.IsPrivate || success ? "✅" : null,
                 ReplyText: reply, ReplyOperationId: receipt.Id, ReplyPrivately: true);

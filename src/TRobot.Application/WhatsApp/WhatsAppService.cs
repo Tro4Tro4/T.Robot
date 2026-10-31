@@ -171,7 +171,8 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
     public async Task<WhatsAppIncomingResult> IncomingAsync(WhatsAppIncoming input, CancellationToken ct = default)
     {
         options.RequireEnabled();
-        if (input.IsPrivate || input.Text?.Trim().Equals("!proponi", StringComparison.OrdinalIgnoreCase) == true)
+        if (input.IsPrivate || input.Text?.Trim().Equals("!proponi", StringComparison.OrdinalIgnoreCase) == true
+            || input.Text?.Trim().Equals("!preferenze", StringComparison.OrdinalIgnoreCase) == true)
             return await MealIncomingAsync(input, ct);
         if (string.IsNullOrWhiteSpace(input.GroupId) || input.GroupId.Length > 200 || !input.GroupId.EndsWith("@g.us", StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(input.MessageId) || input.MessageId.Length > 200 || string.IsNullOrWhiteSpace(input.Text) || input.Text.Length > 100)

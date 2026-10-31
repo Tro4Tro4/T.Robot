@@ -61,3 +61,7 @@ Collaudo pubblico HTTPS con TLS verificato, nessun override: sessione originale 
 Materiale privato locale: `.local/azure/m33-release.py`, `m33-release-material.json`, `test-m33-release.py`, `smoke-m33-release.py`, `m33-release-smoke-report.json`. Contesti remoti e riferimenti ai backup in `/root/trobot-provisioning/m33-20261031-context.json` e `m33-20261031-attempt2-context.json`. Backup e dati operativi rimasti esclusivamente sulla VM.
 
 Nessun pairing, messaggio di prova automatico o proposta dimostrativa creati. Ora l'utente puo provare `!proponi` dal gruppo e completare il dialogo privato; la ricezione e il completamento effettivi di questo nuovo flusso non sono ancora verificati sul telefono.
+
+## Collaudo successivo e passaggio a M34
+
+Il 31 ottobre 2026 l'utente ha confermato in chat che la proposta dal telefono ha funzionato e i dati sono stati salvati. Questo aggiorna il precedente stato di collaudo M33 pendente. Successivamente e stata autorizzata e rilasciata M34 con consultazione e preferenze multiple: `docs/MILESTONE_34.md`. La prova dal telefono del nuovo voto e distinta da quella M33 e resta da eseguire dopo preparazione e apertura della votazione.

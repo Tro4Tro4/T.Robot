@@ -3,9 +3,11 @@ namespace TRobot.Web.Models;
 public static class LocalHistoryLabels
 {
     public static string Module(string? value) => value switch
-    { "Tasks" => "Attività", "Households" => "Nuclei", "Menu" => "Menu", "Messages" => "Messaggi", "Polls" => "Sondaggi", "Accounting" => "Contabilità", "Games" => "Giochi", "Simulation" => "Simulatore", "WhatsApp" => "WhatsApp sperimentale", _ => "Modulo locale" };
+    { "MealVoting" => "Preferenze pasti", "Tasks" => "Attività", "Households" => "Nuclei", "Menu" => "Menu", "Messages" => "Messaggi", "Polls" => "Sondaggi", "Accounting" => "Contabilità", "Games" => "Giochi", "Simulation" => "Simulatore", "WhatsApp" => "WhatsApp sperimentale", _ => "Modulo locale" };
     public static string Action(string? value) => value switch
     {
+        "CycleStarted" => "Raccolta pasti avviata", "CollectionClosed" => "Raccolta pasti chiusa", "EntryPrepared" => "Piatto preparato per il voto",
+        "VotingOpened" => "Votazione pasti aperta", "VotingClosed" => "Votazione pasti chiusa", "PreferencesConfirmed" => "Preferenze pasti confermate",
         "Created" => "Creato", "Updated" => "Modificato", "MemberAdded" => "Membro aggiunto", "MemberUpdated" => "Appartenenza modificata", "MemberRemoved" => "Appartenenza rimossa",
         "DraftCreated" => "Bozza creata", "DraftEdited" => "Bozza modificata", "Cancelled" => "Annullato", "Queued" => "Accodato", "PublicationQueued" => "Pubblicazione accodata",
         "ResultQueued" => "Risultato accodato", "SettingsChanged" => "Configurazione modificata", "SummaryQueued" => "Riepilogo accodato", "SentSimulated" => "Invio simulato concluso",

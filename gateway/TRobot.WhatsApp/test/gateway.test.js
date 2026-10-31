@@ -465,6 +465,91 @@ test('Proponi opens only a private reply to the verified group author and permit
   await h.gateway.idle(); assert.equal(socket.privateSent.length, 1); assert.equal(socket.reactions.length, 1);
 });
 
+test('Preferenze replies privately only to the verified group author and suppresses duplicate starts', async t => {
+  const payloads = []; const operationId = randomUUID();
+  const h = await harness(t, { callback: async payload => {
+    payloads.push(payload);
+    return { handled: true, duplicate: false, reaction: '✅', replyText: 'Scegli il pasto',
+      replyOperationId: operationId, replyPrivately: true };
+  } });
+  await h.ready(); const socket = h.sockets[0];
+  const message = incoming('preferences-start', { message: { conversation: '!preferenze' } });
+  socket.handlers.messages({ type: 'notify', messages: [message, message] });
+  await h.gateway.idle();
+  assert.equal(payloads.length, 1); assert.equal(payloads[0].isPrivate, false);
+  assert.deepEqual(payloads[0].senderIds, ['111@lid', '222@s.whatsapp.net']);
+  assert.deepEqual(socket.privateSent, [['111@lid', 'Scegli il pasto']]);
+  assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 1);
+  socket.handlers.messages({ type: 'notify', messages: [incoming('preferences-retry', {
+    message: { conversation: '  !PREFERENZE  ' }
+  })] });
+  await h.gateway.idle();
+  assert.equal(payloads.length, 2); assert.equal(socket.privateSent.length, 1);
+});
+
+test('Preferenze retains exact command, group, envelope, timestamp and sender filters', async t => {
+  const h = await harness(t); await h.ready(); const socket = h.sockets[0];
+  const message = incoming('preferences', { message: { conversation: '!preferenze' } });
+  const messages = [
+    ...['!preferenze 1', '!preferenze2', '!preferenze\n1', 'preferenze'].map((text, i) =>
+      incoming('preferences-invalid-' + i, { message: { conversation: text } })),
+    { ...message, key: { ...message.key, id: 'other-group', remoteJid: otherGroup } },
+    { ...message, key: { ...message.key, id: 'broadcast', remoteJid: 'status@broadcast' } },
+    { ...message, key: { ...message.key, id: 'self', fromMe: true } },
+    { ...message, key: { ...message.key, id: 'no-sender', participant: null, participantAlt: null } },
+    { ...message, key: { ...message.key, id: 'invalid-sender', participant: 'invalid', participantAlt: null } },
+    { ...message, messageTimestamp: now / 1000 - 121 },
+    { ...message, message: { imageMessage: { caption: '!preferenze' } } }
+  ];
+  socket.handlers.messages({ type: 'append', messages: [message] });
+  socket.handlers.messages({ type: 'notify', messages });
+  await h.gateway.idle();
+  assert.equal(h.callbacks.length, 0); assert.equal(socket.privateSent.length, 0);
+  assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 0);
+});
+
+test('Private replies remain forbidden for other group commands and cannot choose an arbitrary recipient', async t => {
+  const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, reaction: '✅',
+    replyText: 'Riservato', replyOperationId: randomUUID(), replyPrivately: true }) });
+  await h.ready(); const socket = h.sockets[0];
+  socket.handlers.messages({ type: 'notify', messages: ['!aiuto', '!presenza', '!menu', '!todo', '!conferma', '!annulla']
+    .map((text, i) => incoming('forbidden-private-' + i, { message: { conversation: text } })) });
+  await h.gateway.idle();
+  assert.equal(h.gateway.health().diagnostics.callbackFailed, 6);
+  assert.equal(socket.privateSent.length, 0); assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 0);
+  h.setTime(now + 60000);
+  h.gateway.callback = async () => ({ handled: true, duplicate: false, replyText: 'Riservato',
+    replyOperationId: randomUUID(), replyPrivately: true, recipient: '999@lid' });
+  socket.handlers.messages({ type: 'notify', messages: [incoming('spoof-preferences', {
+    messageTimestamp: (now + 60000) / 1000, message: { conversation: '!preferenze' }
+  })] });
+  await h.gateway.idle();
+  assert.equal(h.gateway.health().diagnostics.callbackFailed, 7); assert.equal(socket.privateSent.length, 0);
+  const server = createGatewayServer(h.gateway, token);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  for (const body of [
+    { operationId: randomUUID(), groupId: '999@lid', text: 'Forbidden' },
+    { operationId: randomUUID(), groupId: group, text: 'Forbidden', recipient: '999@lid' },
+    { operationId: randomUUID(), groupId: group, text: 'Forbidden', replyPrivately: true }
+  ]) assert.equal((await request(server, '/send', { method: 'POST', body })).status, 400);
+  assert.equal(socket.sent.length, 0); assert.equal(socket.privateSent.length, 0);
+});
+
+test('Preferences duplicate identities remain isolated between group and private channels', async t => {
+  const h = await harness(t, { callback: async payload => {
+    h.callbacks.push(payload);
+    return { handled: false, duplicate: false, reaction: null };
+  } });
+  await h.ready(); const socket = h.sockets[0];
+  const start = incoming('same-channel-id', { message: { conversation: '!preferenze' } });
+  const privateInput = privateMessage('same-channel-id', '!preferenze');
+  socket.handlers.messages({ type: 'notify', messages: [start, start, privateInput, privateInput] });
+  await h.gateway.idle();
+  assert.deepEqual(h.callbacks.map(payload => payload.isPrivate), [false, true]);
+  assert.equal(socket.privateSent.length, 0); assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 0);
+});
+
 test('Private plain input uses remote identity only, active group, bounded payload and no public fallback', async t => {
   const h = await harness(t); await h.ready(); const socket = h.sockets[0];
   socket.handlers.messages({ type: 'notify', messages: [privateMessage('private', 'Pasta al forno'),

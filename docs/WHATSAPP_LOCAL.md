@@ -1,5 +1,7 @@
 # Collegamento WhatsApp locale sperimentale
 
+**Perimetro:** questa e la procedura del prototipo locale. L'ambiente operativo attuale e Azure M34: vedere `docs/MILESTONE_34.md` e `docs/AZURE_CLOUD.md`. Non avviare una seconda sessione sul PC. Le limitazioni storiche sotto non annullano le eccezioni M33/M34 o il rilascio remoto.
+
 Il numero dedicato e il gruppo di prova sono richiesti per questo incremento. Il gateway Baileys è non ufficiale e può subire disconnessioni o restrizioni dell'account. Non è previsto un deploy. Il sito continua a essere riservato agli organizzatori e ad ascoltare soltanto su loopback.
 
 ## Preparazione e avvio
@@ -35,7 +37,7 @@ Il gateway ascolta su `127.0.0.1:5240`; il sito su `http://localhost:5238`. L'av
 5. Dal telefono del membro associato inviare nel gruppo `!presenza si` e seguire le domande su arrivo e durata descritte sotto; `!presenza forse` e `!presenza no` aggiornano il solo mittente con reazione ✅. Il numero collegato al gateway non può collaudare se stesso: i messaggi propri vengono ignorati.
 6. Per provare un invio, preparare un nuovo avviso operativo dalla pagina WhatsApp e controllare nell'anteprima **Nome attuale del gruppo**, ID del gruppo e testo. Il nome viene risolto per il destinatario esatto della bozza; se il collegamento è cambiato o il destinatario non è verificabile, la conferma non è disponibile e la pagina ne spiega il motivo. La preparazione della bozza non invia nulla. Confermare solo dopo il controllo e verificare il messaggio nel gruppo prima di ripetere qualunque operazione con esito incerto.
 
-DM, altri gruppi, messaggi vecchi, allegati e identità non associate sono ignorati. I test automatici usano trasporti finti e non attestano il funzionamento del proprio account: la prova con telefono resta necessaria.
+Altri gruppi, messaggi vecchi, allegati e identita non associate sono ignorati. I DM sono ammessi soltanto per i dialoghi personali M33/M34 avviati nel gruppo da `!proponi` o `!preferenze`; un DM spontaneo non avvia questi flussi. I test automatici usano trasporti finti e non attestano il funzionamento del proprio account: la prova con telefono resta necessaria.
 
 ## Presenza, arrivo e giorni
 

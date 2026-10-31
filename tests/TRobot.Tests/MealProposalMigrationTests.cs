@@ -35,7 +35,7 @@ public sealed class MealProposalMigrationTests
         await db.SaveChangesAsync();
         var before = await Rows(connection);
 
-        await db.Database.MigrateAsync();
+        await db.GetService<IMigrator>().MigrateAsync("20261031133619_AddMealProposals");
         db.ChangeTracker.Clear();
         var after = await Rows(connection);
         Assert.Equal(before.Count + 2, after.Count);
@@ -50,7 +50,7 @@ public sealed class MealProposalMigrationTests
         Assert.False(await reader.ReadAsync());
     }
 
-    private static async Task<Dictionary<string, string[]>> Rows(SqliteConnection connection)
+    internal static async Task<Dictionary<string, string[]>> Rows(SqliteConnection connection)
     {
         var tables = new List<string>();
         await using (var command = connection.CreateCommand())
@@ -68,7 +68,9 @@ public sealed class MealProposalMigrationTests
             var rows = new List<string>();
             while (await reader.ReadAsync())
             {
-                var values = Enumerable.Range(0, reader.FieldCount).Select(i => reader.IsDBNull(i) ? null
+                // SQLite may rebuild a table to add a constraint and reorder columns.
+                // Compare every value by column name, independently of its physical ordinal.
+                var values = Enumerable.Range(0, reader.FieldCount).OrderBy(reader.GetName, StringComparer.Ordinal).Select(i => reader.IsDBNull(i) ? null
                     : reader.GetValue(i) is byte[] bytes ? Convert.ToHexString(bytes)
                     : Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture)).ToArray();
                 rows.Add(JsonSerializer.Serialize(values));

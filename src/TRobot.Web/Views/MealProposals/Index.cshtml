@@ -7,6 +7,7 @@
 }
 <h1>Proposte pasti · @Model.EventName</h1>
 <partial name="_EventNavigation" model="Model.EventId" />
+<p><a class="btn btn-primary" asp-controller="MealVoting" asp-action="Index" asp-route-eventId="@Model.EventId">Prepara elenco e gestisci preferenze</a></p>
 <p>Raccogliete le idee prima di decidere il menu. La disponibilità a cucinare è una proposta personale; gli incarichi e la lista della spesa verranno definiti dopo la scelta comune.</p>
 <section class="card card-body mb-4" aria-labelledby="proposals-help">
     <h2 id="proposals-help" class="h4">Come proporre un piatto</h2>
