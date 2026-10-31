@@ -7,11 +7,13 @@ using TRobot.Application.Accounts;
 using TRobot.Application.Local;
 using TRobot.Application.Simulation;
 using TRobot.Web.Models;
+using TRobot.Web.Security;
 
 namespace TRobot.Web.Controllers;
 
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-public class HomeController(AttendanceService attendance, LocalDashboardService localDashboard, SimulationCommandService simulator) : Controller
+public class HomeController(AttendanceService attendance, LocalDashboardService localDashboard, SimulationCommandService simulator,
+    PortalModules portalModules) : Controller
 {
     private Guid ActorId => Guid.TryParse(User.FindFirstValue(AccountClaims.PersonId), out var id) ? id : Guid.Empty;
 
@@ -29,6 +31,17 @@ public class HomeController(AttendanceService attendance, LocalDashboardService 
         {
             if (ModelState.IsValid)
             {
+                if (!portalModules.IsSimulatorCommandEnabled(input.Text))
+                {
+                    ModelState.AddModelError("", "Il modulo richiesto è temporaneamente non disponibile nel portale.");
+                    return View("Index", await LoadAsync(input.EventId, input, ct));
+                }
+                if (PortalModules.IsSimulatorHelp(input.Text))
+                {
+                    var model = await LoadAsync(input.EventId, input, ct);
+                    TempData["Notice"] = portalModules.SimulatorHelp;
+                    return View("Index", model);
+                }
                 var result = await simulator.ExecuteAsync(ActorId, new(input.EventId, input.SenderId, input.MessageId, input.Text), input.ConfirmVote, ct);
                 TempData["Notice"] = result.Reply;
                 return RedirectToAction(nameof(Index), new { eventId = input.EventId });
@@ -38,7 +51,7 @@ public class HomeController(AttendanceService attendance, LocalDashboardService 
         catch (AttendanceValidationException ex) { ModelState.AddModelError("", ex.Message); }
         catch (AttendanceConflictException ex) { ModelState.AddModelError("", ex.Message); }
         catch (LocalAccessException) { return Forbid(); }
-        catch (LocalValidationException ex) { ModelState.AddModelError("", ex.Message); }
+        catch (LocalValidationException ex) { ModelState.AddModelError("", ex.Message == SimulationCommandService.Help ? portalModules.SimulatorHelp : ex.Message); }
         catch (LocalConflictException ex) { ModelState.AddModelError("", ex.Message); }
 
         try { return View("Index", await LoadAsync(input.EventId, input, ct)); }

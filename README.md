@@ -1,5 +1,9 @@
 # T.Robot
 
+M32: **rinomina dei nuclei** e tab **Sondaggi, Giochi, Menu e Attivita** sospesi, con blocco degli URL diretti e dei relativi comandi simulati. Dati e comandi WhatsApp operativi conservati. Build pulita, 608 test .NET e review APPROVED; release con favicon T.Robot SVG/ICO trasferita sulla nuova VM Azure ARM64 con dati correnti, chiavi e sessione conservati. HTTPS/login, desktop/mobile e recovery gateway dopo backup verificati; Oracle disabilitata. DuckDNS aggiornato e collaudo pubblico senza override riuscito, anche dopo reboot completo Azure con recovery automatico del gateway. Dettagli in [Milestone 32](docs/MILESTONE_32.md) e [hosting Azure](docs/AZURE_CLOUD.md).
+
+Nuovo modulo **Alloggi** nella navigazione dell'evento: appartamenti, camere con capienza, assegnazioni individuali o per nucleo e schede stampabili per nucleo. Un nucleo può dividersi e una camera può essere condivisa fra nuclei. Gestione riservata agli organizzatori; nessun comando WhatsApp aggiunto. Specifica e verifiche: [Milestone 31](docs/MILESTONE_31.md).
+
 Prototipo locale per organizzare Capodanno 2027 con sito riservato agli organizzatori: eventi, presenze, nuclei, attività, menu, messaggi simulati, sondaggi, contabilità locale e quiz volontari. Le milestone 23–25 aggiungono il gateway WhatsApp sperimentale locale: collegamento QR, gruppo di prova, presenze, invii operativi con anteprima, elenchi approvati e impegni con conferma personale; **441 test .NET e 30 test Node superati**. UI MVC/Bootstrap rifinita con Impeccable. AI esterna, trasferimenti reali e deploy restano esclusi. Per collegare il telefono vedere [WhatsApp locale](docs/WHATSAPP_LOCAL.md); pairing, presenze e invio reale verificati dall'utente; nuovi impegni con conferma personale da provare sul telefono.
 
 ## Struttura

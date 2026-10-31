@@ -24,11 +24,28 @@ public sealed class HouseholdService(ILocalStore store, LocalOperations operatio
             var existing = await store.FindAsync<Household>(eventId, item.Id, token);
             if (existing is not null)
             {
-                if (existing.Name == item.Name) return existing.Id;
+                if (existing.MatchesCreationName(item.Name)) return existing.Id;
                 throw new LocalConflictException("Identificativo già usato o nucleo modificato.");
             }
             store.Add(item); operations.Audit(eventId, actorId, item.Id, "Households", "Created");
             await store.SaveAsync(token); return item.Id;
+        }, ct);
+
+    public Task<bool> RenameAsync(Guid actorId, Guid eventId, Guid householdId, int? expectedRevision,
+        string name, bool confirm, CancellationToken ct = default) =>
+        operations.ChangeAsync(actorId, eventId, async token =>
+        {
+            var household = await GetHousehold(eventId, householdId, token);
+            if (!expectedRevision.HasValue) throw new LocalValidationException("La revisione del nucleo è obbligatoria. Ricarica la pagina.");
+            LocalOperations.Revision(household, expectedRevision.Value);
+            if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 150)
+                throw new LocalValidationException("Inserisci un nome nucleo da 1 a 150 caratteri.");
+            if (household.Name == name.Trim()) return false;
+            if (!confirm) throw new LocalValidationException("Conferma esplicitamente la rinomina del nucleo.");
+            household.Rename(name);
+            operations.Audit(eventId, actorId, household.Id, "Households", "Renamed");
+            await store.SaveAsync(token);
+            return true;
         }, ct);
 
     public Task<Guid> AddAsync(Guid actorId, Guid eventId, Guid householdId, HouseholdMemberEdit input, CancellationToken ct = default) =>

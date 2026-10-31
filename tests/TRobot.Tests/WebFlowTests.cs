@@ -221,7 +221,14 @@ public sealed class WebFlowTests
         {
             builder.UseEnvironment("Development");
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?> { ["LocalScheduler:Enabled"] = "false", ["WhatsAppGateway:Enabled"] = "false" }));
+                new Dictionary<string, string?>
+                {
+                    ["LocalScheduler:Enabled"] = "false", ["WhatsAppGateway:Enabled"] = "false",
+                    // Existing prototype flows explicitly opt in, independently of portal defaults.
+                    ["PortalModules:Enabled:Tasks"] = "true", ["PortalModules:Enabled:Menu"] = "true",
+                    ["PortalModules:Enabled:Polls"] = "true", ["PortalModules:Enabled:Games"] = "true",
+                    ["PortalModules:Enabled:Messages"] = "true", ["PortalModules:Enabled:Simulator"] = "true"
+                }));
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TRobotDbContext>();

@@ -25,4 +25,14 @@ public sealed class HouseholdMemberInput
     [Display(Name = "Confermo la modifica o rimozione dell'appartenenza")] public bool Confirm { get; set; }
     public HouseholdMemberEdit ToEdit() => new(PersonId, Kind, CompanionOfMemberId, HouseholdRevision, Revision, Confirm, OperationId);
 }
+public sealed class HouseholdRenameInput
+{
+    public Guid EventId { get; set; }
+    public Guid HouseholdId { get; set; }
+    [Required(ErrorMessage = "La revisione è obbligatoria. Ricarica la pagina.")]
+    public int? Revision { get; set; }
+    [Required(ErrorMessage = "Inserisci il nome del nucleo."), Display(Name = "Nome nucleo")]
+    public string Name { get; set; } = "";
+    [Display(Name = "Confermo la rinomina del nucleo")] public bool Confirm { get; set; }
+}
 public sealed record HouseholdMemberPage(HouseholdMemberInput Input, HouseholdOverview Overview, Household Household);

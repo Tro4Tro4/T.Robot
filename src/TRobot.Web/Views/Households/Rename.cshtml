@@ -1,0 +1,14 @@
+@model HouseholdRenameInput
+@{ ViewData["Title"] = "Rinomina nucleo"; }
+<h1>Rinomina nucleo</h1>
+<p>La modifica conserva membri, presenze e assegnazioni delle camere. Un piano alloggi definitivo e le conferme familiari in corso richiederanno una nuova verifica.</p>
+<form asp-action="Rename" method="post">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <input asp-for="EventId" type="hidden" />
+    <input asp-for="HouseholdId" type="hidden" />
+    <input asp-for="Revision" type="hidden" />
+    <div class="mb-3"><label asp-for="Name"></label><input asp-for="Name" class="form-control" maxlength="150" /><span asp-validation-for="Name" class="text-danger"></span></div>
+    <div class="form-check mb-3"><input asp-for="Confirm" class="form-check-input" /><label asp-for="Confirm" class="form-check-label"></label></div>
+    <button class="btn btn-primary" type="submit">Salva nome</button>
+    <a asp-action="Index" asp-route-eventId="@Model.EventId">Annulla</a>
+</form>

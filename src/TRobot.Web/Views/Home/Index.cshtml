@@ -1,20 +1,28 @@
 @model DashboardViewModel
+@inject TRobot.Web.Security.PortalModules PortalModules
 @{
     ViewData["Title"] = "Presenze";
 }
-<h1>Presenze</h1>
-<p class="text-muted">Simulazione locale · nessun messaggio WhatsApp viene inviato.</p>
+<div class="page-heading">
+    <div><h1>Presenze</h1><p class="page-intro">Il punto di partenza per organizzare il tuo evento.</p></div>
+</div>
 @if (TempData["Notice"] is string notice)
 {
     <div class="alert alert-success" role="status" style="white-space: pre-line">@notice</div>
 }
 @if (Model.Dashboard is not { } dashboard)
 {
-    <p>Nessun evento assegnato a questo organizzatore.</p>
+    <section class="empty-state">
+        <h2 class="h4">Da qui comincia l'organizzazione</h2>
+        <p>Nessun evento assegnato a questo organizzatore. Apri l'elenco eventi per creare un evento, se autorizzato, oppure chiedi un'assegnazione all'amministratore.</p>
+        <a class="btn btn-primary" asp-controller="Events" asp-action="Index">Vai agli eventi</a>
+    </section>
 }
 else
 {
-    <form asp-action="Index" method="get" class="mb-4">
+    @if (Model.Events.Count > 1)
+    {
+    <form asp-action="Index" method="get" class="event-switcher">
         <label for="eventId" class="form-label">Evento</label>
         <select id="eventId" name="eventId" class="form-select">
             @foreach (var ev in Model.Events)
@@ -24,18 +32,9 @@ else
         </select>
         <button type="submit" class="btn btn-outline-secondary mt-2">Mostra presenze</button>
     </form>
-    <h2 class="h4">@dashboard.EventName</h2>
-    <partial name="_EventNavigation" model="dashboard.EventId" />
-    @if (Model.LocalOverview is { } overview)
-    {
-        ViewData["OverviewEventId"] = dashboard.EventId;
-        <partial name="_LocalOverview" model="overview" />
     }
-    <p><strong>Luogo:</strong> @(dashboard.Location ?? "Da definire")</p>
-    <h3 class="h5">Programma</h3>
-    <p style="white-space: pre-wrap">@(dashboard.Program ?? "Da definire")</p>
-    <p><a asp-controller="History" asp-action="Index" asp-route-eventId="@dashboard.EventId">Storico evento</a></p>
-    <p><a asp-controller="Events" asp-action="Details" asp-route-id="@dashboard.EventId">Gestisci evento e partecipanti</a></p>
+    <p class="current-event">Evento: <strong>@dashboard.EventName</strong></p>
+    <partial name="_EventNavigation" model="dashboard.EventId" />
     <dl class="row border rounded py-3 my-3" aria-label="Conteggi presenze">
         <div class="col"><dt>Confermati</dt><dd id="confirmed-count">@dashboard.Confirmed</dd></div>
         <div class="col"><dt>Indecisi</dt><dd id="undecided-count">@dashboard.Undecided</dd></div>
@@ -43,15 +42,28 @@ else
         <div class="col"><dt>Senza risposta</dt><dd id="no-response-count">@dashboard.NoResponse</dd></div>
         <div class="col"><dt>Totale persone</dt><dd id="total-count">@dashboard.Total</dd></div>
     </dl>
+    <nav class="quick-actions" aria-label="Azioni per organizzare l'evento">
+        <a class="btn btn-primary" asp-controller="Events" asp-action="Details" asp-route-id="@dashboard.EventId" asp-fragment="participants">Gestisci partecipanti</a>
+        <a class="btn btn-outline-primary" asp-controller="Stays" asp-action="Index" asp-route-eventId="@dashboard.EventId">Controlla i soggiorni</a>
+        <a class="btn btn-outline-primary" asp-controller="Lodging" asp-action="Index" asp-route-eventId="@dashboard.EventId">Organizza gli alloggi</a>
+    </nav>
+    @if (Model.LocalOverview is { } overview)
+    {
+        ViewData["OverviewEventId"] = dashboard.EventId;
+        <partial name="_LocalOverview" model="overview" />
+    }
+    <section class="event-facts" aria-labelledby="event-program-title">
+        <h2 id="event-program-title" class="h4">Luogo e programma</h2>
+        <p><strong>Luogo:</strong> @(dashboard.Location ?? "Da definire")</p>
+        <p style="white-space: pre-wrap">@(dashboard.Program ?? "Programma da definire. Puoi aggiungerlo nella pagina Evento e partecipanti.")</p>
+    </section>
+    @if (PortalModules.IsEnabled(TRobot.Web.Security.PortalModule.Simulator))
+    {
+    <details class="simulation-panel" open="@(!ViewData.ModelState.IsValid)">
+    <summary>Simulatore di messaggi</summary>
     <h2 class="h4">Simula un messaggio</h2>
-    <p>Imposta la presenza di una sola persona: <code>!presenza si</code>, <code>!presenza forse</code> o <code>!presenza no</code>.</p>
-    <p>Consulta <code>!menu [pagina]</code> e <code>!todo [pagina]</code> per conteggi ed elenchi operativi (5 elementi per pagina), oppure <code>!aiuto</code>.
-        Consulta <code>!sondaggi [pagina]</code> e <code>!sondaggio &lt;id&gt;</code>, poi vota con <code>!vota &lt;id&gt; &lt;numero opzione&gt;</code> (adulto confermato).</p>
-    <p>Quiz: <code>!quiz</code>, <code>!quiz lista [pagina]</code>, <code>!quiz &lt;id&gt;</code> e
-        <code>!rispondi &lt;id&gt; &lt;numero opzione&gt;</code>. Serve un'adesione volontaria già attiva nella pagina Giochi; la risposta è unica e definitiva.</p>
-    <p>Un adulto confermato può offrire una voce con <code>!porto &lt;idvoce&gt;</code>, assumere un'attività con
-        <code>!prendo &lt;idattività&gt;</code> e completare la propria con <code>!fatto &lt;idattività&gt;</code>.
-        Usa i riferimenti di 8 caratteri degli elenchi o il GUID completo. Le risposte restano nel sito riservato; titoli e nomi delle voci sono testo libero, mai inviato al gruppo.</p>
+    <p class="text-muted">Questo simulatore non invia messaggi WhatsApp.</p>
+    <p>@PortalModules.SimulatorHelp</p>
     <form asp-action="Simulate" method="post" class="col-lg-7">
         <div asp-validation-summary="All" class="text-danger" role="alert"></div>
         <input asp-for="Input.EventId" type="hidden" />
@@ -73,4 +85,6 @@ else
         </div>
         <button type="submit" class="btn btn-primary" disabled="@(dashboard.Senders.Count == 0)">Elabora messaggio simulato</button>
     </form>
+    </details>
+    }
 }

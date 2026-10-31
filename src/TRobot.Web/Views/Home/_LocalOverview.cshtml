@@ -1,31 +1,41 @@
 @model TRobot.Application.Local.LocalOverview
+@inject TRobot.Web.Security.PortalModules PortalModules
+@using TRobot.Web.Security
 @{
     var c = Model.Counts;
     var localStart = TimeZoneInfo.ConvertTime(new DateTimeOffset(Model.StartsAtUtc), TimeZoneInfo.FindSystemTimeZoneById(Model.TimeZoneId));
     var eventId = (Guid)ViewData["OverviewEventId"]!;
+    var tasksEnabled = PortalModules.IsEnabled(PortalModule.Tasks);
+    var menuEnabled = PortalModules.IsEnabled(PortalModule.Menu);
+    var pollsEnabled = PortalModules.IsEnabled(PortalModule.Polls);
+    var gamesEnabled = PortalModules.IsEnabled(PortalModule.Games);
+    var messagesEnabled = PortalModules.IsEnabled(PortalModule.Messages);
+    var pending = c.PendingExpenses + c.DeclaredPayments
+        + (tasksEnabled ? c.OverdueTasks : 0) + (pollsEnabled ? c.ExpiredPolls : 0)
+        + (gamesEnabled ? c.ExpiredQuizzes : 0);
 }
 <section class="local-overview" aria-label="Riepilogo organizzativo">
-<h3 class="h5">Organizzazione</h3>
+<h2 class="h4">Organizzazione</h2>
 <p>Evento: <time datetime="@Model.StartsAtUtc.ToString("O")">@localStart.ToString("dd/MM/yyyy HH:mm zzz")</time> (@Model.TimeZoneId).
 @if (Model.Remaining > TimeSpan.Zero) { <span id="event-countdown">Mancano @Model.Remaining.Days giorni, @Model.Remaining.Hours ore e @Model.Remaining.Minutes minuti.</span> }
 else { <span id="event-countdown">Evento iniziato.</span> }</p>
 <dl class="overview-counts">
     <div class="col"><dt>Nuclei / membri attivi</dt><dd>@c.Households / @c.HouseholdMembers</dd></div>
-    <div class="col"><dt>Menu pronto / assegnato</dt><dd>@c.MenuReady / @c.MenuAssigned</dd></div>
-    <div class="col"><dt>Attività aperte</dt><dd id="open-tasks">@c.OpenTasks</dd></div>
-    <div class="col"><dt>Sondaggi aperti</dt><dd id="open-polls">@c.OpenPolls</dd></div>
-    <div class="col"><dt>Messaggi in coda</dt><dd>@c.QueuedMessages</dd></div>
+    @if (menuEnabled) { <div class="col"><dt>Menu pronto / assegnato</dt><dd>@c.MenuReady / @c.MenuAssigned</dd></div> }
+    @if (tasksEnabled) { <div class="col"><dt>Attività aperte</dt><dd id="open-tasks">@c.OpenTasks</dd></div> }
+    @if (pollsEnabled) { <div class="col"><dt>Sondaggi aperti</dt><dd id="open-polls">@c.OpenPolls</dd></div> }
+    @if (messagesEnabled) { <div class="col"><dt>Messaggi in coda</dt><dd>@c.QueuedMessages</dd></div> }
     <div class="col"><dt>Spese approvate EUR</dt><dd id="approved-expenses">@c.ApprovedExpenses.ToString("0.00")</dd></div>
-    <div class="col"><dt>Adesioni giochi / quiz aperti</dt><dd>@c.GameParticipants / @c.OpenQuizzes</dd></div>
+    @if (gamesEnabled) { <div class="col"><dt>Adesioni giochi / quiz aperti</dt><dd>@c.GameParticipants / @c.OpenQuizzes</dd></div> }
 </dl>
 <h3 class="h5">Serve il tuo intervento</h3>
-@if (c.OverdueTasks + c.ExpiredPolls + c.PendingExpenses + c.DeclaredPayments + c.ExpiredQuizzes == 0) { <p>Nessun intervento in attesa.</p> }
+@if (pending == 0) { <p>Nessun intervento in attesa nei moduli disponibili. Puoi controllare soggiorni e assegnazioni dalle azioni rapide.</p> }
 else
 {
     <ul>
-        @if (c.OverdueTasks > 0) { <li><a asp-controller="Tasks" asp-action="Index" asp-route-eventId="@eventId">Attività scadute: @c.OverdueTasks</a></li> }
-        @if (c.ExpiredPolls > 0) { <li><a asp-controller="Polls" asp-action="Index" asp-route-eventId="@eventId">Sondaggi scaduti da chiudere: @c.ExpiredPolls</a></li> }
-        @if (c.ExpiredQuizzes > 0) { <li><a asp-controller="Games" asp-action="Index" asp-route-eventId="@eventId">Quiz scaduti da chiudere: @c.ExpiredQuizzes</a></li> }
+        @if (tasksEnabled && c.OverdueTasks > 0) { <li><a asp-controller="Tasks" asp-action="Index" asp-route-eventId="@eventId">Attività scadute: @c.OverdueTasks</a></li> }
+        @if (pollsEnabled && c.ExpiredPolls > 0) { <li><a asp-controller="Polls" asp-action="Index" asp-route-eventId="@eventId">Sondaggi scaduti da chiudere: @c.ExpiredPolls</a></li> }
+        @if (gamesEnabled && c.ExpiredQuizzes > 0) { <li><a asp-controller="Games" asp-action="Index" asp-route-eventId="@eventId">Quiz scaduti da chiudere: @c.ExpiredQuizzes</a></li> }
         @if (c.PendingExpenses > 0) { <li><a asp-controller="Accounting" asp-action="Index" asp-route-eventId="@eventId">Spese da valutare: @c.PendingExpenses</a></li> }
         @if (c.DeclaredPayments > 0) { <li><a asp-controller="Accounting" asp-action="Index" asp-route-eventId="@eventId">Pagamenti dichiarati da verificare: @c.DeclaredPayments</a></li> }
     </ul>

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily T.Robot local backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=trobot-backup.service
+
+[Install]
+WantedBy=timers.target

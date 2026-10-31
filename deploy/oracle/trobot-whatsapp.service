@@ -1,0 +1,34 @@
+[Unit]
+Description=T.Robot experimental WhatsApp gateway
+After=network-online.target trobot.service
+Wants=network-online.target trobot-whatsapp-resume.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=trobot-whatsapp
+Group=trobot-whatsapp
+WorkingDirectory=/opt/trobot/gateway/current
+ExecStart=/opt/node/node-v24.22.0-linux-x64/bin/node --max-old-space-size=160 /opt/trobot/gateway/current/src/index.js
+Environment=NODE_ENV=production
+Environment=TROBOT_GATEWAY_CONFIG=/etc/trobot-whatsapp/gateway.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/trobot-whatsapp
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=256M
+MemorySwapMax=128M
+CPUQuota=50%
+SyslogIdentifier=trobot-whatsapp
+
+[Install]
+WantedBy=multi-user.target

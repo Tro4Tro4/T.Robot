@@ -1,11 +1,32 @@
 using Microsoft.AspNetCore.Mvc;
 using TRobot.Application.Households;
+using TRobot.Application.Local;
 using TRobot.Web.Models;
 
 namespace TRobot.Web.Controllers;
 
 public sealed class HouseholdsController(HouseholdService service) : LocalControllerBase
 {
+    [HttpGet] public Task<IActionResult> Rename(Guid eventId, Guid householdId, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        var page = await service.ListAsync(ActorId, eventId, ct);
+        var household = page.Households.SingleOrDefault(x => x.Id == householdId);
+        if (household is null) return NotFound();
+        return View(new HouseholdRenameInput { EventId = eventId, HouseholdId = householdId, Revision = household.Revision, Name = household.Name });
+    });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Rename(HouseholdRenameInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        var page = await service.ListAsync(ActorId, input.EventId, ct);
+        if (!page.Households.Any(x => x.Id == input.HouseholdId)) return NotFound();
+        if (!ModelState.IsValid) { Response.StatusCode = 400; return View(input); }
+        try
+        {
+            await service.RenameAsync(ActorId, input.EventId, input.HouseholdId, input.Revision, input.Name, input.Confirm, ct);
+            return RedirectToAction(nameof(Index), new { eventId = input.EventId });
+        }
+        catch (LocalValidationException ex) { Response.StatusCode = 400; ModelState.AddModelError("", ex.Message); return View(input); }
+        catch (LocalConflictException ex) { Response.StatusCode = 409; ModelState.AddModelError("", ex.Message); return View(input); }
+    });
     [HttpGet] public Task<IActionResult> Index(Guid eventId, CancellationToken ct) => ExecuteAsync(async () =>
         View(await service.ListAsync(ActorId, eventId, ct)));
     [HttpGet] public Task<IActionResult> Create(Guid eventId, CancellationToken ct) => ExecuteAsync(async () =>

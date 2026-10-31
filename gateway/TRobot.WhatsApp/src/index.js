@@ -4,14 +4,18 @@ import { fileURLToPath } from 'node:url';
 import { SendJournal } from './journal.js';
 import { WhatsAppGateway } from './gateway.js';
 import { createCallback, createGatewayServer } from './http.js';
-import { parseConfiguration } from './config.js';
+import { loadConfiguration } from './config.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 try {
-  const config = parseConfiguration(await readFile(join(root, '.local/whatsapp/gateway.json'), 'utf8'), root);
+  const environment = process.env.NODE_ENV === 'production' ? 'Production'
+    : !process.env.NODE_ENV || process.env.NODE_ENV === 'development' ? 'Development' : 'Invalid';
+  const config = await loadConfiguration(root, environment, process.env.TROBOT_GATEWAY_CONFIG);
+  const callbackOptions = environment === 'Production'
+    ? { ca: await readFile(config.CallbackCaPath) } : undefined;
   const gateway = new WhatsAppGateway({ token: config.Token,
     journal: new SendJournal(join(config.StateDirectory, 'send-journal'), config.Token),
-    callback: createCallback(config.CallbackUrl, config.Token),
+    callback: createCallback(config.CallbackUrl, config.Token, undefined, callbackOptions),
     // Importing the HTTP host never opens a WhatsApp socket; only the explicit /connect calls this.
     transportFactory: async handlers => {
       const { createBaileysTransport } = await import('./transport.js');

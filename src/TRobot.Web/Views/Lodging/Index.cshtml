@@ -1,0 +1,118 @@
+@model TRobot.Application.Lodging.LodgingPage
+@using TRobot.Domain
+@{
+    ViewData["Title"] = "Alloggi";
+    string Status(ParticipationStatus status) => status switch { ParticipationStatus.Confirmed => "Confermato", ParticipationStatus.Absent => "Assente", ParticipationStatus.Undecided => "Indeciso", _ => "Senza risposta" };
+    string RoomLabel(LodgingRoom room) => $"{Model.Apartments.Single(a => a.Id == room.ApartmentId).Name} / {room.Name} ({room.Capacity - Model.Occupancy(room.Id)} liberi)";
+}
+<h1>Alloggi · @Model.Event.Name</h1>
+<partial name="_EventNavigation" model="Model.Event.Id" />
+<nav class="section-links" aria-label="Sezioni alloggi">
+    <a href="#lodging-rooms">Appartamenti e camere</a>
+    <a href="#lodging-assignments">Assegnazioni per nucleo</a>
+    <a href="#lodging-confirm">Conferma piano</a>
+</nav>
+@if (TempData["LodgingError"] is string error) { <p class="alert alert-danger" role="alert">@error</p> }
+<p class="alert @(Model.IsFinal ? "alert-success" : "alert-warning")" role="status">
+    <strong>@(Model.IsFinal ? "Piano definitivo" : "Piano in bozza")</strong> · Revisione @Model.Version.Revision.
+    @if (Model.FinalizationOutdated) { <span>Presenze o nuclei modificati dopo la conferma: verifica e rendi nuovamente definitivo.</span> }
+</p>
+<p>Assegnazioni per l'intero evento, una persona per posto. Ogni modifica riporta il piano in bozza. Sono visibili e assegnabili anche assenti, indecisi e persone senza risposta.</p>
+<p><strong>@Model.UnassignedConfirmed confermati ancora senza camera.</strong> Il definitivo richiede una camera per tutti i confermati; gli altri stati possono restare non assegnati.</p>
+<h2 id="lodging-rooms">Appartamenti e camere</h2>
+@if (Model.Apartments.Count == 0)
+{
+    <div class="empty-state"><p>Comincia aggiungendo un appartamento, poi crea le camere e indica i posti disponibili. Potrai quindi assegnare le persone.</p><a href="#new-apartment">Aggiungi il primo appartamento</a></div>
+}
+@foreach (var apartment in Model.Apartments)
+{
+    <section class="card mb-4" aria-labelledby="apartment-@apartment.Id">
+        <div class="card-body">
+            <h3 id="apartment-@apartment.Id">@apartment.Name</h3>
+            <p>@apartment.Directions</p>
+            <details class="mb-3"><summary>Modifica appartamento</summary>
+                <form asp-action="Apartment" method="post" class="mt-2">
+                    <partial name="_Version" model="Model" /><input type="hidden" name="Id" value="@apartment.Id" />
+                    <label class="form-label" for="apt-name-@apartment.Id">Nome</label><input id="apt-name-@apartment.Id" name="Name" value="@apartment.Name" required maxlength="150" class="form-control mb-2" />
+                    <label class="form-label" for="apt-notes-@apartment.Id">Indicazioni</label><textarea id="apt-notes-@apartment.Id" name="Notes" maxlength="1000" class="form-control mb-2">@apartment.Directions</textarea>
+                    <button class="btn btn-outline-primary" type="submit">Salva appartamento</button>
+                </form>
+            </details>
+            @foreach (var room in Model.Rooms.Where(x => x.ApartmentId == apartment.Id))
+            {
+                var occupants = Model.Households.SelectMany(x => x.People).Where(p => Model.RoomFor(p.PersonId) == room.Id).ToArray();
+                <div class="border rounded p-3 mb-3">
+                    <h4>@room.Name · @occupants.Length/@room.Capacity occupati · @(room.Capacity - occupants.Length) posti liberi</h4>
+                    <p>@room.Notes</p>
+                    @if (occupants.Length == 0) { <p>Nessun occupante.</p> }
+                    else { <ul>@foreach (var p in occupants) { <li>@p.Name · @Status(p.Status)</li> }</ul> }
+                    <details><summary>Modifica camera</summary>
+                        <form asp-action="Room" method="post" class="mt-2">
+                            <partial name="_Version" model="Model" /><input type="hidden" name="Id" value="@room.Id" /><input type="hidden" name="ApartmentId" value="@apartment.Id" />
+                            <label class="form-label" for="room-name-@room.Id">Nome</label><input id="room-name-@room.Id" name="Name" value="@room.Name" required maxlength="150" class="form-control mb-2" />
+                            <label class="form-label" for="room-cap-@room.Id">Capienza</label><input id="room-cap-@room.Id" name="Capacity" type="number" value="@room.Capacity" required min="1" max="1000" class="form-control mb-2" />
+                            <label class="form-label" for="room-notes-@room.Id">Note</label><textarea id="room-notes-@room.Id" name="Notes" maxlength="1000" class="form-control mb-2">@room.Notes</textarea>
+                            <button class="btn btn-outline-primary" type="submit">Salva camera</button>
+                        </form>
+                    </details>
+                </div>
+            }
+            <details><summary>Aggiungi camera</summary>
+                <form asp-action="Room" method="post" class="mt-2">
+                    <partial name="_Version" model="Model" /><input type="hidden" name="Id" value="@Guid.NewGuid()" /><input type="hidden" name="ApartmentId" value="@apartment.Id" />
+                    <label class="form-label" for="new-room-@apartment.Id">Nome camera</label><input id="new-room-@apartment.Id" name="Name" required maxlength="150" class="form-control mb-2" />
+                    <label class="form-label" for="new-cap-@apartment.Id">Capienza</label><input id="new-cap-@apartment.Id" name="Capacity" type="number" value="2" required min="1" max="1000" class="form-control mb-2" />
+                    <label class="form-label" for="new-notes-@apartment.Id">Note</label><textarea id="new-notes-@apartment.Id" name="Notes" maxlength="1000" class="form-control mb-2"></textarea>
+                    <button class="btn btn-outline-primary" type="submit">Aggiungi camera</button>
+                </form>
+            </details>
+        </div>
+    </section>
+}
+<details id="new-apartment" class="mb-4" open="@(Model.Apartments.Count == 0)"><summary>Aggiungi appartamento</summary>
+    <form asp-action="Apartment" method="post" class="mt-2">
+        <partial name="_Version" model="Model" /><input type="hidden" name="Id" value="@Guid.NewGuid()" />
+        <label class="form-label" for="new-apartment-name">Nome appartamento</label><input id="new-apartment-name" name="Name" required maxlength="150" class="form-control mb-2" />
+        <label class="form-label" for="new-apartment-notes">Indicazioni</label><textarea id="new-apartment-notes" name="Notes" maxlength="1000" class="form-control mb-2"></textarea>
+        <button class="btn btn-primary" type="submit">Aggiungi appartamento</button>
+    </form>
+</details>
+<h2 id="lodging-assignments">Assegnazioni per nucleo</h2>
+<p>Apri il nucleo per vedere le persone e assegnare le camere. Salva ogni assegnazione con il relativo pulsante.</p>
+@foreach (var household in Model.Households.Where(x => x.People.Count > 0))
+{
+    <details class="lodging-household mb-3">
+        <summary><strong>@household.Name</strong><span>@household.People.Count persone · @household.People.Count(p => Model.RoomFor(p.PersonId) is null) da assegnare</span></summary>
+        <div class="card-body">
+        <p>@household.People.Count(p => Model.RoomFor(p.PersonId) is null) persone ancora non assegnate
+            @if (household.Id.HasValue) { <span> · <a asp-action="Print" asp-route-eventId="@Model.Event.Id" asp-route-householdId="@household.Id">Riepilogo stampabile</a></span> }
+        </p>
+        @if (household.Id.HasValue && Model.Rooms.Count > 0)
+        {
+            <form asp-action="Household" method="post" class="mb-3">
+                <partial name="_Version" model="Model" /><input type="hidden" name="HouseholdId" value="@household.Id" />
+                <label for="household-room-@household.Id" class="form-label">Camera per l'intero nucleo (@household.People.Count persone, tutti gli stati)</label>
+                <select id="household-room-@household.Id" name="RoomId" required class="form-select mb-2"><option value="">Scegli camera</option>@foreach (var room in Model.Rooms) { <option value="@room.Id">@RoomLabel(room)</option> }</select>
+                <button type="submit" class="btn btn-outline-primary">Assegna o sposta l'intero nucleo</button>
+            </form>
+        }
+        @foreach (var person in household.People)
+        {
+            var current = Model.RoomFor(person.PersonId);
+            <form asp-action="Person" method="post" class="border-top py-3">
+                <partial name="_Version" model="Model" /><input type="hidden" name="PersonId" value="@person.PersonId" />
+                <label for="person-room-@person.PersonId" class="form-label"><strong>@person.Name</strong> · @Status(person.Status) · @(current.HasValue ? "Assegnato" : "Non assegnato")</label>
+                @if (!household.Id.HasValue) { <a asp-action="Print" asp-route-eventId="@Model.Event.Id" asp-route-personId="@person.PersonId">Riepilogo personale stampabile</a> }
+                <select id="person-room-@person.PersonId" name="RoomId" class="form-select mb-2"><option value="">Non assegnato</option>@foreach (var room in Model.Rooms) { <option value="@room.Id" selected="@(current == room.Id)">@RoomLabel(room)</option> }</select>
+                <button type="submit" class="btn btn-outline-primary">Salva assegnazione di @person.Name</button>
+            </form>
+        }
+    </div></details>
+}
+<h2 id="lodging-confirm">Conferma piano</h2>
+<p>Prima di confermare, controlla i confermati senza camera indicati in alto. Le assegnazioni vengono salvate dai singoli moduli; questa conferma rende definitivo il piano.</p>
+<form asp-action="FinalizePlan" method="post" class="mt-4">
+    <partial name="_Version" model="Model" />
+    <div class="form-check mb-2"><input type="checkbox" id="final-confirm" name="Confirmed" value="true" required class="form-check-input" /><label for="final-confirm" class="form-check-label">Ho verificato camere, capienze e assegnazioni.</label></div>
+    <button type="submit" class="btn btn-primary">Rendi definitivo il piano</button>
+</form>

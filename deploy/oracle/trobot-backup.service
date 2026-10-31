@@ -1,0 +1,16 @@
+[Unit]
+Description=T.Robot consistent local backup
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/bin/sh /opt/trobot/ops/backup-with-gateway.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# SQLite may need WAL/SHM sidecars even for a mode=ro connection.
+ReadWritePaths=/var/backups/trobot /var/lib/trobot
+MemoryMax=96M
+CPUQuota=25%

@@ -41,20 +41,21 @@
         <p class="form-text">Crea una bozza generica senza nomi. Nell'anteprima verifichi il gruppo e confermi l'invio manualmente.</p>
     }
 </section>
-<div class="table-responsive"><table class="table">
-<thead><tr><th>Persona</th><th>Presenza</th><th>Arrivo</th><th>Giorni</th><th>Ultimo giorno</th><th>Notti</th></tr></thead>
+<p class="form-text">Su schermi piccoli puoi scorrere la tabella orizzontalmente per consultare tutte le date.</p>
+<div class="table-responsive" role="region" aria-label="Soggiorni dei partecipanti, tabella scorrevole" tabindex="0"><table class="table">
+<thead><tr><th scope="col">Persona</th><th scope="col">Presenza</th><th scope="col">Arrivo</th><th scope="col">Giorni</th><th scope="col">Ultimo giorno</th><th scope="col">Notti</th></tr></thead>
 <tbody>
 @foreach (var person in Model.People)
 {
     var status = person.Status switch { ParticipationStatus.Confirmed => "Confermato", ParticipationStatus.Absent => "Assente", ParticipationStatus.Undecided => "Indeciso", _ => "Senza risposta" };
-    <tr><td>@person.Name</td><td>@status</td><td>@(person.Stay?.Arrival.ToString("dd/MM/yyyy") ?? (person.Status == ParticipationStatus.Confirmed ? "Da completare" : "—"))</td><td>@person.Stay?.Days</td><td>@person.Stay?.LastDay.ToString("dd/MM/yyyy")</td><td>@person.Stay?.Nights</td></tr>
+    <tr><td>@person.Name</td><td>@status</td><td>@(person.Stay?.Arrival.ToString("dd/MM/yyyy") ?? (person.Status == ParticipationStatus.Confirmed ? "Da completare" : "-"))</td><td>@person.Stay?.Days</td><td>@person.Stay?.LastDay.ToString("dd/MM/yyyy")</td><td>@person.Stay?.Nights</td></tr>
 }
 </tbody></table></div>
 <h2 class="h4">Presenze giornaliere</h2>
 @if (Model.Days.Count == 0) { <p>Nessun soggiorno confermato completo.</p> }
 else
 {
-    <table class="table"><thead><tr><th>Giorno</th><th>Persone</th></tr></thead><tbody>
+    <div class="table-responsive" role="region" aria-label="Presenze giornaliere, tabella scorrevole" tabindex="0"><table class="table"><thead><tr><th scope="col">Giorno</th><th scope="col">Persone</th></tr></thead><tbody>
     @foreach (var day in Model.Days) { <tr><td>@day.Day.ToString("dd/MM/yyyy")</td><td>@day.People</td></tr> }
-    </tbody></table>
+    </tbody></table></div>
 }

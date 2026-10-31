@@ -28,6 +28,11 @@ Il lavoro viene suddiviso in task sviluppati da agenti dedicati e verificati da 
 | 24 | Aiuto, menu e attività nel gruppo reale; approvazione esplicita dei titoli, ricevute e journal delle risposte | Review APPROVED, build senza avvisi, 421 test .NET e 28 Node superati; nuovi comandi da verificare sul telefono |
 | 25 | Impegni reali con proposta e conferma personale entro cinque minuti, riferimenti stabili negli elenchi | Review APPROVED, build senza avvisi, 441 test .NET e 30 Node superati; prova reale dei nuovi impegni da completare |
 
+## Sviluppi successivi richiesti
+
+- **Rinomina nuclei familiari** - richiesta il 23 ottobre 2026, implementata in M32 preservando identita, componenti, presenze, storico e camere. Build pulita, 608 test .NET e review APPROVED; rilasciata sulla VM in `m32` con backup e migrazione verificati. Vedere [M32](MILESTONE_32.md).
+- **Disattivazione dal portale delle funzionalita accantonate** - elenco chiarito dall'utente: Sondaggi, Giochi, Menu e Attivita. Implementata in M32: tab disabilitati, accessi GET/POST diretti e relativi comandi simulati bloccati, dati/storico conservati; altri moduli e comandi WhatsApp operativi invariati. 608 test .NET e review APPROVED; rilasciata sulla VM in `m32`, verificati tab disabilitati e GET/POST 404. Vedere [M32](MILESTONE_32.md).
+
 ## Disegno comune
 
 Si mantiene il monolite modulare. Entità Domain con invarianti e revisione; servizi Application con controlli di accesso e regole; store EF SQLite in Infrastructure; controller e viste MVC in Web. Una piccola infrastruttura comune gestisce autorizzazione per evento, transazioni, concorrenza e audit dei moduli. Le regole dei singoli moduli restano in servizi distinti.

@@ -1,0 +1,22 @@
+#cloud-config
+package_update: false
+package_upgrade: false
+write_files:
+  - path: /etc/systemd/journald.conf.d/trobot.conf
+    permissions: '0644'
+    content: |
+      [Journal]
+      Storage=persistent
+      SystemMaxUse=64M
+      RuntimeMaxUse=16M
+      MaxRetentionSec=7day
+  - path: /etc/sysctl.d/90-trobot.conf
+    permissions: '0644'
+    content: |
+      vm.swappiness=20
+runcmd:
+  - [install, -d, -m, '2755', -o, root, -g, systemd-journal, /var/log/journal]
+  - [systemctl, restart, systemd-journald]
+  - [journalctl, --flush]
+  - [sysctl, --system]
+  - [bash, -c, 'if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then test ! -e /swapfile && fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo "/swapfile none swap sw 0 0" >> /etc/fstab; fi']

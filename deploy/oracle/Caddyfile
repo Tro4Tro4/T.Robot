@@ -1,0 +1,29 @@
+{
+	admin off
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+	grace_period 10s
+
+	# Only TCP HTTP/1.1 and HTTP/2; no QUIC/UDP listener.
+	servers {
+		protocols h1 h2
+	}
+
+	# HTTP error records can contain request URIs even without access logs.
+	# Keep operational/certificate logs, exclude request records entirely.
+	log default {
+		exclude http.log.access http.log.error
+	}
+}
+
+trobot-capodanno.duckdns.org {
+	# Automatic HTTPS provisions/renews the public certificate and redirects HTTP.
+	# Access logging is intentionally not enabled.
+	reverse_proxy https://127.0.0.1:5443 {
+		# Preserve the public host, including with Caddy 2.11+ HTTPS defaults.
+		header_up Host {host}
+		transport http {
+			tls_server_name localhost
+			tls_trust_pool file /etc/caddy/upstream.crt
+		}
+	}
+}

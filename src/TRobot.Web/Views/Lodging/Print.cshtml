@@ -1,0 +1,29 @@
+@model TRobot.Web.Models.LodgingPrintPage
+@using TRobot.Domain
+@{
+    ViewData["Title"] = "Alloggi · " + Model.Household.Name;
+    string Status(ParticipationStatus status) => status switch { ParticipationStatus.Confirmed => "Confermato", ParticipationStatus.Absent => "Assente", ParticipationStatus.Undecided => "Indeciso", _ => "Senza risposta" };
+}
+<style>
+    @@media print { header, footer, .no-print { display:none !important; } main { width:100%; } }
+</style>
+<h1>Alloggi · @Model.Plan.Event.Name</h1>
+<h2>@Model.Household.Name</h2>
+<p><strong>@(Model.Plan.IsFinal ? "Piano definitivo" : "Piano in bozza")</strong> · Revisione @Model.Plan.Version.Revision</p>
+@if (Model.Plan.FinalizationOutdated) { <p>Presenze o nuclei modificati: piano da verificare nuovamente.</p> }
+<p class="no-print">Usa la funzione Stampa del browser. <a asp-action="Index" asp-route-eventId="@Model.Plan.Event.Id">Torna agli alloggi</a></p>
+@foreach (var person in Model.Household.People)
+{
+    var roomId = Model.Plan.RoomFor(person.PersonId);
+    var room = Model.Plan.Rooms.SingleOrDefault(x => x.Id == roomId);
+    <section class="mb-4">
+        <h3>@person.Name · @Status(person.Status)</h3>
+        @if (room is null) { <p><strong>Camera ancora non assegnata</strong></p> }
+        else
+        {
+            var apartment = Model.Plan.Apartments.Single(x => x.Id == room.ApartmentId);
+            <p><strong>@apartment.Name / @room.Name</strong></p>
+            <p>@apartment.Directions</p><p>@room.Notes</p>
+        }
+    </section>
+}

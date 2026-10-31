@@ -1,20 +1,26 @@
 @model EventsViewModel
 @{ ViewData["Title"] = "Eventi"; }
-<h1>Eventi</h1>
+<div class="page-heading">
+<div><h1>Eventi</h1><p class="page-intro">Scegli un evento per gestire partecipanti, soggiorni e organizzazione.</p></div>
 @if (Model.CanCreate)
 {
-    <p><a asp-action="Create" class="btn btn-primary">Crea evento</a></p>
+    <a asp-action="Create" class="btn btn-primary">Crea evento</a>
 }
+</div>
 @if (Model.Events.Count == 0)
 {
-    <p>Nessun evento assegnato a questo organizzatore.</p>
+    <section class="empty-state">
+        <h2 class="h4">Non ci sono ancora eventi da gestire</h2>
+        <p>Nessun evento assegnato a questo organizzatore.</p>
+        <p>@(Model.CanCreate ? "Usa Crea evento per iniziare: potrai poi aggiungere i partecipanti e organizzare il soggiorno." : "Chiedi all'amministratore di assegnarti un evento. Dopo l'assegnazione lo troverai qui.")</p>
+    </section>
 }
 else
 {
-    <ul>
+    <ul class="event-list">
     @foreach (var ev in Model.Events)
     {
-        <li class="mb-2"><a asp-action="Details" asp-route-id="@ev.Id">@ev.Name</a></li>
+        <li><a asp-action="Details" asp-route-id="@ev.Id"><strong>@ev.Name</strong><span>Apri evento e partecipanti</span></a></li>
     }
     </ul>
 }

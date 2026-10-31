@@ -10,6 +10,7 @@ internal sealed class HouseholdConfiguration : IEntityTypeConfiguration<Househol
     {
         LocalMapping.Record(b, "Households"); b.HasAlternateKey(x => new { x.EventId, x.Id });
         b.Property(x => x.Name).HasMaxLength(150).IsRequired();
+        b.Property(x => x.CreationNameFingerprint).HasMaxLength(64);
     }
 }
 internal sealed class HouseholdMemberConfiguration : IEntityTypeConfiguration<HouseholdMember>

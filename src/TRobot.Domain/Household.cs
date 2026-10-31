@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace TRobot.Domain;
 
 public enum HouseholdMemberKind { Adult, Child }
@@ -6,11 +9,24 @@ public sealed class Household : ILocalRecord
 {
     private Household() { }
     public Household(Guid eventId, string name, Guid id)
-    { Id = Guard.Id(id, nameof(id)); EventId = Guard.Id(eventId, nameof(eventId)); Name = Guard.Text(name, 150, nameof(name)); }
+    { Id = Guard.Id(id, nameof(id)); EventId = Guard.Id(eventId, nameof(eventId)); Name = Guard.Text(name, 150, nameof(name)); CreationNameFingerprint = Fingerprint(Name); }
     public Guid Id { get; private set; }
     public Guid EventId { get; private set; }
     public string Name { get; private set; } = null!;
     public int Revision { get; private set; }
+    public string? CreationNameFingerprint { get; private set; }
+    public bool MatchesCreationName(string name) =>
+        (CreationNameFingerprint ?? Fingerprint(Name)) == Fingerprint(Guard.Text(name, 150, nameof(name)));
+    public bool Rename(string name)
+    {
+        name = Guard.Text(name, 150, nameof(name));
+        if (Name == name) return false;
+        var revision = checked(Revision + 1);
+        CreationNameFingerprint ??= Fingerprint(Name);
+        Name = name; Revision = revision;
+        return true;
+    }
+    private static string Fingerprint(string name) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name)));
     public void Touch() => Revision = checked(Revision + 1);
 }
 

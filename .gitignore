@@ -8,3 +8,5 @@
 *.db-wal
 *.db-journal
 **/node_modules/
+**/__pycache__/
+*.pyc

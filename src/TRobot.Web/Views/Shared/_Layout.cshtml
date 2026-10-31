@@ -2,25 +2,31 @@
 <html lang="it">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] — T.Robot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>@ViewData["Title"] - T.Robot</title>
+    <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="~/favicon.ico" asp-append-version="true" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="~/favicon.svg" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="~/js/mobile-portal.js" asp-append-version="true" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#main-content">Vai al contenuto</a>
     <header class="site-header">
       <div class="container header-content">
-        <a class="site-brand" asp-controller="Home" asp-action="Index">T.Robot</a>
+        <a class="site-brand" asp-controller="Home" asp-action="Index"><img src="~/favicon.svg" width="32" height="32" alt="" />T.Robot</a>
         @if (User.Identity?.IsAuthenticated == true)
         {
+            <details class="account-menu" open data-mobile-collapse>
+            <summary>Account</summary>
+            <div class="account-menu-content">
             <nav class="site-navigation" aria-label="Navigazione principale">
-            <a asp-controller="Events" asp-action="Index">Eventi</a>
+            <a asp-controller="Events" asp-action="Index" aria-current="@(string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Events", StringComparison.OrdinalIgnoreCase) ? "page" : null)">Eventi</a>
             @if (User.HasClaim(TRobot.Application.Accounts.AccountClaims.SystemAdministrator, "true"))
             {
-                <a asp-controller="Organizers" asp-action="Index">Organizzatori</a>
+                <a asp-controller="Organizers" asp-action="Index" aria-current="@(string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Organizers", StringComparison.OrdinalIgnoreCase) ? "page" : null)">Organizzatori</a>
             }
-            <a asp-controller="Access" asp-action="ChangePassword">Cambia password</a>
+            <a asp-controller="Access" asp-action="ChangePassword" aria-current="@(string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "ChangePassword", StringComparison.OrdinalIgnoreCase) ? "page" : null)">Cambia password</a>
             </nav>
             <div class="account-navigation">
             <span class="account-name">@User.Identity.Name</span>
@@ -28,11 +34,13 @@
                 <button class="btn btn-outline-secondary btn-sm" type="submit">Esci</button>
             </form>
             </div>
+            </div>
+            </details>
         }
       </div>
     </header>
     <main id="main-content" class="container main-content" tabindex="-1">@RenderBody()</main>
-    <footer class="site-footer"><div class="container">T.Robot · Area organizzatori · Prototipo locale</div></footer>
+    <footer class="site-footer"><div class="container"><strong>T.Robot</strong><span>Area riservata agli organizzatori</span></div></footer>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -5,12 +5,14 @@
 <section class="login-surface" aria-labelledby="login-title">
 <h1 id="login-title">Accesso organizzatore</h1>
 <p>Accedi con il tuo account organizzatore di T.Robot.</p>
+<p class="text-muted">Partecipanti, soggiorni e alloggi: tutta l'organizzazione in un unico posto. I partecipanti continuano a usare il gruppo WhatsApp.</p>
 <form asp-action="Login" method="post">
     <div asp-validation-summary="All" class="text-danger" role="alert"></div>
     <label asp-for="UserName" class="form-label">Nome utente</label>
-    <input asp-for="UserName" autocomplete="username" class="form-control mb-3" required maxlength="100" />
+    <input asp-for="UserName" autocomplete="username" autocapitalize="none" spellcheck="false" class="form-control mb-3" required maxlength="100" />
     <label asp-for="Password" class="form-label">Password</label>
     <input asp-for="Password" autocomplete="current-password" class="form-control" required maxlength="128" />
     <button class="btn btn-primary mt-3" type="submit">Accedi</button>
 </form>
+<p class="form-text mt-3">Non riesci ad accedere? Chiedi all'amministratore di verificare il tuo account o reimpostare la password.</p>
 </section>

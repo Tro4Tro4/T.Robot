@@ -1,0 +1,37 @@
+[Unit]
+Description=T.Robot organizer website
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=trobot
+Group=trobot
+WorkingDirectory=/opt/trobot/app/current
+ExecStart=/opt/dotnet/dotnet /opt/trobot/app/current/TRobot.Web.dll
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PROCESSOR_COUNT=1
+Environment=DOTNET_gcServer=0
+EnvironmentFile=/etc/trobot/trobot.env
+Restart=on-failure
+RestartSec=10
+KillSignal=SIGINT
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/trobot
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=350M
+MemorySwapMax=256M
+CPUQuota=75%
+SyslogIdentifier=trobot
+
+[Install]
+WantedBy=multi-user.target

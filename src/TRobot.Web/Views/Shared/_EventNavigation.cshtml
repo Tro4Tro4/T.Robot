@@ -1,18 +1,54 @@
 @model Guid
+@inject TRobot.Web.Security.PortalModules PortalModules
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     string? Current(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "page" : null;
+    var currentLabel = currentController?.ToLowerInvariant() switch
+    {
+        "home" => "Presenze", "events" => "Evento e partecipanti", "households" => "Nuclei",
+        "stays" => "Soggiorni", "lodging" => "Alloggi", "whatsapp" => "WhatsApp",
+        "messages" => "Messaggi", "accounting" => "Contabilità", "history" => "Storico",
+        "tasks" => "Attività", "menu" => "Menu", "polls" => "Sondaggi", "games" => "Giochi",
+        _ => "Evento"
+    };
 }
+<details class="event-menu" open data-mobile-collapse>
+<summary><span>@currentLabel</span><span class="event-menu-hint">Cambia sezione</span></summary>
 <nav aria-label="Moduli evento" class="event-navigation">
+    <div class="event-nav-group" role="group" aria-label="Organizza">
+    <span class="event-nav-label">Organizza</span>
+    <div class="event-nav-links">
     <a asp-controller="Home" aria-current="@Current("Home")" asp-action="Index" asp-route-eventId="@Model">Dashboard e presenze</a>
     <a asp-controller="Events" aria-current="@Current("Events")" asp-action="Details" asp-route-id="@Model">Evento e partecipanti</a>
     <a asp-controller="Households" aria-current="@Current("Households")" asp-action="Index" asp-route-eventId="@Model">Nuclei</a>
-    <a asp-controller="Tasks" aria-current="@Current("Tasks")" asp-action="Index" asp-route-eventId="@Model">Attività</a>
-    <a asp-controller="Menu" aria-current="@Current("Menu")" asp-action="Index" asp-route-eventId="@Model">Menu</a>
-    <a asp-controller="Polls" aria-current="@Current("Polls")" asp-action="Index" asp-route-eventId="@Model">Sondaggi</a>
-    <a asp-controller="Accounting" aria-current="@Current("Accounting")" asp-action="Index" asp-route-eventId="@Model">Contabilità</a>
-    <a asp-controller="Games" aria-current="@Current("Games")" asp-action="Index" asp-route-eventId="@Model">Giochi volontari</a>
-    <a asp-controller="Messages" aria-current="@Current("Messages")" asp-action="Index" asp-route-eventId="@Model">Messaggi e configurazione</a>
+    <a asp-controller="Stays" aria-current="@Current("Stays")" asp-action="Index" asp-route-eventId="@Model">Soggiorni</a>
+    <a asp-controller="Lodging" aria-current="@Current("Lodging")" asp-action="Index" asp-route-eventId="@Model">Alloggi</a>
+    </div></div>
+    <div class="event-nav-group" role="group" aria-label="Comunica">
+    <span class="event-nav-label">Comunica</span>
+    <div class="event-nav-links">
     <a asp-controller="WhatsApp" aria-current="@Current("WhatsApp")" asp-action="Index" asp-route-eventId="@Model">WhatsApp</a>
+    <a asp-controller="Messages" aria-current="@Current("Messages")" asp-action="Index" asp-route-eventId="@Model">Messaggi e configurazione</a>
+    </div></div>
+    <div class="event-nav-group" role="group" aria-label="Gestisci">
+    <span class="event-nav-label">Gestisci</span>
+    <div class="event-nav-links">
+    <a asp-controller="Accounting" aria-current="@Current("Accounting")" asp-action="Index" asp-route-eventId="@Model">Contabilità</a>
     <a asp-controller="History" aria-current="@Current("History")" asp-action="Index" asp-route-eventId="@Model">Storico</a>
+    </div></div>
+    <details class="event-nav-other" open="@(new[] { "Tasks", "Menu", "Polls", "Games" }.Contains(currentController, StringComparer.OrdinalIgnoreCase))">
+        <summary>Altri moduli</summary>
+        <div class="event-nav-links">
+            <a asp-controller="Tasks" aria-current="@Current("Tasks")" asp-action="Index" asp-route-eventId="@Model">Attività</a>
+            <a asp-controller="Menu" aria-current="@Current("Menu")" asp-action="Index" asp-route-eventId="@Model">Menu</a>
+            <a asp-controller="Polls" aria-current="@Current("Polls")" asp-action="Index" asp-route-eventId="@Model">Sondaggi</a>
+            <a asp-controller="Games" aria-current="@Current("Games")" asp-action="Index" asp-route-eventId="@Model">Giochi volontari</a>
+        </div>
+        @if (PortalModules.HasDisabledModules)
+        {
+            <p class="form-text">I moduli in grigio sono temporaneamente non disponibili.</p>
+        }
+    </details>
 </nav>
+</details>
+<partial name="_EventGuide" model="Model" />

@@ -1,0 +1,48 @@
+@model Guid
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString()?.ToLowerInvariant();
+}
+<details class="help-guide">
+    <summary>Come usare questa pagina</summary>
+    @switch (controller)
+    {
+        case "home":
+            <p>Controlla le risposte nelle presenze, poi usa le azioni rapide per completare l'organizzazione.</p>
+            <ol><li>In <strong>Evento e partecipanti</strong> aggiungi le persone e correggi le presenze.</li><li>In <strong>Soggiorni</strong> controlli arrivi, durata e risposte mancanti.</li><li>In <strong>Alloggi</strong> assegni le camere, dopo aver organizzato le persone nei <strong>Nuclei</strong>.</li></ol>
+            break;
+        case "events":
+            <p>Qui gestisci l'anagrafica dell'evento e le persone. Apri <strong>Dati evento</strong> per modificare luogo, data e programma. Le modifiche vengono applicate solo quando salvi il relativo modulo.</p>
+            <p>Ogni partecipante ha una propria presenza. Per gestire le famiglie usa <a asp-controller="Households" asp-action="Index" asp-route-eventId="@Model">Nuclei</a>; per arrivi e durata usa <a asp-controller="Stays" asp-action="Index" asp-route-eventId="@Model">Soggiorni</a>.</p>
+            break;
+        case "households":
+            <p>Raggruppa le persone dello stesso nucleo e verifica adulti, bambini e accompagnatori. I bambini collegati a un genitore seguono le sue date nelle risposte di presenza.</p>
+            <p>Una volta verificati i nuclei, passa agli <a asp-controller="Lodging" asp-action="Index" asp-route-eventId="@Model">Alloggi</a> per assegnare le camere.</p>
+            break;
+        case "lodging":
+            <ol><li>Aggiungi gli appartamenti, poi le camere con la loro capienza.</li><li>Assegna una camera all'intero nucleo oppure salva l'assegnazione di ciascuna persona.</li><li>Verifica che tutti i confermati abbiano una camera, quindi rendi definitivo il piano.</li></ol>
+            <p>Ogni modifica riporta il piano in bozza. I riepiloghi stampabili sono riservati al singolo nucleo o alla singola persona senza nucleo.</p>
+            break;
+        case "stays":
+            <p>Controlla prima <strong>Da completare</strong>, poi le date e le presenze giornaliere. Arrivo e ultimo giorno sono inclusi; le notti sono i giorni meno uno.</p>
+            <p>Il termine di raccolta è informativo. <strong>Prepara promemoria WhatsApp</strong> crea una bozza: controlla destinatario e testo nell'anteprima e conferma l'invio.</p>
+            break;
+        case "accounting":
+            <p>Gestisci spese, quote e registrazioni dei pagamenti. Verifica le operazioni in attesa prima di approvarle: i saldi individuali restano riservati al portale.</p>
+            <p>Le registrazioni servono alla contabilità dell'evento e non eseguono trasferimenti di denaro.</p>
+            break;
+        case "whatsapp":
+            <p>Controlla lo stato del dispositivo, il gruppo autorizzato e le associazioni con i partecipanti. Le operazioni di collegamento richiedono la conferma indicata nel modulo.</p>
+            <p>Per gli avvisi usa una nuova bozza: verifica testo e gruppo nell'anteprima prima di confermare l'invio reale.</p>
+            break;
+        case "messages":
+            <p>Prepara le comunicazioni e controlla configurazione e bozze. Verifica sempre la modalità mostrata nell'anteprima prima di confermare un'operazione.</p>
+            <p>Per gli invii reali e il gruppo autorizzato apri <a asp-controller="WhatsApp" asp-action="Index" asp-route-eventId="@Model">WhatsApp</a>.</p>
+            break;
+        case "history":
+            <p>Consulta le operazioni registrate per ricostruire le modifiche all'evento. Usa i filtri disponibili per restringere la ricerca. Lo storico conserva i riferimenti alle operazioni precedenti.</p>
+            break;
+        default:
+            <p>Usa i moduli dell'evento per passare tra partecipanti, soggiorni e organizzazione. Ogni modulo salva soltanto le modifiche confermate con i suoi pulsanti.</p>
+            break;
+    }
+</details>

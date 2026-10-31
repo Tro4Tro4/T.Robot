@@ -1,0 +1,45 @@
+[Unit]
+Description=T.Robot public HTTPS reverse proxy (Caddy)
+Documentation=https://caddyserver.com/docs/
+Wants=network-online.target
+After=network-online.target trobot.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+Environment=HOME=/var/lib/caddy
+Environment=XDG_DATA_HOME=/var/lib/caddy/.local/share
+Environment=XDG_CONFIG_HOME=/var/lib/caddy/.config
+WorkingDirectory=/var/lib/caddy
+StateDirectory=caddy
+StateDirectoryMode=0700
+UMask=0077
+ExecStartPre=/usr/local/bin/caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+# Admin API is disabled: apply changes with systemctl restart caddy.
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+MemoryMax=128M
+MemorySwapMax=64M
+CPUQuota=25%
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/caddy
+InaccessiblePaths=/var/lib/trobot /var/backups/trobot /etc/trobot
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.AspNetCore.DataProtection;
+using System.Security.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
@@ -27,23 +29,43 @@ using TRobot.Infrastructure.WhatsApp;
 var initializeDemo = args.Contains("--initialize-demo", StringComparer.Ordinal);
 var initializeIdentity = args.Contains("--initialize-identity", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(args.Where(x => x != "--initialize-demo" && x != "--initialize-identity").ToArray());
-builder.Configuration.AddJsonFile(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".local", "whatsapp", "gateway.json")), optional: true, reloadOnChange: false);
-if (!builder.Environment.IsDevelopment())
-    throw new InvalidOperationException("T.Robot: prototipo solo Development. Configurare HTTPS e chiavi prima del deploy.");
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsProduction())
+    throw new InvalidOperationException("T.Robot: sono supportati solo Development e Production.");
+HostingProductionConfiguration? production = null;
+if (builder.Environment.IsDevelopment())
+    builder.Configuration.AddJsonFile(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".local", "whatsapp", "gateway.json")), optional: true, reloadOnChange: false);
+else
+    production = HostingProductionConfiguration.Load(builder.Configuration,
+        builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"), initializeDemo, initializeIdentity);
 
 // Log strutturati su console, senza richiedere accesso al registro eventi Windows.
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.WebHost.ConfigureKestrel(options => options.ListenLocalhost(5238));
-builder.Services.AddControllersWithViews();
-builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1;[::1]";
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton(sp =>
+if (production is null)
+    builder.WebHost.ConfigureKestrel(options => options.ListenLocalhost(5238));
+else
 {
-    var configuration = sp.GetRequiredService<IConfiguration>();
-    return new WhatsAppGatewayOptions(configuration.GetValue("WhatsAppGateway:Enabled", false),
-        configuration["WhatsAppGateway:BaseUrl"] ?? "http://127.0.0.1:5240", configuration["WhatsAppGateway:Token"] ?? "");
-});
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        // Ignore alternate endpoints supplied through Kestrel configuration: this host exposes HTTPS only.
+        options.Configure(new ConfigurationBuilder().Build());
+        options.AddServerHeader = false;
+        options.Listen(production.ListenAddress, production.HttpsPort, listen => listen.UseHttps(https =>
+        {
+            https.ServerCertificate = production.Certificate;
+            https.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+        }));
+    });
+    builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(production.DataProtectionKeysPath))
+        .SetApplicationName("TRobot");
+    builder.Services.AddAntiforgery(options => options.Cookie.SecurePolicy = CookieSecurePolicy.Always);
+    builder.Services.AddHsts(options => { options.MaxAge = TimeSpan.FromDays(30); options.IncludeSubDomains = false; });
+}
+builder.Services.AddSingleton(sp => PortalModules.Load(sp.GetRequiredService<IConfiguration>()));
+builder.Services.AddControllersWithViews(options => options.Filters.Add<PortalModuleFilter>());
+if (production is null) builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1;[::1]";
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(WhatsAppHostingConfiguration.Load(builder.Configuration, builder.Environment.IsDevelopment()));
 builder.Services.AddScoped<IWhatsAppStore, WhatsAppStore>();
 builder.Services.AddScoped<WhatsAppService>();
 builder.Services.AddHttpClient<IWhatsAppGateway, WhatsAppGatewayClient>(client => client.Timeout = TimeSpan.FromSeconds(15))
@@ -72,12 +94,13 @@ builder.Services.AddScoped<ILocalDashboardStore, LocalDashboardStore>();
 builder.Services.AddScoped<LocalDashboardService>();
 builder.Services.AddScoped<TaskService>();
 builder.Services.AddScoped<HouseholdService>();
+builder.Services.AddScoped<TRobot.Application.Lodging.LodgingService>();
 builder.Services.AddScoped<MenuService>();
 builder.Services.AddScoped<PollService>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<IAutomaticSchedulerStore, AutomaticSchedulerStore>();
-if (!initializeDemo && !initializeIdentity)
+if (builder.Environment.IsDevelopment() && !initializeDemo && !initializeIdentity)
     builder.Services.AddHostedService<AutomaticSchedulerWorker>();
 builder.Services.AddIdentityCore<OrganizerUser>(options =>
 {
@@ -92,6 +115,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name = ".TRobot.Identity";
     options.Cookie.HttpOnly = true;
+    if (production is not null) options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.LoginPath = "/Access/Login";
     options.AccessDeniedPath = "/Access/Denied";
@@ -111,7 +135,7 @@ builder.Services.AddRateLimiter(options =>
     }));
 });
 var connection = new SqliteConnectionStringBuilder(
-    builder.Configuration.GetConnectionString("TRobot")
+    production?.ConnectionString ?? builder.Configuration.GetConnectionString("TRobot")
     ?? throw new InvalidOperationException("ConnectionStrings:TRobot mancante."));
 if (!Path.IsPathRooted(connection.DataSource))
     connection.DataSource = Path.Combine(builder.Environment.ContentRootPath, connection.DataSource);
@@ -119,6 +143,8 @@ connection.ForeignKeys = true;
 builder.Services.AddDbContext<TRobotDbContext>(options => options.UseSqlite(connection.ToString()));
 
 var app = builder.Build();
+// Validate the final host configuration, including test-host overrides, before accepting requests.
+_ = app.Services.GetRequiredService<PortalModules>();
 if (initializeDemo || initializeIdentity)
 {
     try
@@ -136,6 +162,18 @@ if (initializeDemo || initializeIdentity)
         Environment.ExitCode = 1;
     }
     return;
+}
+if (production is not null)
+{
+    app.Lifetime.ApplicationStopped.Register(production.Certificate.Dispose);
+    app.UseHsts();
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        context.Response.Headers["Referrer-Policy"] = "same-origin";
+        await next();
+    });
 }
 app.UseExceptionHandler("/Home/Error");
 app.UseRouting();

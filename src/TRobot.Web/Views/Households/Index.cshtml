@@ -8,8 +8,9 @@
 @foreach (var household in Model.Households)
 {
     <h2>@household.Name</h2>
+    <p><a asp-action="Rename" asp-route-eventId="@Model.Event.Id" asp-route-householdId="@household.Id">Rinomina nucleo</a></p>
     <p><a asp-action="Add" asp-route-eventId="@Model.Event.Id" asp-route-householdId="@household.Id">Aggiungi partecipante</a></p>
-    <div class="table-responsive" role="region" aria-label="Nucleo @household.Name" tabindex="0"><table class="table"><thead><tr><th>Persona</th><th>Classificazione</th><th>Accompagnatore di</th><th>Appartenenza</th><th></th></tr></thead><tbody>
+    <div class="table-responsive" role="region" aria-label="Nucleo @household.Name" tabindex="0"><table class="table table-mobile-cards"><thead><tr><th scope="col">Persona</th><th scope="col">Classificazione</th><th scope="col">Accompagnatore di</th><th scope="col">Appartenenza</th><th scope="col">Azioni</th></tr></thead><tbody>
     @foreach (var member in Model.Members.Where(x => x.HouseholdId == household.Id).OrderByDescending(x => x.IsActive))
     {
         var primary = Model.Members.FirstOrDefault(x => x.Id == member.CompanionOfMemberId);

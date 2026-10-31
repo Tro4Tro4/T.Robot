@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { createSecureContext } from 'node:tls';
 import { timingSafeEqual } from 'node:crypto';
 import { GatewayError } from './journal.js';
 import { validateCallback } from './gateway.js';
@@ -77,9 +79,41 @@ export function createGatewayServer(gateway, token) {
   return server;
 }
 
-export function createCallback(callbackUrl, token, fetcher = fetch) {
+export function createCallback(callbackUrl, token, fetcher = fetch, tlsOptions) {
+  if (callbackUrl === 'https://localhost:5443/internal/whatsapp/incoming') {
+    if (!Buffer.isBuffer(tlsOptions?.ca) || !tlsOptions.ca.length)
+      throw new Error('invalid_callback_configuration');
+    // Parse the explicit CA at startup; TLS still checks chain, validity and the localhost identity per request.
+    createSecureContext({ ca: tlsOptions.ca, minVersion: 'TLSv1.2' });
+    const ca = Buffer.from(tlsOptions.ca);
+    return payload => new Promise((resolve, reject) => {
+      const fail = () => reject(new Error('callback_unavailable'));
+      const request = httpsRequest({ hostname: '127.0.0.1', servername: 'localhost', port: 5443,
+        path: '/internal/whatsapp/incoming', method: 'POST', ca, rejectUnauthorized: true,
+        minVersion: 'TLSv1.2', agent: false, signal: AbortSignal.timeout(10000),
+        headers: { Host: 'localhost:5443', Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+      }, response => {
+        // https.request never follows redirects. Every non-success response is rejected.
+        if (response.statusCode < 200 || response.statusCode >= 300) { response.destroy(); fail(); return; }
+        let length = 0; const chunks = [];
+        response.on('data', chunk => {
+          length += chunk.length;
+          if (length > 16384) { response.destroy(); reject(new Error('callback_invalid')); }
+          else chunks.push(chunk);
+        });
+        response.once('error', fail);
+        response.once('aborted', fail);
+        response.once('end', () => {
+          try { resolve(validateCallback(JSON.parse(Buffer.concat(chunks).toString('utf8')))); }
+          catch { reject(new Error('callback_invalid')); }
+        });
+      });
+      request.once('error', fail);
+      request.end(JSON.stringify(payload));
+    });
+  }
   const url = new URL(callbackUrl);
-  if (url.href !== 'http://127.0.0.1:5238/internal/whatsapp/incoming')
+  if (callbackUrl !== 'http://127.0.0.1:5238/internal/whatsapp/incoming')
     throw new Error('invalid_callback_configuration');
   return async payload => {
     const response = await fetcher(url, { method: 'POST', redirect: 'error',

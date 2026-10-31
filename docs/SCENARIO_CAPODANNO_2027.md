@@ -1,5 +1,7 @@
 # Scenario simulato — Capodanno 2027, 20 persone
 
+**Stato operativo aggiornato:** scenario rimosso da Azure il 23 ottobre 2026 su richiesta dell'utente. WhatsApp ora usa Capodanno 2027 e i suoi 35 partecipanti. Questa pagina documenta lo scenario storico e il caricatore per sviluppo/copie; non reinserirlo nel database operativo. Backup e verifiche in [rimozione scenario](SCENARIO_REMOVAL.md).
+
 ## Disegno e perimetro
 
 L'utente richiede un'app popolata realisticamente in tutti i moduli per quattro giorni e tre notti con venti persone. Con brainstorming si sceglie un nuovo evento chiaramente identificato come simulazione, creato mediante i servizi applicativi già autorizzati. Nessuna sostituzione di dati preesistenti, telefono reale o collegamento del nuovo evento a WhatsApp. Non occorrono nuove funzioni Web o migrazioni.
