@@ -330,3 +330,12 @@ Su richiesta esplicita, rimosso lo scenario ce014f6d-1a90-4388-b187-771235bcb918
 - Default: giorni nel medesimo intervallo dei soggiorni (31 giorni prima/dopo la data locale evento), dato che Event non ha ancora una data finale.
 - Prima milestone: archivio Proposte pasti riservato agli organizzatori, separato dal Menu sospeso. Modifiche/ritiro, chiusura della raccolta, scelta comune, menu definitivo e spesa saranno incrementi successivi.
 - Database operativo Azure e gateway locale invariati durante sviluppo e test. La migrazione viene verificata su database sintetico; nessun invio reale automatico di prova.
+
+## 31 ottobre 2026 - Brainstorming preferenze pasti dopo M33
+
+- L'utente conferma dalla prova sul telefono che proposta M33 e salvataggio funzionano. Non e una verifica del nuovo voto o dello stato live effettuata dall'agente.
+- Concordati: piu preferenze per giorno/pasto; consultazione e voto privati avviati dal gruppo; raccolta separata dal voto; preparazione organizzatori con correzione/esclusione/accorpamento dei piatti e conservazione delle proposte originali.
+- Voto limitato alle giornate del soggiorno confermato. Ogni adulto gestisce se stesso e preferenze distinte dei figli esplicitamente collegati. Risultati adulti/bambini/totale visibili anche durante la votazione, senza pubblicare i nomi dei votanti.
+- Cambi di presenza conservano le scelte nello storico ma le escludono dai conteggi correnti quando la persona non e piu presente. Alla chiusura risultato congelato; nel pannello anche conteggio operativo separato sulle presenze aggiornate.
+- Default tecnici documentati, non funzionalita gia implementate: comando `!preferenze`, apertura/chiusura manuali, elenco fisso per tornata, conferma di sostituzione o azzeramento delle scelte, sessione assoluta di cinque minuti senza sovrapposizione con M33, nessun trasferimento automatico dei voti fra tornate. Le scelte storiche tornano nei conteggi correnti se l'eleggibilita viene ripristinata, senza cambiare lo snapshot della chiusura.
+- Specifica e criteri di verifica in `docs/superpowers/specs/2026-10-31-meal-preferences-design.md`. Solo disegno: nessun codice, migrazione, rilascio, servizio o invio reale modificato. Menu definitivo e spesa restano successivi.
