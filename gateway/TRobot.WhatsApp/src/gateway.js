@@ -5,15 +5,18 @@ export const validGroup = id => typeof id === 'string' && /^\d{1,30}(?:-\d{1,30}
 const validOperation = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 export function validateCallback(result) {
   if (!result || typeof result !== 'object' || Array.isArray(result)
-    || Object.keys(result).some(key => !['handled', 'duplicate', 'reaction', 'replyText', 'replyOperationId'].includes(key))
+    || Object.keys(result).some(key => !['handled', 'duplicate', 'reaction', 'replyText', 'replyOperationId', 'replyPrivately'].includes(key))
     || typeof result.handled !== 'boolean' || typeof result.duplicate !== 'boolean'
-    || (result.reaction != null && typeof result.reaction !== 'string')) throw new Error('callback_invalid');
+    || (result.reaction != null && typeof result.reaction !== 'string')
+    || (result.replyPrivately != null && typeof result.replyPrivately !== 'boolean')) throw new Error('callback_invalid');
   const replyText = result.replyText ?? null; const replyOperationId = result.replyOperationId ?? null;
   if ((replyText === null) !== (replyOperationId === null)
     || (replyText !== null && (typeof replyText !== 'string' || !replyText.trim() || replyText.length > 2000
-      || !validOperation(replyOperationId) || result.reaction != null))) throw new Error('callback_invalid');
+      || !validOperation(replyOperationId) || (result.reaction != null && !result.replyPrivately)))
+    || (result.replyPrivately === true && replyText === null)) throw new Error('callback_invalid');
   return { handled: result.handled, duplicate: result.duplicate,
-    reaction: result.reaction === '✅' ? '✅' : null, replyText, replyOperationId };
+    reaction: result.reaction === '✅' ? '✅' : null, replyText, replyOperationId,
+    replyPrivately: result.replyPrivately === true };
 }
 export const normalizeSender = jid => {
   if (typeof jid !== 'string') return null;
@@ -163,12 +166,14 @@ export class WhatsAppGateway {
     this.sendTail = task.catch(() => {});
     return task;
   }
-  async sendOnce({ operationId, groupId, text }, original = null, maximum = 1000) {
+  async sendOnce({ operationId, groupId, text }, original = null, maximum = 1000, privateRecipient = null) {
     if (!validOperation(operationId) || !validGroup(groupId) || typeof text !== 'string'
       || !text.trim() || text.length > maximum) throw new GatewayError('invalid_send');
     const { socket, epoch, pinEpoch } = original ?? { socket: this.socket, epoch: this.epoch, pinEpoch: this.pinEpoch };
     operationId = operationId.toLowerCase();
-    const digest = this.journal.fingerprint(groupId, text);
+    if (privateRecipient !== null && (!original || normalizeSender(privateRecipient) !== privateRecipient))
+      throw new GatewayError('invalid_send');
+    const digest = this.journal.fingerprint(privateRecipient === null ? groupId : groupId + ':private:' + privateRecipient, text);
     const prior = await this.journal.get(operationId, digest);
     if (prior) return prior;
     this.connected();
@@ -178,7 +183,7 @@ export class WhatsAppGateway {
     try {
       if (socket === this.socket && epoch === this.epoch && pinEpoch === this.pinEpoch
         && groupId === this.activeGroupId && this.status === 'connected') {
-        const messageId = await socket.send(groupId, text);
+        const messageId = privateRecipient === null ? await socket.send(groupId, text) : await socket.sendPrivate(privateRecipient, text);
         result = { status: 'sent', messageId: typeof messageId === 'string' ? messageId : null };
       }
     } catch { /* An external send failure can be ambiguous. Never retry it automatically. */ }
@@ -199,10 +204,12 @@ export class WhatsAppGateway {
     for (const message of batch.messages ?? []) {
       this.count('received');
       const key = message.key;
-      const groupId = key?.remoteJid;
+      const remoteJid = key?.remoteJid;
+      const isPrivate = normalizeSender(remoteJid) !== null;
+      const groupId = isPrivate ? this.activeGroupId : remoteJid;
       const timestamp = Number(message.messageTimestamp);
       const now = this.now();
-      if (key?.fromMe || !validGroup(groupId) || groupId !== this.activeGroupId || !key?.participant
+      if (key?.fromMe || !validGroup(groupId) || groupId !== this.activeGroupId || (!isPrivate && !key?.participant)
         || typeof key.id !== 'string' || !key.id || key.id.length > 200 || !Number.isSafeInteger(timestamp) || timestamp <= 0
         || timestamp * 1000 < Math.max(this.activation, this.socketStarted) - 999
         || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) { this.count('contextRejected'); continue; }
@@ -210,38 +217,47 @@ export class WhatsAppGateway {
       if (text === null) { this.count('envelopeRejected'); continue; }
       // Only Application knows whether this sender has an authorized attendance dialog.
       // Trim solely for candidate recognition; preserve the exact text in the callback.
-      if (text.length > 100 || (!/^!(?:presenza|aiuto|menu|todo|riepilogo|porto|prendo|fatto|conferma|annulla)(?:\s|$)/i.test(text)
-        && !/^(?:\d{1,2}[/\.\-]\d{1,2}(?:[/\.\-]\d{4})?|\d{1,3}|s[iì]|no)$/i.test(text.trim()))) { this.count('commandRejected'); continue; }
-      const senderIds = [...new Set([key.participant, key.participantAlt].map(normalizeSender).filter(Boolean))];
+      if (isPrivate ? (!text.trim() || text.length > 300) : (text.length > 100 || (!/^!(?:presenza|aiuto|menu|todo|riepilogo|porto|prendo|fatto|conferma|annulla)(?:\s|$)/i.test(text)
+        && !/^!proponi$/i.test(text.trim())
+        && !/^(?:\d{1,2}[/\.\-]\d{1,2}(?:[/\.\-]\d{4})?|\d{1,3}|s[iì]|no)$/i.test(text.trim())))) { this.count('commandRejected'); continue; }
+      const senderIds = [...new Set((isPrivate ? [remoteJid, key.remoteJidAlt] : [key.participant, key.participantAlt]).map(normalizeSender).filter(Boolean))];
       if (!senderIds.length) { this.count('senderRejected'); continue; }
       this.trimCaches(now);
-      const seenId = this.digest('incoming:' + groupId + ':' + key.id);
+      const seenId = this.digest('incoming:' + remoteJid + ':' + key.id);
       if (this.seen.has(seenId) || this.queued >= 50) { this.count('duplicateOrBusy'); continue; }
-      const sender = this.digest('sender:' + senderIds[0]);
+      // Keep the group budget unchanged while allowing a private dialog correction.
+      const sender = this.digest((isPrivate ? 'private-sender:' : 'sender:') + senderIds[0]);
       const rate = this.rates.get(sender) ?? { count: 0, until: now + 60000 };
-      if (rate.count >= 6) { this.count('rateRejected'); continue; }
+      if (rate.count >= (isPrivate ? 15 : 6)) { this.count('rateRejected'); continue; }
       rate.count++; this.rates.set(sender, rate); this.seen.set(seenId, now + 600000);
       this.queued++;
       this.count('queued');
       const pinEpoch = this.pinEpoch; const socket = this.socket;
-      const payload = { groupId, senderIds, messageId: key.id, text, timestampUnixSeconds: timestamp };
+      const payload = { groupId, senderIds, messageId: key.id, text, timestampUnixSeconds: timestamp, isPrivate };
       this.callbackTail = this.callbackTail.then(async () => {
         if (epoch !== this.epoch || pinEpoch !== this.pinEpoch || groupId !== this.activeGroupId || socket !== this.socket) return;
         this.count('callbackAttempts');
         let result;
         try { result = validateCallback(await this.callback(payload)); }
         catch { this.count('callbackFailed'); return; }
+        // Private text can only go back to the verified author of this message.
+        // Application owns persisted dialog authorization and its five-minute expiry.
+        if ((isPrivate && !result.replyPrivately && result.replyText !== null)
+          || (result.replyPrivately && !isPrivate && !/^!proponi$/i.test(text.trim()))) {
+          this.count('callbackFailed'); return;
+        }
         this.count(result?.handled ? 'callbackHandled' : 'callbackIgnored');
         if (result?.duplicate) this.count('callbackDuplicate');
         if (result.handled && !result.duplicate && result.replyText !== null) {
           // Preserve the originating socket and pin through both the send queue and
           // every journal await. A new socket or same-group repin cannot adopt it.
           const task = this.sendTail.then(() => this.sendOnce({ operationId: result.replyOperationId,
-            groupId, text: result.replyText }, { socket, epoch, pinEpoch }, 2000));
+            groupId, text: result.replyText }, { socket, epoch, pinEpoch }, 2000,
+          result.replyPrivately ? senderIds[0] : null));
           this.sendTail = task.catch(() => {});
           await task.catch(() => {});
         }
-        if (result?.handled && !result.duplicate && result.reaction
+        if (!isPrivate && result?.handled && !result.duplicate && result.reaction
           && epoch === this.epoch && pinEpoch === this.pinEpoch && groupId === this.activeGroupId
           && socket === this.socket && this.status === 'connected') {
           try { await socket.react(groupId, key, '✅'); this.count('reactionSent'); }

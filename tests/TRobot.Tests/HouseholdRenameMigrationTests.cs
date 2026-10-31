@@ -35,7 +35,7 @@ public sealed class HouseholdRenameMigrationTests
         await db.SaveChangesAsync();
         var before = await ReadPreviousColumns(connection);
 
-        await db.Database.MigrateAsync();
+        await db.GetService<IMigrator>().MigrateAsync("20261023092207_AddHouseholdRenameFingerprint");
         db.ChangeTracker.Clear();
         var after = await ReadPreviousColumns(connection, before);
         Assert.Equal(before.Keys.Order(), after.Keys.Order());

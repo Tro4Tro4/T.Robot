@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createBaileysTransport } from '../src/transport.js';
 
-test('Baileys adapter opts out of history, direct messages, online status and caches; verified metadata aliases only', async () => {
+test('Baileys adapter opts out of history, broadcasts, online status and caches; verified metadata aliases only', async () => {
   const events = new EventEmitter(); const updates = []; const batches = []; const sends = [];
   let options; let ended = 0; let saved = 0; let authPath;
   const socket = { ev: events, end: async () => { ended++; },
@@ -25,7 +25,8 @@ test('Baileys adapter opts out of history, direct messages, online status and ca
   assert.ok(authPath.endsWith('auth')); assert.equal(options.syncFullHistory, false);
   assert.equal(options.shouldSyncHistoryMessage({}), false); assert.equal(options.markOnlineOnConnect, false);
   assert.equal(options.enableRecentMessageCache, false); assert.equal(options.emitOwnEvents, false);
-  assert.equal(options.shouldIgnoreJid('222@s.whatsapp.net'), true); assert.equal(options.shouldIgnoreJid('12345@g.us'), false);
+  assert.equal(options.shouldIgnoreJid('222@s.whatsapp.net'), false); assert.equal(options.shouldIgnoreJid('12345@g.us'), false);
+  assert.equal(options.shouldIgnoreJid('status@broadcast'), true);
   assert.deepEqual((await transport.groups()).map(g => g.id), ['12345@g.us']);
   assert.deepEqual(await transport.members('12345@g.us'), [
     { id: '111@lid', alternateIds: ['222@s.whatsapp.net'], label: 'Numero WhatsApp 222' },
@@ -41,6 +42,10 @@ test('Baileys adapter opts out of history, direct messages, online status and ca
   assert.deepEqual(sends[0], ['12345@g.us', { text: 'Testo sintetico', linkPreview: null }]);
   await transport.react('12345@g.us', { remoteJid: '12345@g.us', id: 'technical' }, 'private text');
   assert.equal(sends.length, 1);
+  await assert.rejects(transport.sendPrivate('12345@g.us', 'Riservato'), /private_send_invalid/);
+  await assert.rejects(transport.sendPrivate('111:2@lid', 'Riservato'), /private_send_invalid/);
+  assert.equal(await transport.sendPrivate('111@lid', 'Riservato'), 'technical');
+  assert.deepEqual(sends[1], ['111@lid', { text: 'Riservato', linkPreview: null }]);
   await transport.close(); assert.equal(ended, 1); assert.equal(saved, 1);
   assert.equal(events.listenerCount('messages.upsert'), 0); assert.equal(events.listenerCount('creds.update'), 0);
   await assert.rejects(transport.send('12345@g.us', 'Chiuso'), /transport_closed/);

@@ -26,9 +26,9 @@ public sealed record GatewayHealth(string Status, string? QrDataUrl = null, stri
 public sealed record GatewayGroup(string Id, string Name);
 public sealed record GatewayMember(string Id, IReadOnlyList<string> AlternateIds, string Label);
 public sealed record GatewaySendResult(string Status, string? MessageId = null);
-public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds);
+public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds, bool IsPrivate = false);
 public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null,
-    string? ReplyText = null, Guid? ReplyOperationId = null);
+    string? ReplyText = null, Guid? ReplyOperationId = null, bool ReplyPrivately = false);
 public sealed record WhatsAppListPreview(Guid EventId, WhatsAppListKind Kind, string GroupId, int ConnectionRevision,
     string GroupName, IReadOnlyList<string> Pages, string Fingerprint, bool Approved);
 public sealed record WhatsAppPage(Event Event, WhatsAppConnection? Connection, IReadOnlyList<LocalPerson> Participants,

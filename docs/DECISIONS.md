@@ -320,3 +320,13 @@ Su richiesta esplicita, rimosso lo scenario ce014f6d-1a90-4388-b187-771235bcb918
 - Richiesta esplicita Impeccable, seguito da autorizzazione al rilascio Azure. Raffinamento con brainstorming/adapt in modalita Operate, stessa identita esistente. Menu Account e moduli compatti sotto 768 px, aperti come fallback senza JavaScript; navigazione corrente riconoscibile e apertura desktop al cambio breakpoint.
 - Default: selettore solo con piu eventi assegnati, simulatore espandibile con errori aperti, schede da una sola tabella per partecipanti/nuclei, ricerca partecipanti solo nel DOM e nessuna persistenza. Tabelle dense ancora scorrevoli con prima colonna ferma. Controlli touch, campi 16 px, aree sicure e zoom conservato.
 - Implementazione coordinatore; revisore gpt-6.1-sol medium APPROVED sul diff trasmesso, anche correttivo display dei pannelli chiusi. Build pulita, 624/624 test .NET, 80 controlli Chromium su otto dimensioni e tre percorsi senza JavaScript superati; detector Impeccable senza segnalazioni. Evidenza touch emulata, non dispositivi fisici o Safari. Rilascio riusa backup/rollback/recovery gia revisionati senza migrazioni o sostituzioni del DB; dettagli ed esito in docs/UI_MOBILE.md.
+
+## 31 ottobre 2026 - M33, proposte pasti in privato
+
+- Approvato dall'utente: !proponi nel gruppo autorizzato avvia automaticamente un dialogo privato personale, con reazione nel gruppo e tutte le domande in DM. Eccezione limitata alla precedente regola senza messaggi privati.
+- Giorno, pasto (colazione/pranzo/cena), piatto e intenzione (suggerimento oppure disponibilita a cucinare); nessun incarico o menu definitivo implicito.
+- Conferma personale prima della creazione della proposta, !annulla e scadenza assoluta dopo cinque minuti dall'avvio. Riprese e risposte non estendono la durata. Nessun messaggio automatico allo scadere.
+- Sessione persistente legata a evento, persona, attivatore, gruppo, revisione collegamento e identita verificate; ricevute deduplicate, invii senza reinvii automatici.
+- Default: giorni nel medesimo intervallo dei soggiorni (31 giorni prima/dopo la data locale evento), dato che Event non ha ancora una data finale.
+- Prima milestone: archivio Proposte pasti riservato agli organizzatori, separato dal Menu sospeso. Modifiche/ritiro, chiusura della raccolta, scelta comune, menu definitivo e spesa saranno incrementi successivi.
+- Database operativo Azure e gateway locale invariati durante sviluppo e test. La migrazione viene verificata su database sintetico; nessun invio reale automatico di prova.

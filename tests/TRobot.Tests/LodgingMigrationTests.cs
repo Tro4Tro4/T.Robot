@@ -35,7 +35,7 @@ public sealed class LodgingMigrationTests
         await db.SaveChangesAsync();
         var before = await Rows(connection);
 
-        await db.Database.MigrateAsync();
+        await db.GetService<IMigrator>().MigrateAsync("20261023072906_AddLodgingPlanning");
         db.ChangeTracker.Clear();
         var after = await Rows(connection);
         Assert.Equal(before.Count + 4, after.Count);

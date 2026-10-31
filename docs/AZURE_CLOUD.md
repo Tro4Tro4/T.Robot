@@ -4,6 +4,8 @@
 
 ## Richiesta e vincoli, 23 ottobre 2026
 
+**Aggiornamento del 31 ottobre 2026:** Web e gateway correnti `releases/m33-20261031-arm64`, con raccolta proposte pasti in dialogo privato avviato da `!proponi` nel gruppo. Migrazione additiva eseguita dopo backup e rehearsal sul DB corrente; tutte le righe precedenti, chiavi, configurazione e identita conservate. Gateway collegato al gruppo originale. Undici pagine riservate, 44 controlli browser e tre percorsi senza JavaScript positivi. Dettagli e primo rollback recuperato in [MILESTONE_33.md](MILESTONE_33.md). Nessun messaggio di prova automatico; prova sul telefono affidata all'utente.
+
 Rifinitura mobile successiva autorizzata e rilasciata lo stesso giorno: current `mobile-20261023-arm64`. Menu compatti, schede partecipanti/nuclei e ricerca, con fallback senza JavaScript. Backup privato sulla VM, confronto completo delle righe riuscito, nessuna migrazione e gruppo WhatsApp originale connesso. Dieci pagine, 40 controlli pubblici e tre percorsi senza JavaScript superati. Dettagli in [UI_MOBILE.md](UI_MOBILE.md).
 
 Aggiornamento successivo dello stesso giorno: rilasciata la grafica Impeccable nella release `ui-20261023-arm64`, senza migrazioni e con tutte le righe operative conservate. Backup privato sulla VM, sessione login originale ancora valida, gateway connesso al gruppo originale e collaudo pubblico desktop/mobile riusciti. Dettagli in [UI_RELEASE_AZURE.md](UI_RELEASE_AZURE.md).

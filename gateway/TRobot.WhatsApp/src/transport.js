@@ -28,7 +28,7 @@ export async function createBaileysTransport(stateDirectory, handlers, injected)
     emitOwnEvents: false,
     enableRecentMessageCache: false,
     enableAutoSessionRecreation: false,
-    shouldIgnoreJid: jid => typeof jid === 'string' && !validGroup(jid),
+    shouldIgnoreJid: jid => typeof jid === 'string' && !validGroup(jid) && !normalizeSender(jid),
     getMessage: async () => undefined,
     connectTimeoutMs: 20000,
     defaultQueryTimeoutMs: 15000
@@ -87,6 +87,13 @@ export async function createBaileysTransport(stateDirectory, handlers, injected)
     async send(groupId, text) {
       if (closed || !validGroup(groupId)) throw new Error('transport_closed');
       const result = await socket.sendMessage(groupId, { text, linkPreview: null });
+      if (typeof result?.key?.id !== 'string' || !result.key.id) throw new Error('send_uncertain');
+      return result.key.id;
+    },
+    async sendPrivate(recipient, text) {
+      if (closed || normalizeSender(recipient) !== recipient || typeof text !== 'string'
+        || !text.trim() || text.length > 2000) throw new Error('private_send_invalid');
+      const result = await socket.sendMessage(recipient, { text, linkPreview: null });
       if (typeof result?.key?.id !== 'string' || !result.key.id) throw new Error('send_uncertain');
       return result.key.id;
     },

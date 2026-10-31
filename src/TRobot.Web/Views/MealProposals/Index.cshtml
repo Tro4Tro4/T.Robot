@@ -1,0 +1,47 @@
+@model TRobot.Application.Menu.MealProposalPage
+@using TRobot.Domain
+@{
+    ViewData["Title"] = "Proposte pasti";
+    string MealName(MealKind meal) => meal switch { MealKind.Breakfast => "Colazione", MealKind.Lunch => "Pranzo", _ => "Cena" };
+    var zone = TimeZoneInfo.FindSystemTimeZoneById(Model.TimeZoneId);
+}
+<h1>Proposte pasti · @Model.EventName</h1>
+<partial name="_EventNavigation" model="Model.EventId" />
+<p>Raccogliete le idee prima di decidere il menu. La disponibilità a cucinare è una proposta personale; gli incarichi e la lista della spesa verranno definiti dopo la scelta comune.</p>
+<section class="card card-body mb-4" aria-labelledby="proposals-help">
+    <h2 id="proposals-help" class="h4">Come proporre un piatto</h2>
+    <p>Scrivi <code>!proponi</code> nel gruppo WhatsApp dell'evento. Il bot prosegue in privato con giorno, pasto, piatto e disponibilità a cucinare. La proposta compare qui dopo <code>!conferma</code>.</p>
+    <p class="mb-0"><code>!annulla</code> interrompe la raccolta. Il dialogo scade dopo 5 minuti dall'avvio, anche se continui a rispondere. Le proposte già confermate restano salvate.</p>
+</section>
+<h2 class="h4">Proposte ricevute · @Model.Proposals.Count</h2>
+@if (Model.Proposals.Count == 0)
+{
+    <p>Nessuna proposta confermata. Le conversazioni incomplete non compaiono nell'archivio.</p>
+}
+else
+{
+    @foreach (var day in Model.Proposals.GroupBy(x => x.Day).OrderBy(x => x.Key))
+    {
+        <section class="mb-4" aria-label="Proposte del @day.Key.ToString("dd/MM/yyyy")">
+            <h2 class="h4">@day.Key.ToString("dd/MM/yyyy")</h2>
+            @foreach (var meal in day.GroupBy(x => x.Meal).OrderBy(x => x.Key))
+            {
+                <h3 class="h5">@MealName(meal.Key)</h3>
+                <div class="row g-3 mb-3">
+                @foreach (var proposal in meal.OrderBy(x => x.CreatedAtUtc))
+                {
+                    <div class="col-12 col-lg-6">
+                        <article class="card card-body h-100 text-break">
+                            <h4 class="h5">@proposal.DishName</h4>
+                            <p class="mb-2">Proposta di <strong>@proposal.PersonName</strong></p>
+                            <p class="mb-2">@(proposal.OffersToCook ? "Disponibile a prepararlo" : "Suggerimento da mangiare")</p>
+                            <p class="mb-2"><span class="badge text-bg-secondary">@(proposal.WithdrawnAtUtc.HasValue ? "Ritirata" : "Da valutare")</span></p>
+                            <p class="small text-muted mb-0">Ricevuta il @TimeZoneInfo.ConvertTimeFromUtc(proposal.CreatedAtUtc, zone).ToString("dd/MM/yyyy HH:mm") (@Model.TimeZoneId)</p>
+                        </article>
+                    </div>
+                }
+                </div>
+            }
+        </section>
+    }
+}

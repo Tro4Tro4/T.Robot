@@ -21,10 +21,11 @@ async function harness(t, options = {}) {
     clearTimeout: timer => { timer.cancelled = true; } };
   const journal = new SendJournal(directory, token);
   const transportFactory = async handlers => {
-    const socket = { handlers, sent: [], reactions: [], closed: 0,
+    const socket = { handlers, sent: [], privateSent: [], reactions: [], closed: 0,
       groups: async () => [{ id: group, name: 'Gruppo sintetico' }, { id: otherGroup, name: 'Altro sintetico' }],
       members: async () => [{ id: '111@lid', alternateIds: ['222@s.whatsapp.net'], label: 'Membro sintetico' }],
       send: async (id, text) => { socket.sent.push([id, text]); return 'technical-message'; },
+      sendPrivate: async (id, text) => { socket.privateSent.push([id, text]); return 'private-technical-message'; },
       react: async (...args) => { socket.reactions.push(args); }, close: () => { socket.closed++; }
     };
     sockets.push(socket); return socket;
@@ -133,7 +134,7 @@ test('Incoming only notify, pinned group, participant, fresh plain !presenza; PN
   const rejects = [
     { type: 'append', messages: [incoming()] },
     { type: 'notify', messages: [incoming('own', { key: { ...incoming().key, fromMe: true } })] },
-    { type: 'notify', messages: [incoming('dm', { key: { ...incoming().key, remoteJid: '222@s.whatsapp.net' } })] },
+    { type: 'notify', messages: [incoming('broadcast', { key: { ...incoming().key, remoteJid: 'status@broadcast' } })] },
     { type: 'notify', messages: [incoming('other', { key: { ...incoming().key, remoteJid: otherGroup } })] },
     { type: 'notify', messages: [incoming('participant', { key: { ...incoming().key, participant: null } })] },
     { type: 'notify', messages: [incoming('old', { messageTimestamp: now / 1000 - 121 })] },
@@ -319,7 +320,7 @@ test('Attendance candidates preserve live group sender timestamp and plain-text 
   const rejects = [
     { type: 'append', messages: [candidate] },
     { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, fromMe: true } }] },
-    { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, remoteJid: '222@s.whatsapp.net' } }] },
+    { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, remoteJid: 'status@broadcast' } }] },
     { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, remoteJid: otherGroup } }] },
     { type: 'notify', messages: [{ ...candidate, key: { ...candidate.key, participant: null } }] },
     { type: 'notify', messages: [{ ...candidate, messageTimestamp: now / 1000 - 121 }] },
@@ -419,7 +420,7 @@ test('Attendance summary preserves channel, envelope, prefix and length filters'
     incoming('summary-chat', { message: { conversation: 'riepilogo' } }),
     incoming('summary-long', { message: { conversation: '!riepilogo ' + '1'.repeat(91) } }),
     incoming('summary-other', { key: { remoteJid: otherGroup, participant: '111@lid', id: 'summary-other' }, message: { conversation: '!riepilogo' } }),
-    incoming('summary-dm', { key: { remoteJid: '222@s.whatsapp.net', participant: '111@lid', id: 'summary-dm' }, message: { conversation: '!riepilogo' } }),
+    incoming('summary-broadcast', { key: { remoteJid: 'status@broadcast', participant: '111@lid', id: 'summary-broadcast' }, message: { conversation: '!riepilogo' } }),
     incoming('summary-old', { messageTimestamp: now / 1000 - 121, message: { conversation: '!riepilogo' } }),
     incoming('summary-media', { message: { imageMessage: { caption: '!riepilogo' } } })
   ];
@@ -434,7 +435,7 @@ test('Callback reply fields are bounded and typed, mutually exclusive and cannot
     { replyOperationId: 'not-guid' }, { replyOperationId: null }, { replyText: null }, { reaction: '✅' },
     { groupId: otherGroup }, { recipient: '111@s.whatsapp.net' }, { handled: 'true' }, { duplicate: 0 }, { reaction: {} } ])
     assert.throws(() => validateCallback({ ...valid, ...changed }), /callback_invalid/);
-  assert.deepEqual(validateCallback(valid), valid);
+  assert.deepEqual(validateCallback(valid), { ...valid, replyPrivately: false });
 });
 
 test('Callback HTTP response accepts 16 KiB UTF8 and escaped text but rejects overflow', async () => {
@@ -447,11 +448,90 @@ test('Callback HTTP response accepts 16 KiB UTF8 and escaped text but rejects ov
   await assert.rejects(callback(JSON.stringify({ ...valid, groupId: otherGroup }))({}), /callback_invalid/);
 });
 
+const privateMessage = (id, text, overrides = {}) => incoming(id, {
+  key: { remoteJid: '111:4@lid', remoteJidAlt: '222@s.whatsapp.net', participant: '999@lid', id, fromMe: false },
+  message: { conversation: text }, ...overrides
+});
+
+test('Proponi opens only a private reply to the verified group author and permits a group checkmark', async t => {
+  const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, reaction: '✅',
+    replyText: 'Quale pasto?', replyOperationId: randomUUID(), replyPrivately: true }) });
+  await h.ready(); const socket = h.sockets[0];
+  socket.handlers.messages({ type: 'notify', messages: [incoming('proposal', { message: { conversation: '!proponi' } })] });
+  await h.gateway.idle();
+  assert.deepEqual(socket.privateSent, [['111@lid', 'Quale pasto?']]);
+  assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 1);
+  socket.handlers.messages({ type: 'notify', messages: [incoming('help-private', { message: { conversation: '!aiuto' } })] });
+  await h.gateway.idle(); assert.equal(socket.privateSent.length, 1); assert.equal(socket.reactions.length, 1);
+});
+
+test('Private plain input uses remote identity only, active group, bounded payload and no public fallback', async t => {
+  const h = await harness(t); await h.ready(); const socket = h.sockets[0];
+  socket.handlers.messages({ type: 'notify', messages: [privateMessage('private', 'Pasta al forno'),
+    privateMessage('private', 'Pasta al forno'), privateMessage('long-private', 'x'.repeat(301)),
+    privateMessage('media-private', 'ignored', { message: { imageMessage: { caption: 'Pasta' } } }),
+    privateMessage('self-private', 'Pasta', { key: { ...privateMessage('self-private', '').key, fromMe: true } })] });
+  await h.gateway.idle(); assert.equal(h.callbacks.length, 1);
+  assert.deepEqual(h.callbacks[0].senderIds, ['111@lid', '222@s.whatsapp.net']);
+  assert.equal(h.callbacks[0].groupId, group); assert.equal(h.callbacks[0].isPrivate, true);
+  assert.equal(h.callbacks[0].text, 'Pasta al forno'); assert.equal(socket.reactions.length, 0);
+  h.gateway.callback = async () => ({ handled: true, duplicate: false, replyText: 'Riservato', replyOperationId: randomUUID() });
+  socket.handlers.messages({ type: 'notify', messages: [privateMessage('no-fallback', '!annulla')] });
+  await h.gateway.idle(); assert.equal(socket.sent.length, 0); assert.equal(socket.privateSent.length, 0);
+});
+
+test('Private dialogs allow corrections within a separate fifteen-per-minute budget and retain the group budget', async t => {
+  const h = await harness(t); await h.ready(); const socket = h.sockets[0];
+  socket.handlers.messages({ type: 'notify', messages: [incoming('start-dialog', { message: { conversation: '!proponi' } }),
+    ...Array.from({ length: 16 }, (_, index) => privateMessage('dialog-' + index, index === 6 ? '!annulla' : 'Risposta ' + index)),
+    ...Array.from({ length: 6 }, (_, index) => incoming('group-budget-' + index))] });
+  await h.gateway.idle();
+  assert.equal(h.callbacks.filter(payload => payload.isPrivate).length, 15);
+  assert.equal(h.callbacks.filter(payload => !payload.isPrivate).length, 6);
+  assert.ok(h.callbacks.some(payload => payload.text === '!annulla'));
+  assert.equal(h.gateway.health().diagnostics.rateRejected, 2);
+  h.setTime(now + 60000);
+  socket.handlers.messages({ type: 'notify', messages: [privateMessage('next-minute', 'Conferma', { messageTimestamp: (now + 60000) / 1000 })] });
+  await h.gateway.idle(); assert.equal(h.callbacks.filter(payload => payload.isPrivate).length, 16);
+});
+
+test('A failed private send remains uncertain, never falls back to group and never resends', async t => {
+  const operationId = randomUUID();
+  const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false, replyText: 'Riservato',
+    replyOperationId: operationId, replyPrivately: true }) });
+  await h.ready(); const socket = h.sockets[0]; let attempts = 0;
+  socket.sendPrivate = async () => { attempts++; throw new Error('synthetic_private_failure'); };
+  for (const id of ['failed-private', 'retry-private']) {
+    socket.handlers.messages({ type: 'notify', messages: [privateMessage(id, 'Pasta')] }); await h.gateway.idle();
+  }
+  assert.equal(attempts, 1); assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 0);
+  assert.equal((await h.journal.get(operationId, h.journal.fingerprint(group + ':private:111@lid', 'Riservato'))).status, 'uncertain');
+});
+
+test('Private callback journal binds recipient, never replays and keeps private text out of durable files', async t => {
+  const operationId = randomUUID(); const h = await harness(t, { callback: async () => ({ handled: true, duplicate: false,
+    replyText: 'Pasto riservato', replyOperationId: operationId, replyPrivately: true }) });
+  await h.ready(); const socket = h.sockets[0];
+  for (const id of ['first-private', 'second-private']) {
+    socket.handlers.messages({ type: 'notify', messages: [privateMessage(id, '!annulla')] }); await h.gateway.idle();
+  }
+  assert.equal(socket.privateSent.length, 1);
+  socket.handlers.messages({ type: 'notify', messages: [privateMessage('different-recipient', 'Pasta', {
+    key: { remoteJid: '333@lid', id: 'different-recipient' } })] });
+  await h.gateway.idle(); assert.equal(socket.privateSent.length, 1); assert.equal(socket.sent.length, 0);
+  for (const file of await readdir(h.directory)) {
+    const stored = await readFile(join(h.directory, file), 'utf8');
+    for (const value of ['Pasto riservato', '111@lid', group]) assert.ok(!stored.includes(value));
+  }
+  await assert.rejects(h.gateway.send({ operationId: randomUUID(), groupId: '111@lid', text: 'Forbidden' }), /invalid_send/);
+});
+
+for (const privateReply of [false, true]) {
 for (const boundary of ['callback', 'sendTail', 'journal-get', 'journal-pending']) {
   for (const change of ['repin', 'reconnect']) {
-    test(`Reply preserves original connection through ${boundary} across ${change}`, async t => {
+    test(`${privateReply ? 'Private' : 'Group'} reply preserves original connection through ${boundary} across ${change}`, async t => {
       const operationId = randomUUID(); const reply = { handled: true, duplicate: false, reaction: null,
-        replyText: 'Risposta sintetica', replyOperationId: operationId };
+        replyText: 'Risposta sintetica', replyOperationId: operationId, replyPrivately: privateReply };
       let release; let entered;
       const gate = new Promise(resolve => { release = resolve; });
       const started = new Promise(resolve => { entered = resolve; });
@@ -462,14 +542,17 @@ for (const boundary of ['callback', 'sendTail', 'journal-get', 'journal-pending'
         const method = boundary === 'journal-get' ? 'get' : 'pending'; const original = h.journal[method].bind(h.journal);
         h.journal[method] = async (...args) => { const result = await original(...args); entered(); await gate; return result; };
       }
-      originalSocket.handlers.messages({ type: 'notify', messages: [incoming('fenced-info', { message: { conversation: '!aiuto' } })] });
+      originalSocket.handlers.messages({ type: 'notify', messages: [privateReply ? privateMessage('fenced-private', 'Pasta')
+        : incoming('fenced-info', { message: { conversation: '!aiuto' } })] });
       await started;
       if (change === 'repin') await h.gateway.group(group);
       else { h.gateway.disconnect(); await h.ready(); }
       release(); await h.gateway.idle();
-      assert.ok(h.sockets.every(socket => socket.sent.length === 0 && socket.reactions.length === 0));
+      assert.ok(h.sockets.every(socket => socket.sent.length === 0 && socket.privateSent.length === 0 && socket.reactions.length === 0));
       // A fenced or uncertain operation is never replayed automatically after restart.
-      if (boundary !== 'callback' && change === 'repin') assert.equal((await h.journal.get(operationId, h.journal.fingerprint(group, reply.replyText))).status, 'uncertain');
+      if (boundary !== 'callback' && change === 'repin') assert.equal((await h.journal.get(operationId,
+        h.journal.fingerprint(privateReply ? group + ':private:111@lid' : group, reply.replyText))).status, 'uncertain');
     });
   }
+}
 }

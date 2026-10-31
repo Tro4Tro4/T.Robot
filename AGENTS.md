@@ -6,10 +6,11 @@ Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. 
 - Preferenza permanente dell'utente: non usare mai il carattere Unicode U+2014 (trattino lungo); usare sempre il trattino semplice ASCII `-` al suo posto, nelle risposte e nei nuovi testi.
 - Per tutti i prossimi sviluppi usa obbligatoriamente la skill `brainstorming` prima dell'implementazione: chiarisci obiettivo e vincoli e presenta un disegno proporzionato al lavoro.
 - Modalità autonoma richiesta dall'utente: scegli i default ragionevoli, documentali in `docs/DECISIONS.md` e prosegui con implementazione e verifiche. Chiedi conferma solo quando un dubbio concreto impedisce di decidere; non introdurre approvazioni intermedie obbligatorie per disegno o piano. Questa preferenza prevale sui passaggi di approvazione della skill `brainstorming`.
+- Il 31 ottobre 2026 l'utente autorizza le modifiche a tutti i file del progetto senza richieste di conferma per ogni file. Restano applicabili i permessi tecnici dell'ambiente, che l'agente non puo disattivare, e i confini delle operazioni richieste.
 - Prima di intervenire, ispeziona repository, SDK, file e stato Git; non assumere che il codice esista.
 - Procedi per milestone; non implementare tutti i moduli contemporaneamente.
 - Mantieni Domain indipendente; usa Application per le regole; Infrastructure per persistenza/integrations; Web per UI e API.
-- I partecipanti usano solo il **gruppo WhatsApp**; il sito è **solo per organizzatori**. Nessun DM.
+- I partecipanti usano WhatsApp; il sito è **solo per organizzatori**. Regola generale nel gruppo, con eccezione M33: `!proponi` nel gruppo avvia il dialogo privato personale per le proposte pasti, approvato il 31 ottobre 2026. Nessun altro DM implicito.
 - Il gateway WhatsApp è sperimentale e **non ufficiale**: non aggiungerlo né collegarlo in produzione senza richiesta esplicita.
 - Tutte le azioni che cambiano dati passano da servizi validati e autorizzati; l'AI non modifica il DB direttamente.
 - Preferisci EF Core SQLite inizialmente, migration versionate, `decimal` per importi, UTC per timestamp e timezone evento configurabile.
@@ -20,6 +21,8 @@ Leggi `docs/PROJECT_CONTEXT.md` prima di progettare o modificare funzionalità. 
 - Rispondi in italiano: breve piano iniziale, poi implementazione, riepilogo finale con file, comandi, test e prossimo passo.
 
 ## Milestone corrente
+
+M33 autorizzata il 31 ottobre 2026: raccolta proposte pasti con giorno, colazione/pranzo/cena, piatto e disponibilita facoltativa a cucinare. `!proponi` nel gruppo autorizzato avvia automaticamente il dialogo privato con il mittente associato; conferma personale prima del salvataggio, `!annulla`, scadenza fissa di cinque minuti dall'avvio senza estensioni. Proposte confermate conservate sul sito riservato; menu definitivo e spesa successivi. Disegno e stato in `docs/MILESTONE_33.md`. Il gateway locale resta disabilitato; sviluppo e test non autorizzano invii reali di prova.
 
 Rimozione scenario completata il 23 ottobre 2026 su richiesta esplicita: evento ce014f6d-1a90-4388-b187-771235bcb918 eliminato da Azure dopo trasferimento del gruppo WhatsApp su Capodanno 2027, fc3dfb11-fbcf-46e9-b677-9521e1c07f03 (35 partecipanti). Dan/Tro confermati dall'utente, quattro alias e sessione conservati. Backup storico privato sulla VM, rehearsal/apply con FK ON e tutte le righe esterne invariate; 620 test .NET e review APPROVED. Non reinserire lo scenario nel DB operativo. Non esiste eliminazione generale dal portale; Revoca evento revoca soltanto l'assegnazione. Dettagli e strumenti monouso in docs/SCENARIO_REMOVAL.md.
 
