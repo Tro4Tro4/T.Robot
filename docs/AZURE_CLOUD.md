@@ -1,5 +1,7 @@
 # Azure - preparazione hosting T.Robot
 
+**Aggiornamento 1 novembre 2026:** Web `proposal-stay-20261101-arm64` attivo con controllo dei giorni di soggiorno personale confermato per `!proponi`. Gateway M34 conservato; nessuna migrazione, backup coerente e confronto di tutte le righe positivi, identita/gruppo ripristinati. Dettagli in [MENU_PROPOSAL_STAY.md](MENU_PROPOSAL_STAY.md).
+
 **Aggiornamento corrente M34, 31 ottobre 2026:** Web e gateway in `m34-20261031-arm64`, migrazione con backup/rehearsal e righe precedenti conservate, stessa identita/gruppo ripristinati. HTTPS e sessione originali, 12 pagine riservate, 48 controlli browser e quattro senza JavaScript positivi. Nessuna votazione o invio di prova creati, scheduler escluso. Fonte operativa solo Azure. Procedura e verifiche in `docs/MILESTONE_34.md`; il testo seguente conserva anche le fasi storiche del passaggio da Oracle.
 
 **Stato attuale: trasferimento completato il 23 ottobre 2026.** [T.Robot](https://trobot-capodanno.duckdns.org) risolve 4.223.75.149 e risponde da Azure con TLS/login verificati senza override. Azure e l'unica fonte operativa; Oracle e PC rimangono disabilitati. Le sezioni seguenti conservano la sequenza e le difficolta incontrate. FreeTrial spendingLimit On conservato; l'IP pubblico resta nel credito iniziale, non nel beneficio gratuito della VM.

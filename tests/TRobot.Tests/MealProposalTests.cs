@@ -10,12 +10,96 @@ namespace TRobot.Tests;
 
 public sealed partial class WhatsAppIntegrationTests
 {
+    private static async Task ConfirmMealProposalStay(IServiceProvider p, Guid eventId)
+    {
+        var db = p.GetRequiredService<TRobotDbContext>();
+        var participant = await db.EventParticipants.SingleAsync(x => x.EventId == eventId);
+        participant.ChangeStatus(ParticipationStatus.Confirmed, Now);
+        var stay = new AttendanceStay(eventId, participant.PersonId); stay.Set(new(2030, 12, 30), 3);
+        db.Add(stay); await db.SaveChangesAsync();
+    }
+
+    [Theory]
+    [InlineData("30/12", true)]
+    [InlineData("31/12", true)]
+    [InlineData("01/01", true)]
+    [InlineData("29/12", false)]
+    [InlineData("02/01", false)]
+    public async Task MealProposalsAllowOnlyPersonalConfirmedStayIncludingBothBoundaries(string day, bool allowed)
+    {
+        await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
+        var service = Service(p, new FakeGateway(), new Clock()); await Activate(p, f, service); await SetStayEvent(p, f);
+        await ConfirmMealProposalStay(p, f.EventId);
+        var db = p.GetRequiredService<TRobotDbContext>();
+        await service.IncomingAsync(Incoming("!proponi", "stay-start"));
+        var result = await service.IncomingAsync(Incoming(day, "stay-day") with { IsPrivate = true });
+        Assert.True(result.Handled); Assert.True(result.ReplyPrivately);
+        var session = await db.Set<MealProposalSession>().SingleAsync();
+        Assert.Equal(allowed ? MealProposalStep.Meal : MealProposalStep.Day, session.Step);
+        Assert.Equal(Now.AddMinutes(5), session.ExpiresAtUtc);
+        if (!allowed)
+        {
+            Assert.Contains("fuori dal tuo soggiorno", result.ReplyText); Assert.Null(session.Day);
+            Assert.Empty(await db.Set<MealProposal>().ToListAsync()); return;
+        }
+        await service.IncomingAsync(Incoming("cena", "stay-meal") with { IsPrivate = true });
+        await service.IncomingAsync(Incoming("Pasta", "stay-dish") with { IsPrivate = true });
+        await service.IncomingAsync(Incoming("1", "stay-offer") with { IsPrivate = true });
+        await service.IncomingAsync(Incoming("!conferma", "stay-confirm") with { IsPrivate = true });
+        Assert.Equal(MealProposalStep.Closed, (await db.Set<MealProposalSession>().SingleAsync()).Step);
+        Assert.Single(await db.Set<MealProposal>().ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("absent")]
+    [InlineData("undecided")]
+    [InlineData("no-response")]
+    [InlineData("missing-stay")]
+    [InlineData("missing-dates")]
+    [InlineData("changed-stay")]
+    public async Task MealProposalRechecksPersonalPresenceAndStayBeforeSaving(string change)
+    {
+        await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
+        var service = Service(p, new FakeGateway(), new Clock()); await Activate(p, f, service); await SetStayEvent(p, f);
+        await ConfirmMealProposalStay(p, f.EventId);
+        var db = p.GetRequiredService<TRobotDbContext>();
+        await service.IncomingAsync(Incoming("!proponi", "change-start"));
+        await service.IncomingAsync(Incoming("31/12", "change-day") with { IsPrivate = true });
+        await service.IncomingAsync(Incoming("cena", "change-meal") with { IsPrivate = true });
+        await service.IncomingAsync(Incoming("Pasta", "change-dish") with { IsPrivate = true });
+        await service.IncomingAsync(Incoming("1", "change-offer") with { IsPrivate = true });
+        var participant = await db.EventParticipants.SingleAsync(x => x.EventId == f.EventId);
+        var stay = await db.Set<AttendanceStay>().SingleAsync();
+        switch (change)
+        {
+            case "absent": participant.ChangeStatus(ParticipationStatus.Absent, Now); break;
+            case "undecided": participant.ChangeStatus(ParticipationStatus.Undecided, Now); break;
+            case "no-response": participant.ChangeStatus(ParticipationStatus.NoResponse, Now); break;
+            case "missing-stay": db.Remove(stay); break;
+            case "missing-dates":
+                db.Entry(stay).Property(x => x.Arrival).CurrentValue = default; break;
+            case "changed-stay": stay.Set(new(2030, 12, 30), 1); break;
+        }
+        await db.SaveChangesAsync();
+        var result = await service.IncomingAsync(Incoming("!conferma", "change-confirm") with { IsPrivate = true });
+        Assert.True(result.Handled); Assert.True(result.ReplyPrivately); Assert.Null(result.Reaction);
+        Assert.Contains("Nessun piatto registrato", result.ReplyText); Assert.Contains("!proponi nel gruppo", result.ReplyText);
+        Assert.Empty(await db.Set<MealProposal>().ToListAsync());
+        Assert.Equal(MealProposalStep.Closed, (await db.Set<MealProposalSession>().SingleAsync()).Step);
+        await service.IncomingAsync(Incoming("!proponi", "change-restart"));
+        var rejected = await service.IncomingAsync(Incoming("31/12", "change-retry-day") with { IsPrivate = true });
+        Assert.True(rejected.ReplyPrivately);
+        Assert.Equal(MealProposalStep.Day, (await db.Set<MealProposalSession>().SingleAsync()).Step);
+        Assert.Null((await db.Set<MealProposalSession>().SingleAsync()).Day);
+        Assert.Empty(await db.Set<MealProposal>().ToListAsync());
+    }
+
     [Fact]
     public async Task MealDialogueSamePersonCanStartInAnotherEventWithoutOverwritingPreviousSession()
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
         var service = Service(p, new FakeGateway(), new Clock()); var person = await Activate(p, f, service);
-        await SetStayEvent(p, f);
+        await SetStayEvent(p, f); await ConfirmMealProposalStay(p, f.EventId);
         Assert.True((await service.IncomingAsync(Incoming("!proponi", "first-event-start"))).Handled);
         await service.IncomingAsync(Incoming("30/12", "first-event-day") with { IsPrivate = true });
         var db = p.GetRequiredService<TRobotDbContext>();
@@ -40,16 +124,16 @@ public sealed partial class WhatsAppIntegrationTests
     public async Task MealPrivateRouteRejectsOtherCommandsAndInvalidDaysAndUsesNextYear()
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
-        var clock = new Clock(); var service = Service(p, new FakeGateway(), clock); await Activate(p, f, service); await SetStayEvent(p, f);
+        var clock = new Clock(); var service = Service(p, new FakeGateway(), clock); await Activate(p, f, service); await SetStayEvent(p, f); await ConfirmMealProposalStay(p, f.EventId);
         var db = p.GetRequiredService<TRobotDbContext>();
         Assert.False((await service.IncomingAsync(Incoming("!presenza si", "private-presence") with { IsPrivate = true })).Handled);
-        Assert.Equal(ParticipationStatus.NoResponse, (await db.EventParticipants.SingleAsync()).Status);
+        Assert.Equal(ParticipationStatus.Confirmed, (await db.EventParticipants.SingleAsync()).Status);
         Assert.False((await service.IncomingAsync(Incoming("!proponi", "unknown-meal") with { SenderIds = ["unknown@lid"] })).Handled);
         await service.IncomingAsync(Incoming("!proponi", "n-start"));
         var invalid = await service.IncomingAsync(Incoming("31/02", "n-invalid") with { IsPrivate = true });
         Assert.Contains("29/11/2030", invalid.ReplyText); Assert.Contains("30/01/2031", invalid.ReplyText);
         await service.IncomingAsync(Incoming("!presenza no", "n-private-command") with { IsPrivate = true });
-        Assert.Equal(ParticipationStatus.NoResponse, (await db.EventParticipants.SingleAsync()).Status);
+        Assert.Equal(ParticipationStatus.Confirmed, (await db.EventParticipants.SingleAsync()).Status);
         await service.IncomingAsync(Incoming("01/01", "n-day") with { IsPrivate = true });
         Assert.Equal(new DateOnly(2031, 1, 1), (await db.Set<MealProposalSession>().SingleAsync()).Day);
         await service.IncomingAsync(Incoming("colazione", "n-meal") with { IsPrivate = true });
@@ -68,10 +152,10 @@ public sealed partial class WhatsAppIntegrationTests
         using (var first = f.Services.CreateScope())
         {
             var p = first.ServiceProvider; var service = Service(p, gateway, clock);
-            person = await Activate(p, f, service); await SetStayEvent(p, f);
+            person = await Activate(p, f, service); await SetStayEvent(p, f); await ConfirmMealProposalStay(p, f.EventId);
             Assert.False((await service.IncomingAsync(Incoming("!proponi", "unsolicited") with { IsPrivate = true })).Handled);
             var start = await service.IncomingAsync(Incoming("!proponi", "meal-start"));
-            Assert.True(start.ReplyPrivately); Assert.Equal("✅", start.Reaction);
+            Assert.True(start.ReplyPrivately); Assert.Equal("\u2705", start.Reaction);
             Assert.True((await service.IncomingAsync(Incoming("!proponi", "meal-start"))).Duplicate);
             await service.IncomingAsync(Incoming("31/12", "meal-day") with { IsPrivate = true });
             await service.IncomingAsync(Incoming("cena", "meal-kind") with { IsPrivate = true });
@@ -81,7 +165,7 @@ public sealed partial class WhatsAppIntegrationTests
         }
         using var scope = f.Services.CreateScope(); var provider = scope.ServiceProvider; var resumed = Service(provider, gateway, clock);
         var result = await resumed.IncomingAsync(Incoming("!conferma", "meal-confirm") with { IsPrivate = true });
-        Assert.True(result.ReplyPrivately); Assert.Equal("✅", result.Reaction);
+        Assert.True(result.ReplyPrivately); Assert.Equal("\u2705", result.Reaction);
         Assert.True((await resumed.IncomingAsync(Incoming("!conferma", "meal-confirm") with { IsPrivate = true })).Duplicate);
         var db = provider.GetRequiredService<TRobotDbContext>(); var proposal = await db.Set<MealProposal>().SingleAsync();
         Assert.Equal(person, proposal.PersonId); Assert.Equal(new DateOnly(2030, 12, 31), proposal.Day);
@@ -103,7 +187,7 @@ public sealed partial class WhatsAppIntegrationTests
     public async Task MealDialogueCancellationExpiryAndRevocationNeverCreateProposal(string reason)
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
-        var clock = new Clock(); var service = Service(p, new FakeGateway(), clock); await Activate(p, f, service); await SetStayEvent(p, f);
+        var clock = new Clock(); var service = Service(p, new FakeGateway(), clock); await Activate(p, f, service); await SetStayEvent(p, f); await ConfirmMealProposalStay(p, f.EventId);
         await service.IncomingAsync(Incoming("!proponi", "m-start"));
         await service.IncomingAsync(Incoming("30/12", "m-day") with { IsPrivate = true });
         await service.IncomingAsync(Incoming("pranzo", "m-kind") with { IsPrivate = true });

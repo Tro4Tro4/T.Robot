@@ -65,6 +65,8 @@ public sealed partial class WhatsAppService
             }
             string? reply;
             var success = false;
+            string? rejection = null;
+            var stay = await store.FindAsync<AttendanceStay>(connection.EventId, participant.PersonId, token);
             if (!input.IsPrivate)
             {
                 if (session is null) { session = new(connection.EventId, participant.PersonId); store.Add(session); }
@@ -90,7 +92,11 @@ public sealed partial class WhatsAppService
                     {
                         case MealProposalStep.Day:
                             var day = ParseArrival(text, eventDate);
-                            if (day.HasValue && Math.Abs(day.Value.DayNumber - eventDate.DayNumber) <= 31) session.SetDay(day.Value);
+                            if (day.HasValue && Math.Abs(day.Value.DayNumber - eventDate.DayNumber) <= 31)
+                            {
+                                rejection = MealProposalIneligible(participant, stay, day.Value);
+                                if (rejection is null) session.SetDay(day.Value);
+                            }
                             break;
                         case MealProposalStep.Meal:
                             var meal = text.ToLowerInvariant() switch { "1" or "colazione" => MealKind.Breakfast, "2" or "pranzo" => MealKind.Lunch, "3" or "cena" => MealKind.Dinner, _ => (MealKind?)null };
@@ -107,12 +113,22 @@ public sealed partial class WhatsAppService
                         case MealProposalStep.Confirmation:
                             if (text.Equals("!conferma", StringComparison.OrdinalIgnoreCase))
                             {
-                                var proposal = session.Confirm(now); store.Add(proposal);
-                                operations.Audit(connection.EventId, actor, proposal.Id, "MealProposals", "Confirmed"); success = true;
+                                rejection = MealProposalIneligible(participant, stay, session.Day!.Value);
+                                if (rejection is not null)
+                                {
+                                    session.Close();
+                                    rejection += " Nessun piatto registrato. Aggiorna la presenza e scrivi !proponi nel gruppo per ripartire.";
+                                }
+                                else
+                                {
+                                    var proposal = session.Confirm(now); store.Add(proposal);
+                                    operations.Audit(connection.EventId, actor, proposal.Id, "MealProposals", "Confirmed"); success = true;
+                                }
                             }
                             break;
                     }
-                    reply = success ? "Proposta registrata per gli organizzatori. Grazie!" : MealPrompt(session, eventDate);
+                    reply = success ? "Proposta registrata per gli organizzatori. Grazie!" : rejection is null ? MealPrompt(session, eventDate)
+                        : rejection + (session.Step == MealProposalStep.Day ? "\n" + MealPrompt(session, eventDate) : "");
                 }
             }
             store.Add(receipt); await store.SaveAsync(token);
@@ -121,9 +137,16 @@ public sealed partial class WhatsAppService
         }, ct);
     }
 
+    private static string? MealProposalIneligible(EventParticipant participant, AttendanceStay? stay, DateOnly day)
+    {
+        if (participant.Status != ParticipationStatus.Confirmed) return "Per proporre un piatto serve la tua presenza confermata.";
+        if (stay is null || stay.Days < 1 || stay.Arrival == default) return "Per proporre un piatto serve il tuo soggiorno con le date confermate.";
+        return day < stay.Arrival || day > stay.LastDay ? $"Giorno fuori dal tuo soggiorno confermato, dal {stay.Arrival:dd/MM/yyyy} al {stay.LastDay:dd/MM/yyyy}." : null;
+    }
+
     private static string MealPrompt(MealProposalSession session, DateOnly eventDate) => session.Step switch
     {
-        MealProposalStep.Day => $"Per quale giorno proponi un piatto? Scrivi gg/mm oppure gg/mm/aaaa, dal {eventDate.AddDays(-31):dd/MM/yyyy} al {eventDate.AddDays(31):dd/MM/yyyy}. Hai cinque minuti dall'avvio. !annulla interrompe.",
+        MealProposalStep.Day => $"Per quale giorno proponi un piatto? Scrivi gg/mm oppure gg/mm/aaaa, dal {eventDate.AddDays(-31):dd/MM/yyyy} al {eventDate.AddDays(31):dd/MM/yyyy}. Puoi proporre solo nei giorni del tuo soggiorno con presenza confermata, inclusi arrivo e ultimo giorno. Hai cinque minuti dall'avvio. !annulla interrompe.",
         MealProposalStep.Meal => "Per quale pasto? 1 = colazione, 2 = pranzo, 3 = cena.",
         MealProposalStep.Dish => "Quale piatto proponi? Scrivi solo il nome, massimo 200 caratteri.",
         MealProposalStep.Availability => "1 = solo suggerimento, 2 = mi offro di cucinarlo.",

@@ -353,3 +353,17 @@ Su richiesta esplicita, rimosso lo scenario ce014f6d-1a90-4388-b187-771235bcb918
 ## 31 ottobre 2026 - Rilascio M34 autorizzato
 
 L'utente richiede rilascio completo, commit e push. Suite completa finale 651/651 .NET e 60/60 Node, 18 verifiche HTTP/portale sulla navigazione finale; pacchetto Release ARM64 verificato e procedure operative revisionate APPROVED. Backup privato coerente su Azure, rehearsal e migrazione con FK ON in transazione immediata e confronto delle righe precedenti prima del commit. Nessun restore di un DB storico. Rilascio coordinato Web/gateway M34, identita/configurazione/chiavi e gruppo originale conservati, recovery e collaudo pubblico 48 controlli browser piu quattro senza JavaScript positivi. Due proposte esistenti intatte; nessun ciclo o voto di prova creati, raccolta rimasta aperta. Le modifiche documentali preesistenti sono incluse nell'incarico esplicito di commit/push, dopo verifica del diff e assenza di segreti. Stato e hash degli artefatti in `docs/MILESTONE_34.md`; dati, chiavi, sessioni e backup esclusi da Git.
+
+## 1 novembre 2026 - Proposte pasti vincolate al soggiorno personale
+
+- Su richiesta dell'utente, !proponi ammette soltanto giorni del soggiorno personale confermato: arrivo e partenza inclusi, come per le preferenze M34. Presenza indecisa, assente, senza risposta o soggiorno incompleto non consentono di proporre un giorno.
+- Controllo nel servizio Application alla scelta della data e nuovamente prima del salvataggio con !conferma, nella transazione esistente. Un cambio di presenza o date durante il dialogo non deve produrre una proposta non ammessa.
+- Restano il limite temporale M33 rispetto alla data locale evento, la conferma personale e la scadenza assoluta di cinque minuti. Feedback soltanto nel dialogo privato autorizzato; nessuna modifica retroattiva alle proposte storiche.
+- Incremento locale senza migrazioni, rilascio Azure o invii reali di prova.
+- Verifica finale: dotnet build TRobot.sln --no-restore senza errori o avvisi; dotnet test TRobot.sln --no-build --no-restore con 662/662 test superati (11 nuovi casi). Test mirati 22/22, revisione indipendente GPT-6.1 Sol APPROVED. Implementazione GPT-6.1 Sol, integrazione e suite completa del coordinatore.
+
+## 1 novembre 2026 - Rilascio del controllo proposte pasti
+
+- L'utente autorizza completamento autonomo, commit di tutto, push e publish Azure. Scelto rilascio solo Web senza migrazioni, perche il controllo risiede in Application e il gateway non cambia.
+- Attivata proposal-stay-20261101-arm64, gateway M34 conservato. Backup privato coerente sulla VM, confronto di tutte le righe prima/dopo e verifica integrita/FK positivi; chiavi, configurazione, identita e gruppo originale preservati. Procedura indipendentemente revisionata GPT-6.1 Sol APPROVED; nessun messaggio di prova.
+- Stato e verifiche in docs/MENU_PROPOSAL_STAY.md. Nessun nuovo modulo o sviluppo estraneo aggiunto al controllo richiesto.
