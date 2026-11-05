@@ -102,7 +102,17 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
     {
         await RequireAdmin(actorId, eventId, ct);
         var connection = await RequireConnection(eventId, ct);
-        return await gateway.MembersAsync(connection.GroupId!, ct);
+        var aliases = await store.ListAsync<WhatsAppIdentityAlias>(eventId, ct);
+        var associatedHashes = aliases.Where(x => x.IsActive).Select(x => x.SenderHash).ToHashSet();
+        return (await gateway.MembersAsync(connection.GroupId!, ct))
+            .Select(member => member with
+            {
+                IsAssociated = member.AlternateIds.Append(member.Id)
+                    .Select(alias => options.Fingerprint("sender", alias))
+                    .Any(associatedHashes.Contains)
+            })
+            .OrderBy(member => member.IsAssociated)
+            .ToArray();
     }
 
     public async Task SelectGroupAsync(Guid actorId, Guid eventId, string groupId, int revision, bool confirmed, CancellationToken ct = default)

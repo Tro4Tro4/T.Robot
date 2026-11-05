@@ -122,6 +122,27 @@ public sealed partial class WhatsAppIntegrationTests
     }
 
     [Fact]
+    public async Task MembersPutAssociatedIdentitiesAfterThoseStillToBeMapped()
+    {
+        await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
+        var gateway = new FakeGateway
+        {
+            AvailableMembers = [
+                new GatewayMember("unmapped@lid", ["unmapped@s.whatsapp.net"], "Da associare"),
+                new GatewayMember(Sender, [Alternate], "Già associato")
+            ]
+        };
+        var service = Service(p, gateway, new Clock());
+        await Activate(p, f, service);
+
+        var members = await service.MembersAsync(f.OrganizerPersonId, f.EventId);
+
+        Assert.Collection(members,
+            member => { Assert.Equal("unmapped@lid", member.Id); Assert.False(member.IsAssociated); },
+            member => { Assert.Equal(Sender, member.Id); Assert.True(member.IsAssociated); });
+    }
+
+    [Fact]
     public async Task CallbackFailureAfterSaveRollsBackPresenceReceiptAndAudit()
     {
         var failure = new FailAfterSave(); await using var f = new LocalWebFactory { SaveInterceptor = failure };
@@ -387,7 +408,8 @@ public sealed partial class WhatsAppIntegrationTests
         public Task<GatewayHealth> ConnectAsync(CancellationToken ct) { Connects++; return HealthAsync(ct); }
         public Task<GatewayHealth> DisconnectAsync(CancellationToken ct) { Disconnects++; ActiveGroup = null; return Task.FromResult(new GatewayHealth("disconnected")); }
         public Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) => Task.FromResult(AvailableGroups);
-        public Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) => Task.FromResult<IReadOnlyList<GatewayMember>>([new(Sender, [Alternate], "Membro sintetico")]);
+        public IReadOnlyList<GatewayMember> AvailableMembers { get; set; } = [new(Sender, [Alternate], "Membro sintetico")];
+        public Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) => Task.FromResult(AvailableMembers);
         public Task SetGroupAsync(string? groupId, CancellationToken ct) { GroupSets++; if (FailGroup) throw new InvalidOperationException("Errore tecnico sintetico"); ActiveGroup = groupId; return Task.CompletedTask; }
         public async Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct)
         { Sends++; SendStarted?.TrySetResult(); if (ReleaseSend is not null) await ReleaseSend.Task.WaitAsync(ct); if (FailSend) throw new TaskCanceledException(); return new GatewaySendResult("sent", "synthetic-outgoing"); }

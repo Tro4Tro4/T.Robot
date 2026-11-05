@@ -120,6 +120,8 @@ details > form { margin-top: 1rem; }
 .main-content form > label:has(input[type="checkbox"]) { margin-top: 1rem; font-weight: 400; }
 .form-control, .form-select { min-height: 2.75rem; border-color: #a7b2bf; }
 .form-control:focus, .form-select:focus, .form-check-input:focus { border-color: var(--tr-focus); box-shadow: 0 0 0 .2rem #d6e6fa; }
+#whatsapp-member.whatsapp-member-associated { color: #1f6532; background-color: #e8f5ea; border-color: #6ead7c; }
+#whatsapp-member option[data-associated="true"] { color: #1f6532; font-weight: 600; }
 .main-content input:not([type]):not(.form-control), .main-content input[type="text"]:not(.form-control), .main-content input[type="number"]:not(.form-control), .main-content select:not(.form-select) { max-width: 100%; min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid #a7b2bf; border-radius: .375rem; color: var(--tr-ink); background-color: white; }
 .main-content input[type="checkbox"], .main-content input[type="radio"] { accent-color: var(--tr-blue); }
 .main-content input[type="checkbox"] + label { margin-left: .375rem; }

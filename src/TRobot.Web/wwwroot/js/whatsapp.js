@@ -14,6 +14,27 @@
     select.replaceChildren(new Option(label, ''));
     for (const row of rows) select.add(new Option(row.name || row.label || 'Membro senza nome', row.id));
   }
+  function memberOptions(select, rows) {
+    select.replaceChildren(new Option('Seleziona un membro', ''));
+    const pending = document.createElement('optgroup');
+    pending.label = 'Da associare';
+    const associated = document.createElement('optgroup');
+    associated.label = 'Già associati';
+    for (const row of rows) {
+      const isAssociated = row.isAssociated === true;
+      const option = new Option(`${isAssociated ? '✓ Già associato - ' : ''}${row.label || 'Membro senza nome'}`, row.id);
+      option.dataset.associated = String(isAssociated);
+      (isAssociated ? associated : pending).append(option);
+    }
+    if (pending.childElementCount) select.append(pending);
+    if (associated.childElementCount) select.append(associated);
+    const updateState = () => {
+      const isAssociated = select.selectedOptions[0]?.dataset.associated === 'true';
+      select.classList.toggle('whatsapp-member-associated', isAssociated);
+    };
+    select.addEventListener('change', updateState);
+    updateState();
+  }
   async function poll() {
     if (document.hidden) return;
     try {
@@ -30,7 +51,7 @@
       }
       const member = document.getElementById('whatsapp-member');
       if (member && health.status === 'connected' && health.activeGroupId === device.dataset.bindingGroup && !loadedMembers) {
-        options(member, await get(device.dataset.membersUrl), 'Seleziona un membro');
+        memberOptions(member, await get(device.dataset.membersUrl));
         loadedMembers = true;
       }
       if (device.dataset.bindingGroup && health.status === 'connected' && health.activeGroupId !== device.dataset.bindingGroup)

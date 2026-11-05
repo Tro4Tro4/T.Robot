@@ -367,3 +367,8 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - L'utente autorizza completamento autonomo, commit di tutto, push e publish Azure. Scelto rilascio solo Web senza migrazioni, perche il controllo risiede in Application e il gateway non cambia.
 - Attivata proposal-stay-20261101-arm64, gateway M34 conservato. Backup privato coerente sulla VM, confronto di tutte le righe prima/dopo e verifica integrita/FK positivi; chiavi, configurazione, identita e gruppo originale preservati. Procedura indipendentemente revisionata GPT-6.1 Sol APPROVED; nessun messaggio di prova.
 - Stato e verifiche in docs/MENU_PROPOSAL_STAY.md. Nessun nuovo modulo o sviluppo estraneo aggiunto al controllo richiesto.
+
+## 5 novembre 2026 - Elenco associazioni WhatsApp
+
+- Per velocizzare l'associazione dei membri del gruppo, il portale distingue gli identificativi che hanno gia almeno un alias attivo nell'evento. I membri ancora da associare restano in alto; quelli gia associati sono spostati in fondo, raggruppati ed evidenziati in verde quando selezionati.
+- Il flag e calcolato nel servizio Application tramite gli hash gia presenti: non espone numeri, hash o associazioni personali nuove e non modifica le autorizzazioni, il gateway o le regole di salvataggio.

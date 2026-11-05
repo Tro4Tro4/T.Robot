@@ -24,7 +24,7 @@ public sealed class WhatsAppGatewayOptions(bool enabled, string baseUrl, string 
 
 public sealed record GatewayHealth(string Status, string? QrDataUrl = null, string? ActiveGroupId = null);
 public sealed record GatewayGroup(string Id, string Name);
-public sealed record GatewayMember(string Id, IReadOnlyList<string> AlternateIds, string Label);
+public sealed record GatewayMember(string Id, IReadOnlyList<string> AlternateIds, string Label, bool IsAssociated = false);
 public sealed record GatewaySendResult(string Status, string? MessageId = null);
 public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds, bool IsPrivate = false);
 public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null,
