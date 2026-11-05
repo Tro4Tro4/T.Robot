@@ -1,5 +1,7 @@
 # Azure - preparazione hosting T.Robot
 
+**Aggiornamento 5 novembre 2026:** Web `member-associations-20261105-arm64` attivo con evidenziazione dei membri WhatsApp gia associati. Gateway M34 conservato; nessuna migrazione, backup coerente e confronto di tutte le righe positivi, identita/gruppo ripristinati. Dettagli in [MEMBER_ASSOCIATIONS_RELEASE.md](MEMBER_ASSOCIATIONS_RELEASE.md).
+
 **Aggiornamento 1 novembre 2026:** Web `proposal-stay-20261101-arm64` attivo con controllo dei giorni di soggiorno personale confermato per `!proponi`. Gateway M34 conservato; nessuna migrazione, backup coerente e confronto di tutte le righe positivi, identita/gruppo ripristinati. Dettagli in [MENU_PROPOSAL_STAY.md](MENU_PROPOSAL_STAY.md).
 
 **Aggiornamento corrente M34, 31 ottobre 2026:** Web e gateway in `m34-20261031-arm64`, migrazione con backup/rehearsal e righe precedenti conservate, stessa identita/gruppo ripristinati. HTTPS e sessione originali, 12 pagine riservate, 48 controlli browser e quattro senza JavaScript positivi. Nessuna votazione o invio di prova creati, scheduler escluso. Fonte operativa solo Azure. Procedura e verifiche in `docs/MILESTONE_34.md`; il testo seguente conserva anche le fasi storiche del passaggio da Oracle.
