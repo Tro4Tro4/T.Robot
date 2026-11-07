@@ -6,7 +6,7 @@ Guida per Claude Code. Le regole di progetto vincolanti sono in `AGENTS.md`, imp
 
 ## Lettura prima di lavorare
 
-1. `PROJECT_CONTEXT.md` (root): analisi verificata sul codice al 31 ottobre 2026, con aggiornamenti in testa. Le sezioni sotto gli aggiornamenti sono uno snapshot: ad esempio l'ultima migrazione ora e `20261031205555_AddMealPreferences` (M34), non `AddMealProposals`.
+1. `PROJECT_CONTEXT.md` (root): analisi verificata sul codice al 31 ottobre 2026, con aggiornamenti in testa. Le sezioni sotto gli aggiornamenti sono in parte uno snapshot storico.
 2. Il documento della milestone o del rilascio pertinente in `docs/` (`MILESTONE_NN.md`, `MENU_PROPOSAL_STAY.md`, `MEMBER_ASSOCIATIONS_RELEASE.md`, `AZURE_CLOUD.md`).
 3. `docs/DECISIONS.md`: registro cronologico, leggere anche le voci successive perche conserva stati intermedi.
 
