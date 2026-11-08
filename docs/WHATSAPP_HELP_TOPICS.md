@@ -22,4 +22,4 @@ Richiesta dell'utente: rendere `!aiuto` piu mirato. `!aiuto` da solo spiega come
 
 ## Stato
 
-In sviluppo nel branch di sessione, insieme alle modifiche presenze dell'8 novembre ancora non rilasciate. Prima revisione indipendente CHANGES_REQUESTED: la voce pasti dichiarava `!proponi` sempre usabile e `!preferenze` futuro anche con voto chiuso; corretto facendo seguire al testo lo stato reale del ciclo.
+Implementato nel branch di sessione, insieme alle modifiche presenze dell'8 novembre; non rilasciato su Azure. Build 0 avvisi, 684/684 test (SDK 10.0.114 su copia senza global.json). Prima revisione indipendente CHANGES_REQUESTED: la voce pasti dichiarava `!proponi` sempre usabile e `!preferenze` futuro anche con voto chiuso; corretto facendo seguire al testo lo stato reale del ciclo. Seconda revisione APPROVED. Non testato il ramo "elenco troppo lungo", irraggiungibile con i limiti attuali dei titoli.

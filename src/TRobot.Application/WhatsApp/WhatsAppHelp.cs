@@ -68,7 +68,7 @@ public sealed partial class WhatsAppService
 
     private static string ListsHelp(HelpState state)
     {
-        var text = "📋 *Elenchi*\nServe la presenza confermata; i bambini collegati non possono usare i comandi che modificano.";
+        var text = "📋 *Elenchi*\nServe la presenza confermata; i bambini non possono usare i comandi che modificano.";
         if (state.Menu) text += "\n\n🍽️ *Menu*\n!menu [pagina] - mostra il menu\n!porto <rif> - ti proponi di portare una voce libera o già tua";
         if (state.Todo) text += "\n\n✅ *Cose da fare*\n!todo [pagina] - mostra le attività\n!prendo <rif> - ti proponi per un'attività\n!fatto <rif> - segni come completata un'attività tua";
         var verbs = state.Menu && state.Todo ? "!porto, !prendo e !fatto" : state.Menu ? "!porto" : "!prendo e !fatto";
