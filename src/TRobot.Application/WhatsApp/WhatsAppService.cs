@@ -259,6 +259,12 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                 var reply = await StartAttendanceAsync(connection, participant, now, token); await store.SaveAsync(token);
                 return new WhatsAppIncomingResult(true, ReplyText: reply, ReplyOperationId: record.Id);
             }
+            if (status is ParticipationStatus.Undecided or ParticipationStatus.Absent
+                && await StartFamilyStatusAsync(connection, participant, status, now, token) is { } familyReply)
+            {
+                await store.SaveAsync(token);
+                return new WhatsAppIncomingResult(true, ReplyText: familyReply, ReplyOperationId: record.Id);
+            }
             if (await CloseAttendanceAsync(connection.EventId, participant.PersonId, token)) await store.SaveAsync(token);
             return new WhatsAppIncomingResult(true, false, "✅");
         }, ct);

@@ -193,6 +193,9 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("FamilyStatus")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("GroupId")
                         .IsRequired()
                         .HasMaxLength(200)

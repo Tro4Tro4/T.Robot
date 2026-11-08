@@ -88,6 +88,8 @@ public sealed partial class WhatsAppService
         // The transport carries whole seconds; allow messages in the starting second,
         // but never apply an older, previously ignored reply to a newly started dialogue.
         if (messageUtc.Ticks < dialogue.StartedAtUtc.Ticks - dialogue.StartedAtUtc.Ticks % TimeSpan.TicksPerSecond) return null;
+        if (dialogue.Step == AttendanceDialogueStep.FamilyStatus)
+            return await FamilyStatusReplyAsync(connection, participant, dialogue, text, now, ct);
         if (dialogue.ActorId != connection.ActorId || dialogue.GroupId != connection.GroupId || dialogue.ConnectionRevision != connection.Revision
             || now < dialogue.StartedAtUtc || now >= dialogue.ExpiresAtUtc)
         { dialogue.Close(); return "⌛ Dettagli scaduti o collegamento cambiato. Riparti con !presenza si."; }
@@ -149,6 +151,65 @@ public sealed partial class WhatsAppService
         return text != "no" && dialogue.HouseholdId.HasValue ? "🎉 Presenza e date salvate per tutta la famiglia!"
             : targets.Count > 1 ? $"🎉 Soggiorno salvato per te e {Number(targets.Count - 1)} bambini collegati!"
             : "🎉 Soggiorno salvato! Per correggerlo usa !presenza modifica.";
+    }
+
+    private static string FamilyStatusLabel(ParticipationStatus status) => status == ParticipationStatus.Absent ? "assente" : "forse";
+    private static string FamilyStatusCommand(ParticipationStatus status) => status == ParticipationStatus.Absent ? "no" : "forse";
+
+    // Called after the sender's own status is saved: the snapshot must include it.
+    private async Task<string?> StartFamilyStatusAsync(WhatsAppConnection connection, EventParticipant participant, ParticipationStatus status, DateTime now, CancellationToken ct)
+    {
+        var household = await AttendanceHouseholdAsync(connection.EventId, participant.PersonId, ct);
+        if (!household.HasValue) return null;
+        var snapshot = await AttendanceSnapshotAsync(connection.EventId, participant.PersonId, household, ct);
+        var dialogue = await store.FindAsync<AttendanceDialogue>(connection.EventId, participant.PersonId, ct);
+        if (dialogue is null) { dialogue = new(connection.EventId, participant.PersonId); store.Add(dialogue); }
+        dialogue.StartFamilyStatus(connection.ActorId!.Value, connection.GroupId!, connection.Revision, now, status, household.Value, snapshot);
+        var family = await store.FindAsync<Household>(connection.EventId, household.Value, ct);
+        var children = (await AttendanceIndividualTargetsAsync(connection.EventId, participant.PersonId, ct)).Count - 1;
+        return $"👨‍👩‍👧 Segnato \"{FamilyStatusLabel(status)}\" per te. Vale per tutta la famiglia {SafeAttendanceName(family!.Name)}?\nSì per tutti, no "
+            + (children == 0 ? "solo per te" : $"per te e {Number(children)} bambini collegati") + ". !annulla lascia solo te.";
+    }
+
+    // Runs within IncomingAsync's transaction; other members change only after an explicit, fresh answer.
+    private async Task<string> FamilyStatusReplyAsync(WhatsAppConnection connection, EventParticipant participant, AttendanceDialogue dialogue, string text, DateTime now, CancellationToken ct)
+    {
+        var status = dialogue.FamilyStatus!.Value;
+        var label = FamilyStatusLabel(status);
+        if (dialogue.ActorId != connection.ActorId || dialogue.GroupId != connection.GroupId || dialogue.ConnectionRevision != connection.Revision
+            || now < dialogue.StartedAtUtc || now >= dialogue.ExpiresAtUtc)
+        { dialogue.Close(); return $"⌛ Domanda scaduta o collegamento cambiato: \"{label}\" resta solo per te. Per la famiglia ripeti !presenza {FamilyStatusCommand(status)}."; }
+        if (text.Equals("!annulla", StringComparison.OrdinalIgnoreCase))
+        { dialogue.Close(); return $"👌 Va bene: \"{label}\" resta solo per te."; }
+        if (await IsAttendanceChildAsync(connection.EventId, participant.PersonId, ct))
+        { dialogue.Close(); return "👨‍👩‍👧 Per il nucleo risponde il genitore collegato: resta cambiato solo il tuo stato."; }
+        text = text.Trim().ToLowerInvariant();
+        if (text is not ("si" or "sì" or "no")) return "👨‍👩‍👧 Rispondi sì per tutta la famiglia oppure no. !annulla lascia solo te.";
+        if (dialogue.SnapshotHash != await AttendanceSnapshotAsync(connection.EventId, participant.PersonId, dialogue.HouseholdId, ct))
+        { dialogue.Close(); return $"🔄 Presenze, soggiorni o nucleo sono cambiati. Ripeti !presenza {FamilyStatusCommand(status)} per usare i dati aggiornati."; }
+        var targets = await AttendanceIndividualTargetsAsync(connection.EventId, participant.PersonId, ct);
+        if (text != "no")
+        {
+            var participants = await store.ParticipantsAsync(connection.EventId, ct);
+            targets = (await store.ListAsync<HouseholdMember>(connection.EventId, ct))
+                .Where(x => x.IsActive && x.HouseholdId == dialogue.HouseholdId && participants.Any(p => p.Id == x.PersonId)).Select(x => x.PersonId).Distinct().Order().ToList();
+        }
+        foreach (var person in targets.Where(x => x != participant.PersonId))
+        {
+            var target = (await identities.ParticipantAsync(connection.EventId, person, ct))!;
+            var previous = target.Status;
+            if (!target.ChangeStatus(status, now)) continue;
+            // One technical receipt per changed member (derived hash, never a real message id);
+            // the audit names the sender as author. Stays and history are preserved.
+            var receipt = new WhatsAppIncomingReceipt(connection.EventId,
+                options.Fingerprint("attendance-family-status", $"{dialogue.EventId}:{dialogue.Id}:{dialogue.StartedAtUtc.Ticks}:{dialogue.Revision}:{person}"),
+                person, connection.ActorId!.Value, previous, status, now);
+            store.Add(receipt); operations.Audit(connection.EventId, participant.PersonId, receipt.Id, "WhatsApp", "FamilyPresenceApplied");
+        }
+        dialogue.Close();
+        return text != "no" ? $"👨‍👩‍👧 Fatto! \"{label}\" per tutta la famiglia."
+            : targets.Count > 1 ? $"👌 Segnato \"{label}\" per te e {Number(targets.Count - 1)} bambini collegati."
+            : $"👌 Va bene: \"{label}\" resta solo per te.";
     }
 
     private async Task<string> SummarizeAttendanceAsync(WhatsAppConnection connection, EventParticipant participant, AttendanceDialogue dialogue, int days, CancellationToken ct)

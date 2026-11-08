@@ -40,7 +40,7 @@ public sealed class AttendanceStayChange : ILocalRecord
     public int Revision { get; private set; }
 }
 
-public enum AttendanceDialogueStep { Closed, Arrival, Days, Confirmation, EditChoice }
+public enum AttendanceDialogueStep { Closed, Arrival, Days, Confirmation, EditChoice, FamilyStatus }
 
 /// <summary>One current technical dialogue per participant; never stores chat text or names.</summary>
 public sealed class AttendanceDialogue : ILocalRecord
@@ -62,11 +62,21 @@ public sealed class AttendanceDialogue : ILocalRecord
     public string? InitialSnapshotHash { get; private set; }
     public bool IsEdit { get; private set; }
     public bool PreserveDays { get; private set; }
+    /// <summary>Status to extend to the household; set only while Step is FamilyStatus.</summary>
+    public ParticipationStatus? FamilyStatus { get; private set; }
     public int Revision { get; private set; }
     public void Start(Guid actor, string group, int connectionRevision, DateTime utc)
     { ActorId = actor; GroupId = group; ConnectionRevision = connectionRevision; StartedAtUtc = utc; ExpiresAtUtc = utc.AddMinutes(15);
         Step = AttendanceDialogueStep.Arrival; Arrival = null; Days = null; HouseholdId = null; SnapshotHash = null;
-        InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; Revision++; }
+        InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; FamilyStatus = null; Revision++; }
+    public void StartFamilyStatus(Guid actor, string group, int connectionRevision, DateTime utc, ParticipationStatus status, Guid household, string snapshot)
+    {
+        if (status is not (ParticipationStatus.Undecided or ParticipationStatus.Absent)) throw new ArgumentOutOfRangeException(nameof(status));
+        if (household == Guid.Empty || string.IsNullOrWhiteSpace(snapshot)) throw new ArgumentException("Nucleo o snapshot non validi.");
+        ActorId = actor; GroupId = group; ConnectionRevision = connectionRevision; StartedAtUtc = utc; ExpiresAtUtc = utc.AddMinutes(15);
+        Step = AttendanceDialogueStep.FamilyStatus; FamilyStatus = status; Arrival = null; Days = null; HouseholdId = household;
+        SnapshotHash = snapshot; InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; Revision++;
+    }
     public void BeginEdit(DateOnly? arrival, int? days, Guid? household, string snapshot)
     { IsEdit = true; Arrival = arrival; Days = days; HouseholdId = household; InitialSnapshotHash = snapshot;
         Step = arrival.HasValue && days.HasValue ? AttendanceDialogueStep.EditChoice : AttendanceDialogueStep.Arrival; Revision++; }
@@ -81,5 +91,5 @@ public sealed class AttendanceDialogue : ILocalRecord
     public void SetArrival(DateOnly arrival) { Arrival = arrival; Step = AttendanceDialogueStep.Days; Revision++; }
     public void Summarize(int days, Guid? household, string snapshot)
     { Days = days; HouseholdId = household; SnapshotHash = snapshot; Step = AttendanceDialogueStep.Confirmation; Revision++; }
-    public void Close() { Step = AttendanceDialogueStep.Closed; Revision++; }
+    public void Close() { Step = AttendanceDialogueStep.Closed; FamilyStatus = null; Revision++; }
 }

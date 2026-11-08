@@ -17,7 +17,7 @@ public static class LocalHistoryLabels
         "BringMenu" => "Impegno menu registrato", "ClaimTask" => "Attività presa in carico", "CompleteTask" => "Attività completata",
         "AutomaticEnabled" => "Scheduler automatico locale abilitato", "AutomaticDisabled" => "Scheduler automatico locale disattivato",
         "Disconnected" => "Dispositivo disconnesso", "GroupChangeStarted" => "Cambio gruppo avviato", "GroupActivated" => "Gruppo attivato",
-        "IdentityMapped" => "Identità associata", "PresenceReceived" => "Presenza ricevuta nel gruppo", "LiveDraftCreated" => "Bozza reale preparata",
+        "IdentityMapped" => "Identità associata", "PresenceReceived" => "Presenza ricevuta nel gruppo", "FamilyPresenceApplied" => "Presenza estesa al nucleo dal mittente", "LiveDraftCreated" => "Bozza reale preparata",
         "LiveSending" => "Invio reale avviato", "LiveSent" => "Invio reale confermato", "LiveUncertain" => "Esito invio reale incerto",
         _ => "Operazione registrata"
     };

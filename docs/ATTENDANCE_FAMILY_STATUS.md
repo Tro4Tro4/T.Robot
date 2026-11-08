@@ -30,4 +30,10 @@ Disegno breve (sostituisce la skill `brainstorming` non disponibile in Claude Co
 
 ## Stato
 
-In sviluppo nel branch di sessione. Migrazione conservativa (sola colonna nullable). Nessun rilascio su Azure senza richiesta esplicita.
+Implementato nel branch di sessione l'8 novembre 2026. Non rilasciato su Azure: il rilascio richiede richiesta esplicita, backup coerente e rehearsal della migrazione come nei rilasci precedenti.
+
+- Migrazione `20261108152657_AddAttendanceFamilyStatus`: sola colonna nullable `FamilyStatus` su `AttendanceDialogues`, test di upgrade da `AddMealPreferences` con righe conservate e controlli integrity/FK.
+- Storico: per ogni altro membro effettivamente cambiato una `WhatsAppIncomingReceipt` con hash sintetico dedicato (fingerprint `attendance-family-status`, senza collisioni con i messaggi reali) e audit `FamilyPresenceApplied` con il mittente come autore. Scartate `ParticipationReceipt` (vincolo CHECK sull'origine, ricostruzione tabella in SQLite) e `AttendanceStayChange` (richiede date).
+- Verifiche nel container cloud con SDK 10.0.114 su copia senza `global.json` (10.0.401 non scaricabile dalla rete dell'ambiente): build 0 avvisi/errori, 679/679 test (baseline 663), nessuna modifica di modello pendente. Revisione indipendente in sola lettura APPROVED.
+- Suggerimenti facoltativi non applicati: test dedicato al cambio di collegamento tra domanda e risposta; plurale "1 bambini" ereditato dal flusso `si`; un "si" generico entro 15 minuti estende lo stato alla famiglia, stesso rischio gia accettato per `!presenza si`.
+- Collaudo dal telefono non eseguito.
