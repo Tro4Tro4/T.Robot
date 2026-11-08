@@ -385,3 +385,9 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 
 - `!aiuto` elenca solo le voci attive e come chiederne la spiegazione; `!aiuto presenza`, `!aiuto riepilogo`, `!aiuto pasti`, `!aiuto elenchi` danno il dettaglio. Scelta dell'utente: voci dinamiche. Presenza, riepilogo e pasti sempre attive nell'indice; elenchi solo con almeno un elenco Menu/Todo approvato con il fingerprint corrente. La voce pasti segue lo stato del ciclo: `!proponi` solo con raccolta aperta, `!preferenze` per votare con voto aperto e per consultare i risultati con voto chiuso.
 - Default scelti: alias in italiano per ogni voce, voce sconosciuta o non attiva risponde con l'elenco corto, scadenza adesioni mostrata nell'elenco e in `!aiuto presenza`. Nessuna migrazione. Disegno in docs/WHATSAPP_HELP_TOPICS.md.
+
+## 8 novembre 2026 - Risposte simpatiche a comandi sconosciuti o sbagliati
+
+- Su richiesta dell'utente, nel gruppo autorizzato e solo per mittenti associati: `!` seguito subito da una lettera con comando sconosciuto riceve una di dieci risposte simpatiche; `!presenza` senza argomento valido riceve una di dieci frasi simpatiche con uso corretto e rimando a `!aiuto presenza`; le risposte di sintassi gia esistenti di `!riepilogo`, `!menu`, `!todo` ricevono una frase simpatica in testa.
+- Default scelti: scelta riproducibile dal fingerprint del messaggio (idempotente), suggerimento del comando piu vicino entro due modifiche, citazione del solo token ripulito (massimo 20 caratteri), limite di una risposta simpatica ogni 5 minuti per persona e 6 ogni 10 minuti per gruppo per non alimentare lo spam.
+- Il gateway deve inoltrare anche i comandi sconosciuti del gruppo: richiede rilascio congiunto Web e gateway. Disegno e testi in docs/WHATSAPP_FUN_REPLIES.md.
