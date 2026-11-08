@@ -77,4 +77,4 @@ Per `!riepilogo`, `!menu`, `!todo`: frase + riga vuota + testo "ℹ️ Sintassi"
 
 ## Stato
 
-Implementato nel branch di sessione l'8 novembre 2026, solo Web (gateway invariato), nessuna migrazione. Build 0 avvisi, 695/695 test .NET (SDK 10.0.114 su copia senza global.json), gateway 60/60 con Node 22 (Node 24 non disponibile nell'ambiente). Revisione indipendente: vedere sotto. Nessun rilascio senza richiesta esplicita.
+Implementato nel branch di sessione l'8 novembre 2026, solo Web (gateway invariato), nessuna migrazione. Build 0 avvisi, 695/695 test .NET (SDK 10.0.114 su copia senza global.json), gateway 60/60 con Node 22 (Node 24 non disponibile nell'ambiente). Revisione indipendente in sola lettura APPROVED. Facoltativi non applicati: test aggiuntivi per "!presenzaxyz", "Pagina inesistente" ed "Elenco in attesa"; indice composito sugli audit solo se il volume crescera; "Pagina inesistente" resta senza frase; due frasi presenza citano Capodanno. Nessun rilascio senza richiesta esplicita.
