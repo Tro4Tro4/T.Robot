@@ -72,17 +72,27 @@ public sealed partial class WhatsAppIntegrationTests
     }
 
     [Fact]
-    public async Task HelpMealsPresentsPreferencesAsUsableOnlyWhileVotingIsOpen()
+    public async Task HelpMealsFollowsCycleStateForProposalsAndPreferences()
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
         var service = Service(p, new FakeGateway(), new Clock()); await Activate(p, f, service); var db = p.GetRequiredService<TRobotDbContext>();
-        var before = await Help(service, "!aiuto pasti", "m1");
-        Assert.Contains("!proponi", before); Assert.Contains("sarà disponibile quando gli organizzatori apriranno il voto", before); Assert.DoesNotContain("!conferma", before);
-        var cycle = new MealVotingCycle(f.EventId, Guid.NewGuid(), Now); db.Add(cycle); cycle.CloseCollection(); await db.SaveChangesAsync();
-        Assert.Contains("sarà disponibile", await Help(service, "!aiuto pasti", "m2"));
+        const string notYet = "sarà disponibile quando gli organizzatori apriranno il voto";
+        var none = await Help(service, "!aiuto pasti", "m1");
+        Assert.Contains("!proponi\nTi scrivo in privato", none); Assert.Contains(notYet, none); Assert.DoesNotContain("chiusa", none);
+        db.Add(new MealVotingCycle(f.EventId, Guid.NewGuid(), Now)); await db.SaveChangesAsync();
+        var collection = await Help(service, "!aiuto pasti", "m2");
+        Assert.Contains("!proponi\nTi scrivo in privato", collection); Assert.Contains(notYet, collection);
+        (await db.Set<MealVotingCycle>().SingleAsync()).CloseCollection(); await db.SaveChangesAsync();
+        var preparation = await Help(service, "!aiuto pasti", "m3");
+        Assert.Contains("La raccolta delle proposte è chiusa.", preparation); Assert.DoesNotContain("!proponi", preparation); Assert.DoesNotContain("Ti scrivo in privato: scegli giorno", preparation); Assert.Contains(notYet, preparation);
         (await db.Set<MealVotingCycle>().SingleAsync()).Open(Now); await db.SaveChangesAsync();
-        var open = await Help(service, "!aiuto pasti", "m3");
-        Assert.DoesNotContain("sarà disponibile", open); Assert.Contains("!preferenze\nTi scrivo in privato", open); Assert.Contains("cinque minuti", open);
+        var open = await Help(service, "!aiuto pasti", "m4");
+        Assert.Contains("La raccolta delle proposte è chiusa.", open); Assert.DoesNotContain(notYet, open);
+        Assert.Contains("!preferenze\nTi scrivo in privato", open); Assert.Contains("cinque minuti", open);
+        (await db.Set<MealVotingCycle>().SingleAsync()).Close("{}", Now); await db.SaveChangesAsync();
+        var closed = await Help(service, "!aiuto pasti", "m5");
+        Assert.Contains("La raccolta delle proposte è chiusa.", closed); Assert.DoesNotContain(notYet, closed); Assert.Contains("Il voto è chiuso", closed);
+        Assert.Contains("!aiuto pasti", await Help(service, "!aiuto", "m6"));
     }
 
     [Fact]
@@ -92,14 +102,18 @@ public sealed partial class WhatsAppIntegrationTests
         var service = Service(p, new FakeGateway(), new Clock()); var person = await Activate(p, f, service); var db = p.GetRequiredService<TRobotDbContext>();
         db.Add(new MenuItem(Guid.NewGuid(), f.EventId, "Voce sintetica", MenuCategory.Food, 2, "porzioni"));
         db.Add(new OrganizationTask(f.EventId, "Attività sintetica", null, TaskPriority.Normal, person, null));
-        var cycle = new MealVotingCycle(f.EventId, Guid.NewGuid(), Now); db.Add(cycle); cycle.CloseCollection(); cycle.Open(Now); await db.SaveChangesAsync();
+        var cycle = new MealVotingCycle(f.EventId, Guid.NewGuid(), Now); db.Add(cycle); await db.SaveChangesAsync();
         await ApproveKind(service, f, WhatsAppListKind.Menu); await ApproveKind(service, f, WhatsAppListKind.Todo);
         await service.SetAttendanceDeadlineAsync(f.OrganizerPersonId, f.EventId, new DateTime(2030, 12, 29, 12, 0, 0), 0, true);
         var i = 0; var max = 0;
-        foreach (var text in new[] { "!aiuto", "!aiuto presenza", "!aiuto riepilogo", "!aiuto pasti", "!aiuto elenchi", "!aiuto boh" })
+        for (var step = 0; step < 4; step++)
         {
-            var reply = await Help(service, text, "l" + i++); max = Math.Max(max, reply.Length);
-            Assert.InRange(reply.Length, 1, 1999); Assert.DoesNotContain('\u2014', reply);
+            if (step > 0) { var c = await db.Set<MealVotingCycle>().SingleAsync(); if (step == 1) c.CloseCollection(); else if (step == 2) c.Open(Now); else c.Close("{}", Now); await db.SaveChangesAsync(); }
+            foreach (var text in new[] { "!aiuto", "!aiuto presenza", "!aiuto riepilogo", "!aiuto pasti", "!aiuto elenchi", "!aiuto boh" })
+            {
+                var reply = await Help(service, text, "l" + i++); max = Math.Max(max, reply.Length);
+                Assert.InRange(reply.Length, 1, 1999); Assert.DoesNotContain('\u2014', reply);
+            }
         }
         Assert.True(max > 0);
         var first = await service.IncomingAsync(Incoming("!aiuto presenza", "idem"));

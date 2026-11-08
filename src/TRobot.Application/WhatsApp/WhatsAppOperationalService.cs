@@ -7,7 +7,7 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
-    private const string OperationalUnavailable = "⏳ Operazione non disponibile.\nControlla il riferimento e i requisiti con !aiuto, poi invia una nuova richiesta.";
+    private const string OperationalUnavailable = "⏳ Operazione non disponibile.\nControlla il riferimento e i requisiti con !aiuto elenchi, poi invia una nuova richiesta.";
 
     // Shares the authorized transaction with command receipt and audit persistence.
     private async Task<(string? Reply, bool Success)> OperationalReplyAsync(WhatsAppConnection connection,

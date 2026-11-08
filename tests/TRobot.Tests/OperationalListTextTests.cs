@@ -100,8 +100,9 @@ public sealed class OperationalListTextTests
     public void PresenceHelpFocusesOnPresenceAndExplainsDatesDaysAndFamily()
     {
         var lines = WhatsAppService.PresenceHelp.Split('\n');
-        foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no", "!presenza modifica" })
+        foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no" })
             Assert.Contains(command, lines);
+        Assert.Contains(lines, x => x.StartsWith("!presenza modifica", StringComparison.Ordinal));
         var commands = System.Text.RegularExpressions.Regex.Matches(WhatsAppService.PresenceHelp, @"![\p{L}]+")
             .Select(x => x.Value).Distinct().ToArray();
         Assert.Equal(new[] { "!presenza", "!annulla" }, commands);

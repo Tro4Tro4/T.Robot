@@ -19,23 +19,26 @@ public sealed partial class WhatsAppService
         + "😢 *Non riesco a venire*\n!presenza no\n"
         + "Forse e no cambiano subito la tua presenza. Se sei un adulto con altri partecipanti nel nucleo, ti chiedo se vale per tutti:\n"
         + "• sì = tutta la famiglia;\n• no = tu e i bambini collegati a te;\n• !annulla = solo tu.\n\n"
-        + "✏️ *Vuoi correggere le date?*\n!presenza modifica\nScegli 1 per l'arrivo, 2 per la durata, 3 per entrambi. Hai 15 minuti per completare le risposte.\n\n"
+        + "✏️ *Vuoi correggere le date?*\n!presenza modifica (serve la presenza confermata)\nSe le date sono già registrate scegli 1 per l'arrivo, 2 per la durata, 3 per entrambi; altrimenti ti chiedo l'arrivo. Hai 15 minuti per completare le risposte.\n\n"
         + "Tu prepara la valigia: al conto dei giorni ci penso io. 😎";
 
     private const string HelpTitle = "🤖 *T.Robot · Aiuto*\nScrivi !aiuto seguito dalla voce:\n\n";
     private const string HelpNotFound = "🤖 Voce non trovata o non attiva.\n\n";
     private const string SummaryHelp = "📊 *Riepilogo presenze*\n!riepilogo [pagina]\nMostra quanti hanno confermato, adulti e bambini, indecisi, assenti e senza risposta, con i conteggi per nucleo.\n\n"
-        + "!riepilogo gg/mm[/aaaa] [pagina]\nStesso riepilogo per un giorno preciso, per esempio !riepilogo 31/12. Conta i confermati il cui soggiorno comprende quel giorno.";
-    private const string MealsHelpHead = "🍝 *Pasti*\n\n*Proporre un piatto*\n!proponi\nTi scrivo in privato: scegli giorno, pasto e piatto e dici se ti offri di cucinarlo. "
+        + "!riepilogo gg/mm[/aaaa] [pagina]\nStesso riepilogo per un giorno preciso, per esempio !riepilogo 31/12. Conta i confermati il cui soggiorno comprende quel giorno. Indecisi, assenti e senza risposta restano complessivi.";
+    private const string MealsHelpProposalsOpen = "🍝 *Pasti*\n\n*Proporre un piatto*\n!proponi\nTi scrivo in privato: scegli giorno, pasto e piatto e dici se ti offri di cucinarlo. "
         + "Serve la presenza confermata con le date del soggiorno e puoi proporre solo nei giorni in cui ci sei. "
-        + "Hai cinque minuti dall'avvio; !annulla interrompe. Le proposte si raccolgono finché gli organizzatori non chiudono la raccolta.\n\n*Votare i piatti*\n";
-    private const string MealsHelpVoteOpen = "!preferenze\nTi scrivo in privato: scegli giorno e pasto, poi i piatti che preferisci, per te e per i bambini collegati. "
-        + "Puoi sceglierne più di uno nei giorni del tuo soggiorno confermato; controlli il riepilogo e salvi con !conferma. Hai cinque minuti dall'avvio; !annulla scarta le modifiche.";
-    private const string MealsHelpVoteClosed = "!preferenze sarà disponibile quando gli organizzatori apriranno il voto.";
+        + "Hai cinque minuti dall'avvio; !annulla interrompe. La raccolta resta aperta finché gli organizzatori non la chiudono.\n\n*Votare i piatti*\n";
+    private const string MealsHelpProposalsClosed = "🍝 *Pasti*\n\n*Proporre un piatto*\nLa raccolta delle proposte è chiusa.\n\n*Votare i piatti*\n";
+    private const string MealsHelpVoteOpen = "!preferenze\nTi scrivo in privato: scegli per chi (te o un bambino collegato), poi giorno e pasto, poi i piatti. "
+        + "Si vota nei giorni del soggiorno confermato di chi riceve il voto. Puoi sceglierne più di uno; controlli il riepilogo e salvi con !conferma. Hai cinque minuti dall'avvio; !annulla scarta le modifiche.";
+    private const string MealsHelpVoteClosed = "!preferenze\nIl voto è chiuso: ti scrivo in privato i risultati finali, scegliendo persona, giorno e pasto.";
+    private const string MealsHelpVoteNotYet = "!preferenze sarà disponibile quando gli organizzatori apriranno il voto.";
 
-    private readonly record struct HelpState(bool Menu, bool Todo, bool VoteOpen)
+    private readonly record struct HelpState(bool Menu, bool Todo, MealVotingState? Vote, bool ProposalsOpen)
     {
         public bool Lists => Menu || Todo;
+        public string VoteHelp => Vote switch { MealVotingState.Open => MealsHelpVoteOpen, MealVotingState.Closed => MealsHelpVoteClosed, _ => MealsHelpVoteNotYet };
     }
 
     private async Task<string> HelpReplyAsync(WhatsAppConnection connection, string[] parts, CancellationToken ct)
@@ -47,7 +50,7 @@ public sealed partial class WhatsAppService
             null when parts.Length == 1 => await HelpIndexWithDeadlineAsync(connection.EventId, state, ct),
             "presenza" or "presenze" => await WithAttendanceDeadlineAsync(connection.EventId, PresenceHelp, ct),
             "riepilogo" or "riepiloghi" => SummaryHelp,
-            "pasti" or "pasto" or "piatti" or "proponi" or "preferenze" => MealsHelpHead + (state.VoteOpen ? MealsHelpVoteOpen : MealsHelpVoteClosed),
+            "pasti" or "pasto" or "piatti" or "proponi" or "preferenze" => (state.ProposalsOpen ? MealsHelpProposalsOpen : MealsHelpProposalsClosed) + state.VoteHelp,
             "elenchi" or "elenco" or "menu" or "todo" or "impegni" or "porto" or "prendo" or "fatto" when state.Lists => ListsHelp(state),
             _ => null
         };
@@ -65,8 +68,8 @@ public sealed partial class WhatsAppService
 
     private static string ListsHelp(HelpState state)
     {
-        var text = "📋 *Elenchi*";
-        if (state.Menu) text += "\n\n🍽️ *Menu*\n!menu [pagina] - mostra il menu\n!porto <rif> - ti proponi di portare una voce, con il riferimento indicato nell'elenco";
+        var text = "📋 *Elenchi*\nServe la presenza confermata; i bambini collegati non possono usare i comandi che modificano.";
+        if (state.Menu) text += "\n\n🍽️ *Menu*\n!menu [pagina] - mostra il menu\n!porto <rif> - ti proponi di portare una voce libera o già tua";
         if (state.Todo) text += "\n\n✅ *Cose da fare*\n!todo [pagina] - mostra le attività\n!prendo <rif> - ti proponi per un'attività\n!fatto <rif> - segni come completata un'attività tua";
         var verbs = state.Menu && state.Todo ? "!porto, !prendo e !fatto" : state.Menu ? "!porto" : "!prendo e !fatto";
         return text + $"\n\n🙋 Per {verbs} ti rispondo con un codice: invia !conferma <codice> entro cinque minuti e solo allora la modifica viene salvata.";
@@ -74,8 +77,11 @@ public sealed partial class WhatsAppService
 
     private async Task<HelpState> HelpStateAsync(WhatsAppConnection connection, CancellationToken ct)
     {
-        var voteOpen = (await store.ListAsync<MealVotingCycle>(connection.EventId, ct)).Any(x => x.State == MealVotingState.Open);
-        return new(await ListApprovedAsync(connection, WhatsAppListKind.Menu, ct), await ListApprovedAsync(connection, WhatsAppListKind.Todo, ct), voteOpen);
+        var cycles = await store.ListAsync<MealVotingCycle>(connection.EventId, ct);
+        // At most one cycle is not closed; with only closed cycles the voting is closed for good.
+        MealVotingState? vote = cycles.FirstOrDefault(x => x.State != MealVotingState.Closed)?.State ?? (cycles.Count > 0 ? MealVotingState.Closed : null);
+        var proposalsOpen = cycles.Count == 0 || cycles.Any(x => x.State == MealVotingState.Collection);
+        return new(await ListApprovedAsync(connection, WhatsAppListKind.Menu, ct), await ListApprovedAsync(connection, WhatsAppListKind.Todo, ct), vote, proposalsOpen);
     }
 
     // Same check as !menu/!todo; an unreadable (e.g. too long) list counts as not active.
