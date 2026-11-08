@@ -69,7 +69,7 @@ Inviare `!riepilogo` nel gruppo dal numero associato a un partecipante dell'even
 
 Chi non ha una classificazione attiva nel nucleo viene incluso nel totale con età non specificata. Il riepilogo distingue inoltre gli stati generali e segnala in forma aggregata i soggiorni ancora da completare: una presenza confermata senza date conta comunque fra i confermati. Vengono mostrati i nomi dei nuclei e i relativi conteggi, senza nomi individuali, date personali, note o saldi.
 
-Con molti nuclei, proseguire con `!riepilogo 2`: massimo cinque nuclei per pagina, totale generale ripetuto in ogni pagina. Il comando consulta le presenze senza modificarle e può essere usato anche durante una compilazione aperta. Non richiede l'approvazione degli elenchi menu/attività. La guida `!aiuto` resta dedicata alla presenza.
+Con molti nuclei, proseguire con `!riepilogo 2`: massimo cinque nuclei per pagina, totale generale ripetuto in ogni pagina. Il comando consulta le presenze senza modificarle e può essere usato anche durante una compilazione aperta. Non richiede l'approvazione degli elenchi menu/attività. Dall'8 novembre 2026 `!aiuto` elenca le voci attive e `!aiuto riepilogo` spiega questo comando (vedere `docs/WHATSAPP_HELP_TOPICS.md`).
 
 Per un giorno specifico usare `!riepilogo 31/12` oppure `!riepilogo 31/12/2026`; per le altre pagine, per esempio, `!riepilogo 31/12/2026 2`. Contano soltanto i confermati con soggiorno completo che comprende quel giorno, inclusi arrivo e ultimo giorno. I bambini sono inclusi; i confermati senza date sono segnalati separatamente e non assegnati a un giorno inventato. Senza data il comando mantiene il totale generale dell'evento.
 
@@ -83,7 +83,7 @@ Dal numero privato o dell'amico associato nel gruppo:
 !todo
 ```
 
-`!aiuto` è temporaneamente dedicato soltanto alla presenza, con istruzioni su arrivo, giorni inclusivi e conferma familiare. Menu e attività richiedono prima l'approvazione dei contenuti dal sito: **WhatsApp → Elenchi condivisibili nel gruppo → Anteprima e approvazione menu/attività**. Controllare il nome del gruppo e tutte le pagine, spuntare la conferma e premere **Approva condivisione elenco**. Approvare non invia messaggi.
+Dall'8 novembre 2026 `!aiuto` elenca le voci attive: `!aiuto presenza` contiene le istruzioni su arrivo, giorni inclusivi e conferma familiare, mentre la voce `!aiuto elenchi` compare solo quando almeno un elenco è approvato (`docs/WHATSAPP_HELP_TOPICS.md`). Menu e attività richiedono prima l'approvazione dei contenuti dal sito: **WhatsApp → Elenchi condivisibili nel gruppo → Anteprima e approvazione menu/attività**. Controllare il nome del gruppo e tutte le pagine, spuntare la conferma e premere **Approva condivisione elenco**. Approvare non invia messaggi.
 
 La risposta contiene al massimo cinque elementi per pagina, senza responsabili, note o dati delle anagrafiche. Per continuare usare `!menu 2` oppure `!todo 2`. Prima dell'approvazione, o dopo una modifica ai contenuti o al collegamento, il comando restituisce soltanto un avviso generico: occorre una nuova anteprima e approvazione. I titoli sono testo libero: verificare che non contengano dati personali prima di approvarli.
 

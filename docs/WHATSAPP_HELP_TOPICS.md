@@ -8,7 +8,7 @@ Richiesta dell'utente: rendere `!aiuto` piu mirato. `!aiuto` da solo spiega come
 | --- | --- | --- | --- |
 | `presenza` | `presenze` | sempre | `!presenza si/forse/no/modifica`, date, domanda famiglia anche per forse/no, `!annulla`, 15 minuti, scadenza adesioni se impostata |
 | `riepilogo` | `riepiloghi` | sempre | `!riepilogo [pagina]`, `!riepilogo gg/mm [pagina]` |
-| `pasti` | `pasto`, `piatti`, `proponi`, `preferenze` | sempre (`!proponi` sempre disponibile) | `!proponi` (dialogo privato, presenza e date confermate); `!preferenze` solo se esiste un ciclo di voto in stato `Open`, altrimenti indica che sara disponibile all'apertura del voto |
+| `pasti` | `pasto`, `piatti`, `proponi`, `preferenze` | sempre nell'indice; il contenuto segue lo stato reale | `!proponi` spiegato solo se la raccolta e aperta (nessun ciclo oppure un ciclo in `Collection`, stessa condizione del comando), altrimenti "raccolta chiusa"; `!preferenze`: voto aperto (`Open`) -> come votare, voto chiuso (`Closed`) -> consultazione dei risultati, altrimenti disponibile all'apertura del voto |
 | `elenchi` | `elenco`, `menu`, `todo`, `impegni`, `porto`, `prendo`, `fatto` | solo se almeno un elenco Menu o Todo e approvato con il fingerprint corrente (stessa verifica usata da `!menu`/`!todo`) | solo i comandi degli elenchi approvati: Menu -> `!menu`, `!porto`; Todo -> `!todo`, `!prendo`, `!fatto`; `!conferma` entro cinque minuti |
 
 ## Regole
@@ -22,4 +22,4 @@ Richiesta dell'utente: rendere `!aiuto` piu mirato. `!aiuto` da solo spiega come
 
 ## Stato
 
-In sviluppo nel branch di sessione, insieme alle modifiche presenze dell'8 novembre ancora non rilasciate.
+In sviluppo nel branch di sessione, insieme alle modifiche presenze dell'8 novembre ancora non rilasciate. Prima revisione indipendente CHANGES_REQUESTED: la voce pasti dichiarava `!proponi` sempre usabile e `!preferenze` futuro anche con voto chiuso; corretto facendo seguire al testo lo stato reale del ciclo.
