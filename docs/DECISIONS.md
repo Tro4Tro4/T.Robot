@@ -380,3 +380,8 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - Un'assenza o un "forse" per la famiglia non cancella soggiorni gia registrati: storico conservato, conteggi correnti invariati nella logica.
 - Il sito riservato permette ora anche "Senza risposta" nella pagina Registra presenza del singolo partecipante. La regola precedente "nessun comando di reset a NoResponse" resta valida solo per WhatsApp.
 - Nuova colonna nullable sul dialogo presenze, migrazione conservativa. Nessun rilascio Azure senza richiesta esplicita. Disegno in docs/ATTENDANCE_FAMILY_STATUS.md.
+
+## 8 novembre 2026 - Aiuto WhatsApp per voci
+
+- `!aiuto` elenca solo le voci attive e come chiederne la spiegazione; `!aiuto presenza`, `!aiuto riepilogo`, `!aiuto pasti`, `!aiuto elenchi` danno il dettaglio. Scelta dell'utente: voci dinamiche. Presenza, riepilogo e pasti sempre attive; elenchi solo con almeno un elenco Menu/Todo approvato con il fingerprint corrente; `!preferenze` citato come disponibile solo con un voto aperto.
+- Default scelti: alias in italiano per ogni voce, voce sconosciuta o non attiva risponde con l'elenco corto, scadenza adesioni mostrata nell'elenco e in `!aiuto presenza`. Nessuna migrazione. Disegno in docs/WHATSAPP_HELP_TOPICS.md.
