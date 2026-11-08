@@ -35,8 +35,8 @@ public sealed class OrganizerAttendanceService(IAttendanceStore store, TimeProvi
             if (!command.Confirmed) throw new AttendanceValidationException("Conferma esplicitamente la registrazione della presenza per questa persona.");
             if (command.PersonId == Guid.Empty || command.OperationId == Guid.Empty)
                 throw new AttendanceValidationException("Partecipante o identificativo operazione non valido.");
-            if (command.Status is not (ParticipationStatus.Confirmed or ParticipationStatus.Undecided or ParticipationStatus.Absent))
-                throw new AttendanceValidationException("Scegli Confermato, Indeciso o Assente.");
+            if (!Enum.IsDefined(command.Status))
+                throw new AttendanceValidationException("Scegli Confermato, Indeciso, Assente o Senza risposta.");
             if (string.IsNullOrWhiteSpace(command.ExpectedVersion) || command.ExpectedVersion.Length > 100)
                 throw new AttendanceValidationException("Versione presenza non valida. Ricarica la pagina.");
             var member = await store.FindParticipantByPersonAsync(command.EventId, command.PersonId, token)

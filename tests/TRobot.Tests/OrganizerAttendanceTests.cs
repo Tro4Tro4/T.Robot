@@ -195,7 +195,6 @@ public sealed class OrganizerAttendanceTests
     [InlineData("unassigned")]
     [InlineData("empty-actor")]
     [InlineData("unconfirmed")]
-    [InlineData("no-response")]
     [InlineData("invalid-status")]
     [InlineData("empty-operation")]
     [InlineData("wrong-person")]
@@ -214,7 +213,6 @@ public sealed class OrganizerAttendanceTests
             case "unassigned": await db.EventOrganizers.ExecuteUpdateAsync(x => x.SetProperty(u => u.IsActive, false)); break;
             case "empty-actor": actorId = Guid.Empty; break;
             case "unconfirmed": command = command with { Confirmed = false }; break;
-            case "no-response": command = command with { Status = ParticipationStatus.NoResponse }; break;
             case "invalid-status": command = command with { Status = (ParticipationStatus)99 }; break;
             case "empty-operation": command = command with { OperationId = Guid.Empty }; break;
             case "wrong-person": command = command with { PersonId = Guid.NewGuid() }; break;
@@ -226,6 +224,91 @@ public sealed class OrganizerAttendanceTests
         else await Assert.ThrowsAsync<AttendanceValidationException>(() => service.SetAsync(actorId, command));
         Assert.Empty(await db.ParticipationReceipts.ToListAsync());
         Assert.Equal(ParticipationStatus.NoResponse, (await db.EventParticipants.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task OrganizerCanResetToNoResponseWithReceiptAndLeavesStaysUntouched()
+    {
+        await using var factory = new LocalWebFactory();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TRobotDbContext>();
+        var member = await db.EventParticipants.SingleAsync();
+        var personId = member.PersonId;
+        member.ChangeStatus(ParticipationStatus.Confirmed, DateTime.UtcNow.AddDays(-1));
+        var stay = new AttendanceStay(factory.EventId, personId);
+        stay.Set(new(2030, 12, 30), 3);
+        db.Add(stay);
+        await db.SaveChangesAsync();
+        var revisionBefore = stay.Revision;
+        var stayChangesBefore = await db.Set<AttendanceStayChange>().CountAsync();
+        var service = scope.ServiceProvider.GetRequiredService<OrganizerAttendanceService>();
+        var snapshot = await service.GetAsync(factory.OrganizerPersonId, factory.EventId, personId);
+        var result = await service.SetAsync(factory.OrganizerPersonId,
+            new(factory.EventId, personId, Guid.NewGuid(), ParticipationStatus.NoResponse, snapshot.Version, true));
+        Assert.True(result.Changed);
+        Assert.False(result.Duplicate);
+        Assert.Equal(ParticipationStatus.NoResponse, result.Status);
+        db.ChangeTracker.Clear();
+        var saved = await db.EventParticipants.SingleAsync();
+        Assert.Equal(ParticipationStatus.NoResponse, saved.Status);
+        var receipt = await db.ParticipationReceipts.SingleAsync();
+        Assert.Equal(AttendanceOrigin.Organizer, receipt.Origin);
+        Assert.Equal(ParticipationStatus.Confirmed, receipt.PreviousStatus);
+        Assert.Equal(ParticipationStatus.NoResponse, receipt.Status);
+        Assert.Equal(receipt.ProcessedAtUtc, saved.UpdatedAtUtc);
+        var savedStay = await db.Set<AttendanceStay>().SingleAsync();
+        Assert.Equal(new DateOnly(2030, 12, 30), savedStay.Arrival);
+        Assert.Equal(3, savedStay.Days);
+        Assert.Equal(revisionBefore, savedStay.Revision);
+        Assert.Equal(stayChangesBefore, await db.Set<AttendanceStayChange>().CountAsync());
+    }
+
+    [Fact]
+    public async Task UndefinedStatusIsRejectedWithUpdatedMessage()
+    {
+        await using var factory = new LocalWebFactory();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TRobotDbContext>();
+        var personId = (await db.EventParticipants.SingleAsync()).PersonId;
+        var service = scope.ServiceProvider.GetRequiredService<OrganizerAttendanceService>();
+        var ex = await Assert.ThrowsAsync<AttendanceValidationException>(() => service.SetAsync(factory.OrganizerPersonId,
+            new(factory.EventId, personId, Guid.NewGuid(), (ParticipationStatus)99, "0:-", true)));
+        Assert.Equal("Scegli Confermato, Indeciso, Assente o Senza risposta.", ex.Message);
+        Assert.Empty(await db.ParticipationReceipts.ToListAsync());
+    }
+
+    [Fact]
+    public async Task HttpFormOffersNoResponseAndOrganizerCanSetItFromConfirmed()
+    {
+        await using var factory = new LocalWebFactory();
+        Guid personId;
+        using (var setup = factory.Services.CreateScope())
+            personId = (await setup.ServiceProvider.GetRequiredService<TRobotDbContext>().EventParticipants.SingleAsync()).PersonId;
+        using var client = Client(factory);
+        await Login(client);
+        var url = $"/Attendance/Edit?eventId={factory.EventId}&personId={personId}";
+        var html = await client.GetStringAsync(url);
+        Assert.Contains("<option value=\"NoResponse\">Senza risposta</option>", html);
+        var postUrl = "/Attendance/Set?eventId=" + factory.EventId;
+        var confirm = new OrganizerAttendanceCommand(factory.EventId, personId, Guid.NewGuid(), ParticipationStatus.Confirmed,
+            Field(html, "Input.ExpectedVersion"), true);
+        var submitted = await client.PostAsync(postUrl, CommandForm(confirm, Field(html, "__RequestVerificationToken")));
+        Assert.Equal(HttpStatusCode.Redirect, submitted.StatusCode);
+        html = await client.GetStringAsync(url);
+        var reset = new OrganizerAttendanceCommand(factory.EventId, personId, Guid.NewGuid(), ParticipationStatus.NoResponse,
+            Field(html, "Input.ExpectedVersion"), true);
+        var resetResponse = await client.PostAsync(postUrl, CommandForm(reset, Field(html, "__RequestVerificationToken")));
+        Assert.Equal(HttpStatusCode.Redirect, resetResponse.StatusCode);
+        Assert.Contains("Conteggi aggiornati", await client.GetStringAsync(resetResponse.Headers.Location));
+        var dashboard = await client.GetStringAsync("/");
+        Assert.Contains("id=\"confirmed-count\">0", dashboard);
+        using var verify = factory.Services.CreateScope();
+        var db = verify.ServiceProvider.GetRequiredService<TRobotDbContext>();
+        Assert.Equal(ParticipationStatus.NoResponse, (await db.EventParticipants.SingleAsync()).Status);
+        var receipts = await db.ParticipationReceipts.OrderBy(x => x.ProcessedAtUtc).ToListAsync();
+        Assert.Equal(2, receipts.Count);
+        Assert.Equal(ParticipationStatus.NoResponse, receipts[1].Status);
+        Assert.Equal(AttendanceOrigin.Organizer, receipts[1].Origin);
     }
 
     [Fact]
