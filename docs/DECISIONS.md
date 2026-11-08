@@ -373,3 +373,10 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - Per velocizzare l'associazione dei membri del gruppo, il portale distingue gli identificativi che hanno gia almeno un alias attivo nell'evento. I membri ancora da associare restano in alto; quelli gia associati sono spostati in fondo, raggruppati ed evidenziati in verde quando selezionati.
 - Il flag e calcolato nel servizio Application tramite gli hash gia presenti: non espone numeri, hash o associazioni personali nuove e non modifica le autorizzazioni, il gateway o le regole di salvataggio.
 - Su richiesta dell'utente di completare la pubblicazione, rilasciato solo il Web in member-associations-20261105-arm64 con la stessa procedura conservativa del 1 novembre (backup coerente, confronto righe, recovery della sessione); gateway M34, chiavi, identita e gruppo invariati. Archivio preparato nella sessione precedente riusato dopo verifica di build, 663 test e corrispondenza degli asset. Dettagli in docs/MEMBER_ASSOCIATIONS_RELEASE.md.
+
+## 8 novembre 2026 - Domanda famiglia per no/forse e stato dal sito
+
+- `!presenza no` e `!presenza forse` cambiano subito lo stato del mittente; se e un adulto in un nucleo con altri partecipanti attivi il bot chiede se vale per tutta la famiglia (`si`), solo per lui e i bambini collegati (`no`) o solo per lui (`!annulla`), con lo stesso modello e la stessa scadenza di 15 minuti del dialogo `!presenza si`. Nessun altro membro cambia prima della risposta; snapshot del nucleo contro conferme obsolete.
+- Un'assenza o un "forse" per la famiglia non cancella soggiorni gia registrati: storico conservato, conteggi correnti invariati nella logica.
+- Il sito riservato permette ora anche "Senza risposta" nella pagina Registra presenza del singolo partecipante. La regola precedente "nessun comando di reset a NoResponse" resta valida solo per WhatsApp.
+- Nuova colonna nullable sul dialogo presenze, migrazione conservativa. Nessun rilascio Azure senza richiesta esplicita. Disegno in docs/ATTENDANCE_FAMILY_STATUS.md.
