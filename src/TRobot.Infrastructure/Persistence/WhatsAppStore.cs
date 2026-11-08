@@ -10,4 +10,6 @@ public sealed class WhatsAppStore(TRobotDbContext db) : IWhatsAppStore
     public Task<WhatsAppConnection?> ActiveConnectionAsync(CancellationToken ct) => db.Set<WhatsAppConnection>().SingleOrDefaultAsync(x => x.Enabled, ct);
     public Task<EventParticipant?> ParticipantAsync(Guid eventId, Guid personId, CancellationToken ct) => db.EventParticipants.SingleOrDefaultAsync(x => x.EventId == eventId && x.PersonId == personId, ct);
     public Task<WhatsAppIncomingReceipt?> ReceiptAsync(Guid eventId, string messageHash, CancellationToken ct) => db.Set<WhatsAppIncomingReceipt>().SingleOrDefaultAsync(x => x.EventId == eventId && x.MessageHash == messageHash, ct);
+    public async Task<IReadOnlyList<LocalAudit>> AuditsSinceAsync(Guid eventId, string action, DateTime afterUtc, CancellationToken ct) => await db.Set<LocalAudit>()
+        .AsNoTracking().Where(x => x.EventId == eventId && x.Action == action && x.AtUtc > afterUtc).ToListAsync(ct);
 }

@@ -193,11 +193,13 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
         var operational = command is "!porto" or "!prendo" or "!fatto" or "!conferma";
         var attendanceEdit = parts.Length == 2 && command == "!presenza" && parts[1].Equals("modifica", StringComparison.OrdinalIgnoreCase);
         var attendanceAnswer = command == "!annulla" && parts.Length == 1 || AttendanceCandidate(input.Text);
+        // A malformed !presenza (missing or invalid argument) gets a fun informational reply.
+        var presenceMisuse = false;
         ParticipationStatus status = default;
         if (!informational && !operational && !attendanceAnswer && !attendanceEdit)
         {
             try { status = AttendanceService.Parse(input.Text); }
-            catch (AttendanceValidationException) { return new(false); }
+            catch (AttendanceValidationException) { if (command != "!presenza") return new(false); presenceMisuse = true; }
         }
         string[] hashes;
         try { hashes = HashAliases(input.SenderIds); } catch (LocalValidationException) { return new(false); }
@@ -220,8 +222,9 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             if (participant is null) return new WhatsAppIncomingResult(false);
             var messageHash = options.Fingerprint("message", input.GroupId + ":" + input.MessageId);
             var receipt = await identities.ReceiptAsync(connection.EventId, messageHash, token);
-            var informationReceipt = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token)).SingleOrDefault(x => x.MessageHash == messageHash);
-            if (informational || operational || attendanceAnswer || attendanceEdit)
+            var commandReceipts = await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token);
+            var informationReceipt = commandReceipts.SingleOrDefault(x => x.MessageHash == messageHash);
+            if (informational || operational || attendanceAnswer || attendanceEdit || presenceMisuse)
             {
                 if (receipt is not null) throw new LocalConflictException("Identificativo messaggio già utilizzato per una presenza.");
                 var commandHash = options.Fingerprint("command", input.Text);
@@ -231,7 +234,9 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                         throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
                     return new WhatsAppIncomingResult(true, true);
                 }
-                var outcome = attendanceEdit
+                var outcome = presenceMisuse
+                    ? (Reply: await FunReplyAllowedAsync(connection.EventId, participant.PersonId, commandReceipts, now, token) ? PresenceMisuseReply(messageHash) : null, Success: false)
+                    : attendanceEdit
                     ? (Reply: (string?)await StartAttendanceEditAsync(connection, participant, now, token), Success: false)
                     : attendanceAnswer
                     ? (Reply: await AttendanceReplyAsync(connection, participant, input.Text.Trim(), now, timestamp, token), Success: false)
@@ -239,8 +244,16 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                     ? await OperationalReplyAsync(connection, participant, parts, now, token)
                     : (Reply: (string?)await InformationReplyAsync(connection, parts, token), Success: false);
                 if (attendanceAnswer && outcome.Reply is null) return new WhatsAppIncomingResult(false);
+                // Over the limit the existing syntax text is still sent, only without the fun phrase.
+                var funSent = presenceMisuse ? outcome.Reply is not null : informational && MisuseTexts(command) is not null && IsSyntaxReply(outcome.Reply)
+                    && await FunReplyAllowedAsync(connection.EventId, participant.PersonId, commandReceipts, now, token);
+                if (funSent && !presenceMisuse) outcome.Reply = SyntaxMisuseReply(command, messageHash, outcome.Reply!);
                 var informationRecord = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
-                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", attendanceAnswer ? "AttendanceAnswerReceived" : operational ? "OperationalReceived" : "InformationReceived"); await store.SaveAsync(token);
+                store.Add(informationRecord); operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", attendanceAnswer ? "AttendanceAnswerReceived" : operational ? "OperationalReceived" : "InformationReceived");
+                if (funSent) operations.Audit(connection.EventId, actor, informationRecord.Id, "WhatsApp", FunReplyAction);
+                await store.SaveAsync(token);
+                // A fun reply suppressed by the anti-spam limit is handled silently: no text, no reaction, nothing sent.
+                if (presenceMisuse && outcome.Reply is null) return new WhatsAppIncomingResult(true);
                 return outcome.Success ? new WhatsAppIncomingResult(true, Reaction: "✅")
                     : new WhatsAppIncomingResult(true, ReplyText: outcome.Reply, ReplyOperationId: informationRecord.Id);
             }

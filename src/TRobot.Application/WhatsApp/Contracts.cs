@@ -55,4 +55,5 @@ public interface IWhatsAppStore
     Task<WhatsAppConnection?> ActiveConnectionAsync(CancellationToken ct);
     Task<EventParticipant?> ParticipantAsync(Guid eventId, Guid personId, CancellationToken ct);
     Task<WhatsAppIncomingReceipt?> ReceiptAsync(Guid eventId, string messageHash, CancellationToken ct);
+    Task<IReadOnlyList<LocalAudit>> AuditsSinceAsync(Guid eventId, string action, DateTime afterUtc, CancellationToken ct);
 }
