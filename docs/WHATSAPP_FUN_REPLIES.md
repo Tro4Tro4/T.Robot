@@ -2,6 +2,10 @@
 
 Richiesta dell'utente: a un comando sconosciuto (`!` seguito subito da testo) rispondere in modo simpatico che il comando non esiste; a un comando esistente usato male (es. `!presenza bho`) rispondere in modo simpatico rimandando al manuale. Una decina di testi per caso, scelto a caso. Liberta lasciata sui testi.
 
+## Riduzione di ambito (8 novembre 2026)
+
+Su indicazione dell'utente ("se incasina troppo lasciamo perdere") il riconoscimento dei comandi sconosciuti `!testo` e stato abbandonato: avrebbe richiesto di modificare e rilasciare anche il gateway, aumentato il traffico verso il Web e il rischio di alimentare lo spam. Restano solo le risposte ai comandi esistenti usati male; gateway invariato. Le regole 2 e 3 e i testi per comando sconosciuto sotto sono conservati solo come traccia del disegno iniziale e non sono implementati.
+
 ## Stato di partenza verificato
 
 - Il gateway Node (`gateway/TRobot.WhatsApp/src/gateway.js`) inoltra nel gruppo solo i comandi noti: `!pizza` viene scartato prima del Web. Serve quindi una modifica al gateway, da rilasciare insieme al Web.
@@ -51,4 +55,4 @@ Per `!presenza` dopo la frase: "Uso corretto: !presenza si | forse | no | modifi
 
 ## Stato
 
-In sviluppo nel branch di sessione. Richiede rilascio congiunto di Web e gateway, non autorizzato senza richiesta esplicita.
+In sviluppo nel branch di sessione, solo Web (gateway invariato). Nessun rilascio senza richiesta esplicita.
