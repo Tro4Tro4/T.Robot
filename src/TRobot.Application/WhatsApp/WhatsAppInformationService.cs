@@ -7,21 +7,6 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
-    public const string RealHelp = "🤖 *T.Robot · Ci sei a Capodanno?*\n\n"
-        + "🎉 *Ci sono!*\n!presenza si\n"
-        + "Ti faccio una domanda alla volta, tu rispondi qui nel gruppo:\n\n"
-        + "📅 *Quando arrivi?*\nScrivi la data, per esempio 30/12 oppure 30/12/2026.\n\n"
-        + "🧳 *Quanti giorni resti?*\nScrivi solo il numero, da 1 a 31. Contiamo anche il giorno di arrivo!\n"
-        + "Esempio: arrivo 30/12 e 4 giorni = fino al 02/01, per 3 notti.\n\n"
-        + "🏡 *Tutta la famiglia o missione in solitaria?*\n"
-        + "Se sei un adulto del nucleo, ti chiedo se confermare le stesse date per tutti:\n"
-        + "• sì = tutta la famiglia;\n• no = tu e i bambini collegati a te, con le tue date.\n"
-        + "Se compili per te, basta confermare il tuo riepilogo con sì. I dettagli si salvano alla conferma finale.\n\n"
-        + "🤔 *Devo ancora decidere*\n!presenza forse\n\n"
-        + "😢 *Non riesco a venire*\n!presenza no\n"
-        + "Forse e no aggiornano soltanto la tua presenza.\n\n"
-        + "✏️ *Vuoi correggere le date?*\n!presenza modifica\nScegli 1 per l'arrivo, 2 per la durata, 3 per entrambi. Hai 15 minuti per completare le risposte.\n\n"
-        + "Tu prepara la valigia: al conto dei giorni ci penso io. 😎";
     private const string UnapprovedList = "⏳ *Elenco in attesa*\nGli organizzatori devono approvare i contenuti aggiornati dal sito. Riprova dopo l'approvazione.";
 
     public async Task<WhatsAppListPreview> PreviewListAsync(Guid actorId, Guid eventId, WhatsAppListKind kind, CancellationToken ct = default)
@@ -79,7 +64,7 @@ public sealed partial class WhatsAppService
     private async Task<string> InformationReplyAsync(WhatsAppConnection connection, string[] parts, CancellationToken ct)
     {
         var command = parts[0].ToLowerInvariant();
-        if (command == "!aiuto") return parts.Length == 1 ? await WithAttendanceDeadlineAsync(connection.EventId, RealHelp, ct) : "ℹ️ Sintassi:\n!aiuto";
+        if (command == "!aiuto") return await HelpReplyAsync(connection, parts, ct);
         if (command == "!riepilogo" && parts.Length > 1 && parts[1].Contains('/'))
         {
             var ev = (await store.EventAsync(connection.EventId, ct))!;

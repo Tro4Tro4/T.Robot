@@ -97,16 +97,16 @@ public sealed class OperationalListTextTests
     }
 
     [Fact]
-    public void RealHelpFocusesOnPresenceAndExplainsDatesDaysAndFamily()
+    public void PresenceHelpFocusesOnPresenceAndExplainsDatesDaysAndFamily()
     {
-        var lines = WhatsAppService.RealHelp.Split('\n');
+        var lines = WhatsAppService.PresenceHelp.Split('\n');
         foreach (var command in new[] { "!presenza si", "!presenza forse", "!presenza no", "!presenza modifica" })
             Assert.Contains(command, lines);
-        var commands = System.Text.RegularExpressions.Regex.Matches(WhatsAppService.RealHelp, @"![\p{L}]+")
+        var commands = System.Text.RegularExpressions.Regex.Matches(WhatsAppService.PresenceHelp, @"![\p{L}]+")
             .Select(x => x.Value).Distinct().ToArray();
-        Assert.Equal(new[] { "!presenza" }, commands);
-        Assert.Contains("30/12", WhatsAppService.RealHelp); Assert.Contains("02/01", WhatsAppService.RealHelp);
-        Assert.Contains("3 notti", WhatsAppService.RealHelp); Assert.Contains("bambini collegati a te", WhatsAppService.RealHelp);
-        Assert.InRange(WhatsAppService.RealHelp.Length, 1, 2000);
+        Assert.Equal(new[] { "!presenza", "!annulla" }, commands);
+        Assert.Contains("30/12", WhatsAppService.PresenceHelp); Assert.Contains("02/01", WhatsAppService.PresenceHelp);
+        Assert.Contains("3 notti", WhatsAppService.PresenceHelp); Assert.Contains("bambini collegati a te", WhatsAppService.PresenceHelp);
+        Assert.InRange(WhatsAppService.PresenceHelp.Length, 1, 2000);
     }
 }
