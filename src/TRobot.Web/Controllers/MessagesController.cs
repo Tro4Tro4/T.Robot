@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TRobot.Application.Messaging;
 using TRobot.Web.Models;
+using TRobot.Web.Services;
 
 namespace TRobot.Web.Controllers;
 
@@ -9,7 +10,18 @@ public sealed class MessagesController(MessageService service, IConfiguration co
     [HttpGet] public Task<IActionResult> Index(Guid eventId, CancellationToken ct) => ExecuteAsync(async () =>
     {
         ViewData["LocalSchedulerEnabled"] = configuration.GetValue("LocalScheduler:Enabled", true);
+        ViewData["DispatcherEnabled"] = MessageDispatchWorker.IsEnabled(configuration);
         return View(await service.ListAsync(ActorId, eventId, ct));
+    });
+    [HttpGet] public Task<IActionResult> Status(Guid eventId, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        var status = await service.DeliveryStatusAsync(ActorId, eventId, ct);
+        // Only safe diagnostics: no QR data, no group name and no gateway error payload.
+        return Json(new
+        {
+            gatewayState = status.GatewayState, connectionActive = status.ActiveGroupId is not null,
+            group = MessageLabels.Group(status.ActiveGroupId), groupMatches = status.GroupMatches
+        });
     });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Automation(MessageAutomationInput input, CancellationToken ct) => ExecuteAsync(async () =>
     {
@@ -41,6 +53,8 @@ public sealed class MessagesController(MessageService service, IConfiguration co
         var message = page.Messages.SingleOrDefault(x => x.Id == id);
         if (message is null) return NotFound();
         ViewData["EventName"] = page.Event.Name;
+        ViewData["TimeZoneId"] = page.Event.TimeZoneId;
+        ViewData["GatewayEnabled"] = page.GatewayEnabled;
         return View(message);
     });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Save(MessageInput input, CancellationToken ct) => ExecuteAsync(async () =>
@@ -55,7 +69,22 @@ public sealed class MessagesController(MessageService service, IConfiguration co
         await service.ListAsync(ActorId, input.EventId, ct);
         if (!ModelState.IsValid) return BadRequest("Operazione non valida.");
         await service.TransitionAsync(ActorId, input.EventId, input.Id, input.Revision, input.Confirmed, input.Cancel, ct);
-        return RedirectToAction(nameof(Index), new { eventId = input.EventId });
+        return RedirectToAction(input.Cancel ? nameof(Index) : nameof(Preview), new { eventId = input.EventId, id = input.Id });
+    });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Dispatch(Guid eventId, bool confirmed, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!confirmed) return BadRequest("Conferma l'elaborazione dei messaggi già confermati.");
+        var outcome = await service.DispatchAsync(ActorId, eventId, ct);
+        TempData["MessagesResult"] = $"Elaborazione: {outcome.Sent} inviati, {outcome.Failed} falliti, {outcome.Uncertain} incerti, {outcome.Skipped} in attesa, {outcome.Recovered} recuperati.";
+        return RedirectToAction(nameof(Index), new { eventId });
+    });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Resolve(MessageResolveInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        await service.ListAsync(ActorId, input.EventId, ct);
+        if (!ModelState.IsValid) return BadRequest("Risoluzione non valida: indica come hai verificato l'esito.");
+        await service.ResolveAsync(ActorId, input.EventId, input.Id, input.Revision, input.AsSent, input.Note, input.Confirmed, ct);
+        TempData["MessagesResult"] = "Esito registrato manualmente.";
+        return RedirectToAction(nameof(Preview), new { eventId = input.EventId, id = input.Id });
     });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Configure(MessageSettingsInput input, CancellationToken ct) => ExecuteAsync(async () =>
     {

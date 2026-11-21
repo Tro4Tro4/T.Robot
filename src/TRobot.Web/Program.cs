@@ -102,8 +102,13 @@ builder.Services.AddScoped<PollService>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<IAutomaticSchedulerStore, AutomaticSchedulerStore>();
+builder.Services.AddScoped<IOutboxDispatchStore, OutboxDispatchStore>();
+builder.Services.AddScoped<MessageDispatchService>();
 if (builder.Environment.IsDevelopment() && !initializeDemo && !initializeIdentity)
     builder.Services.AddHostedService<AutomaticSchedulerWorker>();
+// Production-capable dispatcher. Disabled by default: activation is an explicit deployment choice.
+if (MessageDispatchWorker.IsEnabled(builder.Configuration) && !initializeDemo && !initializeIdentity)
+    builder.Services.AddHostedService<MessageDispatchWorker>();
 builder.Services.AddIdentityCore<OrganizerUser>(options =>
 {
     options.Password.RequiredLength = 12;

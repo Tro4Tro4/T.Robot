@@ -42,7 +42,8 @@ public sealed class AttendanceFamilyStatusMigrationTests
         Assert.Equal(new DateOnly(2030, 12, 30), dialogue.Arrival); Assert.Equal(4, dialogue.Days); Assert.Equal(3, dialogue.Revision);
         Assert.Single(await db.Set<AttendanceStay>().ToListAsync()); Assert.Single(await db.Set<AttendanceStayChange>().ToListAsync());
         Assert.Single(await db.Set<WhatsAppIncomingReceipt>().ToListAsync());
-        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+        // Later migrations exist by design; this test pins the family-status upgrade only.
+        Assert.DoesNotContain("20261108152657_AddAttendanceFamilyStatus", await db.Database.GetPendingMigrationsAsync());
         await using var check = connection.CreateCommand(); check.CommandText = "PRAGMA integrity_check";
         Assert.Equal("ok", await check.ExecuteScalarAsync()); check.CommandText = "PRAGMA foreign_key_check";
         await using var reader = await check.ExecuteReaderAsync(); Assert.False(await reader.ReadAsync());

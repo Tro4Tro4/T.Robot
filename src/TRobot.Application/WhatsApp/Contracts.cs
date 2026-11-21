@@ -26,6 +26,12 @@ public sealed record GatewayHealth(string Status, string? QrDataUrl = null, stri
 public sealed record GatewayGroup(string Id, string Name);
 public sealed record GatewayMember(string Id, IReadOnlyList<string> AlternateIds, string Label, bool IsAssociated = false);
 public sealed record GatewaySendResult(string Status, string? MessageId = null);
+
+/// <summary>A definitive 4xx refusal: the gateway rejected the request before transmitting it.</summary>
+public sealed class WhatsAppGatewayRejectedException(string? code) : Exception
+{
+    public string? Code { get; } = code;
+}
 public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds, bool IsPrivate = false);
 public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null,
     string? ReplyText = null, Guid? ReplyOperationId = null, bool ReplyPrivately = false);

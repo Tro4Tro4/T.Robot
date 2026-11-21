@@ -7,10 +7,11 @@ namespace TRobot.Application.Messaging;
 public sealed record MessageEdit(Guid OperationId, string Body, MessageKind Kind, DateTime? ScheduledLocal, int Revision);
 public sealed record SettingsEdit(bool Paused, int QuietStart, int QuietEnd, int Cap, int Sarcasm, int Revision);
 public sealed record MessageOverview(Event Event, IReadOnlyList<OutboundMessage> Messages, BotSettings Settings,
-    bool AutomaticActorAuthorized = false);
+    bool AutomaticActorAuthorized = false, bool GatewayEnabled = false, string? ActiveGroupId = null);
 public sealed record TickResult(int Sent, bool SummaryCreated);
 
-public sealed class MessageService(ILocalStore store, LocalOperations operations, TimeProvider clock)
+public sealed class MessageService(ILocalStore store, LocalOperations operations, TimeProvider clock,
+    MessageDispatchService? delivery = null)
 {
     public async Task<MessageOverview> ListAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
     {
@@ -18,7 +19,11 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
         var settings = await store.FindAsync<BotSettings>(eventId, eventId, ct) ?? new BotSettings(eventId);
         return new(await store.EventAsync(eventId, ct) ?? throw new LocalAccessException(),
             messages.OrderByDescending(x => x.ScheduledAtUtc).ThenBy(x => x.Id).ToArray(),
-            settings, settings.AutomaticActorId.HasValue && await store.CanManageAsync(settings.AutomaticActorId.Value, eventId, ct));
+            settings,
+            settings.AutomaticActorId.HasValue && await store.CanManageAsync(settings.AutomaticActorId.Value, eventId, ct),
+            delivery?.GatewayEnabled ?? false,
+            // Diagnostics use the same validation as the confirmation path: active group with an authorized activator.
+            delivery is null ? null : await delivery.ActiveGroupAsync(eventId, ct));
     }
     public Task<Guid> SaveDraftAsync(Guid actorId, Guid eventId, Guid? id, MessageEdit input, CancellationToken ct = default) =>
         operations.ChangeAsync(actorId, eventId, async token =>
@@ -35,13 +40,15 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
                 if (input.ScheduledLocal.HasValue && scheduled.Ticks ==
                     existing.ScheduledAtUtc.Ticks - existing.ScheduledAtUtc.Ticks % TimeSpan.TicksPerMillisecond)
                     scheduled = existing.ScheduledAtUtc;
-                if (existing.Edit(input.Body, input.Kind, scheduled))
+                if (existing.Edit(input.Body, input.Kind, scheduled, now))
                 { operations.Audit(eventId, actorId, existing.Id, "Messages", "DraftEdited"); await store.SaveAsync(token); }
                 return existing.Id;
             }
             if (input.OperationId == Guid.Empty) throw new LocalValidationException("Identificativo operazione obbligatorio.");
+            var createdAt = clock.GetUtcNow().UtcDateTime;
             var candidate = new OutboundMessage(eventId, input.OperationId, input.Body, input.Kind,
-                await operations.ToUtcAsync(eventId, input.ScheduledLocal, token) ?? clock.GetUtcNow().UtcDateTime);
+                await operations.ToUtcAsync(eventId, input.ScheduledLocal, token) ?? createdAt,
+                MessageDeliveryMode.WhatsApp, createdAt);
             var replay = await store.FindAsync<OutboundMessage>(eventId, candidate.Id, token);
             if (replay is not null)
             {
@@ -57,10 +64,52 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
     {
         var message = await store.FindAsync<OutboundMessage>(eventId, id, token) ?? throw new LocalAccessException();
         LocalOperations.Revision(message, revision);
-        var changed = cancel ? message.Cancel(confirmed) : message.Queue(confirmed);
-        if (changed) { operations.Audit(eventId, actorId, id, "Messages", cancel ? "Cancelled" : "Queued"); await store.SaveAsync(token); }
+        bool changed;
+        if (cancel) changed = message.Cancel(confirmed);
+        else
+        {
+            if (delivery is null) throw new LocalValidationException("Invii WhatsApp non configurati in questa istanza.");
+            var now = clock.GetUtcNow().UtcDateTime;
+            // The confirmed group is stored with the message: a later group change stops the send instead of redirecting it.
+            var group = await delivery.RequireActiveGroupAsync(eventId, token);
+            changed = message.QueueForWhatsApp(actorId, group, now, confirmed);
+        }
+        if (changed)
+        {
+            operations.Audit(eventId, actorId, id, "Messages", cancel ? "Cancelled" : "ConfirmedForWhatsApp");
+            await store.SaveAsync(token);
+        }
         return changed;
     }, ct);
+    /// <summary>Controlled resolution of an ambiguous outcome. It never resends the message.</summary>
+    public Task<bool> ResolveAsync(Guid actorId, Guid eventId, Guid id, int revision, bool asSent, string note,
+        bool confirmed, CancellationToken ct = default) => operations.ChangeAsync(actorId, eventId, async token =>
+    {
+        if (!confirmed) throw new LocalValidationException("Conferma la risoluzione manuale dell'esito.");
+        if (string.IsNullOrWhiteSpace(note)) throw new LocalValidationException("Indica come hai verificato l'esito.");
+        var message = await store.FindAsync<OutboundMessage>(eventId, id, token) ?? throw new LocalAccessException();
+        LocalOperations.Revision(message, revision);
+        var changed = message.Resolve(asSent, actorId, note, clock.GetUtcNow().UtcDateTime);
+        if (changed)
+        {
+            operations.Audit(eventId, actorId, id, "Messages", asSent ? "ResolvedSent" : "ResolvedFailed");
+            await store.SaveAsync(token);
+        }
+        return changed;
+    }, ct);
+    /// <summary>Processes due WhatsApp messages now, for organizers who need the result immediately.</summary>
+    public async Task<DispatchOutcome> DispatchAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
+    {
+        await operations.AuthorizeAsync(actorId, eventId, ct);
+        if (delivery is null) throw new LocalValidationException("Invii WhatsApp non configurati in questa istanza.");
+        return await delivery.DispatchEventAsync(eventId, ct);
+    }
+    /// <summary>Live gateway and connection state for the panel. Event authorization is checked first.</summary>
+    public async Task<DeliveryStatus> DeliveryStatusAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
+    {
+        await operations.AuthorizeAsync(actorId, eventId, ct);
+        return delivery is null ? new(false, false, "disabled", null, false) : await delivery.StatusAsync(eventId, ct);
+    }
     public Task<bool> ConfigureAsync(Guid actorId, Guid eventId, SettingsEdit input, CancellationToken ct = default) =>
         operations.ChangeAsync(actorId, eventId, async token =>
         {
@@ -111,6 +160,10 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
             return await TickCoreAsync(actorId, eventId, settings ?? new BotSettings(eventId), settings is null, token);
         }, ct);
 
+    /// <summary>
+    /// Local simulation only: summaries, polls and quizzes. Messages composed in the panel carry
+    /// MessageDeliveryMode.WhatsApp and are never marked as sent here.
+    /// </summary>
     private async Task<TickResult> TickCoreAsync(Guid actorId, Guid eventId, BotSettings settings, bool fresh,
         CancellationToken token)
     {
@@ -137,13 +190,14 @@ public sealed class MessageService(ILocalStore store, LocalOperations operations
                 var body = string.Create(CultureInfo.InvariantCulture,
                     $"Riepilogo evento: confermati {snapshot.Confirmed}, indecisi {snapshot.Undecided}, assenti {snapshot.Absent}, senza risposta {snapshot.NoResponse}. Attività aperte: {snapshot.OpenTasks}. Sondaggi aperti: {snapshot.OpenPolls}. Voci menu pronte: {snapshot.ReadyMenu}.");
                 var summary = new OutboundMessage(eventId, Guid.NewGuid(), body, MessageKind.Summary, now);
-                summary.SetSummaryFingerprint(fingerprint); summary.Queue(true);
+                summary.SetSummaryFingerprint(fingerprint); summary.Queue(true, now);
                 messages.Add(summary); store.Add(summary); operations.Audit(eventId, actorId, summary.Id, "Messages", "SummaryQueued"); created = true;
             }
         }
         var sent = 0;
         foreach (var message in messages.OrderBy(x => x.ScheduledAtUtc).ThenBy(x => x.Id))
         {
+            if (message.DeliveryMode != MessageDeliveryMode.Simulated) continue;
             // The summary is skipped on event day even when queued during an earlier tick.
             if (message.Kind == MessageKind.Summary && !interval.HasValue) continue;
             if (!SchedulePolicy.CanSend(message, settings, now, zone, messages)) continue;

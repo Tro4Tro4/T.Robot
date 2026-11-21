@@ -42,7 +42,29 @@ public sealed class WhatsAppGatewayClient(HttpClient client, WhatsAppGatewayOpti
         try { response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct); }
         catch (HttpRequestException) { throw new LocalValidationException("Gateway locale non raggiungibile."); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new LocalValidationException("Gateway locale non risponde entro il tempo previsto."); }
-        if (!response.IsSuccessStatusCode) { response.Dispose(); throw new LocalValidationException("Gateway non disponibile o richiesta rifiutata."); }
+        if (!response.IsSuccessStatusCode)
+        {
+            var status = (int)response.StatusCode;
+            var code = status is >= 400 and < 500 ? await ErrorCodeAsync(response) : null;
+            response.Dispose();
+            // Only a client error proves nothing was transmitted. 5xx stays ambiguous.
+            if (status is >= 400 and < 500) throw new WhatsAppGatewayRejectedException(code);
+            throw new LocalValidationException("Gateway non disponibile o richiesta fallita.");
+        }
         return response;
+    }
+    private static async Task<string?> ErrorCodeAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            var buffer = new byte[512]; var read = await stream.ReadAsync(buffer);
+            using var document = JsonDocument.Parse(buffer.AsMemory(0, read));
+            var value = document.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String
+                ? error.GetString() : null;
+            // Only a short technical token is kept: never propagate free-form text from the gateway.
+            return value is { Length: > 0 and <= 40 } && value.All(x => x is >= 'a' and <= 'z' or '_') ? value : null;
+        }
+        catch { return null; }
     }
 }

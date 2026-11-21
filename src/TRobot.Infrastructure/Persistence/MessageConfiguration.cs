@@ -12,13 +12,28 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<OutboundMe
         b.ToTable("OutboundMessages", t =>
         {
             t.HasCheckConstraint("CK_OutboundMessages_Kind", "Kind IN (0,1,2)");
-            t.HasCheckConstraint("CK_OutboundMessages_Status", "Status IN (0,1,2,3)");
+            t.HasCheckConstraint("CK_OutboundMessages_Status", "Status IN (0,1,2,3,4,5,6)");
+            t.HasCheckConstraint("CK_OutboundMessages_Mode", "DeliveryMode IN (0,1)");
             t.HasCheckConstraint("CK_OutboundMessages_Outcome", "(Status = 2 AND SentAtUtc IS NOT NULL) OR (Status <> 2 AND SentAtUtc IS NULL)");
+            // Confirmation fields are all-or-nothing: a partially confirmed message would be unsafe.
+            t.HasCheckConstraint("CK_OutboundMessages_Confirmation",
+                "(ConfirmedAtUtc IS NULL AND ConfirmedByActorId IS NULL AND TargetGroupId IS NULL) OR (ConfirmedAtUtc IS NOT NULL AND ConfirmedByActorId IS NOT NULL AND TargetGroupId IS NOT NULL)");
+            t.HasCheckConstraint("CK_OutboundMessages_Attempts", "Attempts >= 0");
         });
         b.Property(x => x.Body).IsRequired().HasMaxLength(4000);
         b.Property(x => x.SummaryFingerprint).HasMaxLength(200);
+        b.Property(x => x.TargetGroupId).HasMaxLength(200);
+        b.Property(x => x.LastError).HasMaxLength(500);
+        b.Property(x => x.OutcomeNote).HasMaxLength(500);
         b.Property(x => x.ScheduledAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));
+        b.Property(x => x.CreatedAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));
+        b.Property(x => x.UpdatedAtUtc).HasConversion(x => x, x => DateTime.SpecifyKind(x, DateTimeKind.Utc));
         b.Property(x => x.SentAtUtc).HasConversion(x => x, x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
+        b.Property(x => x.ConfirmedAtUtc).HasConversion(x => x, x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
+        b.Property(x => x.LastAttemptAtUtc).HasConversion(x => x, x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
+        b.HasOne<Person>().WithMany().HasForeignKey(x => x.ConfirmedByActorId).OnDelete(DeleteBehavior.Restrict);
+        // Dispatcher discovery: only due WhatsApp rows are scanned on each cycle.
+        b.HasIndex(x => new { x.DeliveryMode, x.Status, x.ScheduledAtUtc });
     }
 }
 internal sealed class BotSettingsConfiguration : IEntityTypeConfiguration<BotSettings>

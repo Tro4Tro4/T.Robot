@@ -239,17 +239,21 @@ public sealed class PollTests
     {
         await using var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True"); await connection.OpenAsync();
         await using var db = new TRobotDbContext(new DbContextOptionsBuilder<TRobotDbContext>().UseSqlite(connection).Options);
-        await db.GetService<IMigrator>().MigrateAsync("20261016175052_SimulatedOutbox");
+        // Upgrade from the schema that already contains the simulated outbox.
+        await db.GetService<IMigrator>().MigrateAsync("20261108152657_AddAttendanceFamilyStatus");
         var clock = new Clock(); var ev = new Event("Evento upgrade sintetico", clock.Utc); var person = new Person("Persona upgrade sintetica");
-        var message = new OutboundMessage(ev.Id, Guid.NewGuid(), "Messaggio sintetico già inviato", MessageKind.Operational, clock.Utc);
-        message.Queue(true); message.MarkSent(clock.Utc);
+        var messageId = Guid.NewGuid(); const string body = "Messaggio sintetico già inviato";
         var receipt = new ParticipationReceipt(ev.Id, person.Id, person.Id, "synthetic-upgrade-receipt", ParticipationStatus.NoResponse, ParticipationStatus.Confirmed, clock.Utc);
-        var audit = new LocalAudit(ev.Id, person.Id, message.Id, "Messages", "SentSimulated", clock.Utc);
-        db.AddRange(ev, person, new EventParticipant(ev.Id, person.Id), new EventOrganizer(ev.Id, person.Id), message, receipt, audit); await db.SaveChangesAsync();
-        db.ChangeTracker.Clear(); await db.Database.MigrateAsync(); await db.Database.MigrateAsync();
+        var audit = new LocalAudit(ev.Id, person.Id, messageId, "Messages", "SentSimulated", clock.Utc);
+        db.AddRange(ev, person, new EventParticipant(ev.Id, person.Id), new EventOrganizer(ev.Id, person.Id), receipt, audit); await db.SaveChangesAsync();
+        // Raw insert against the old column set: the current model cannot write a pre-upgrade schema.
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO OutboundMessages (Id, EventId, Revision, Body, Kind, Status, ScheduledAtUtc, SentAtUtc, SummaryFingerprint) VALUES ({messageId}, {ev.Id}, {3}, {body}, {0}, {2}, {clock.Utc}, {clock.Utc}, NULL)");
+        db.ChangeTracker.Clear(); await db.Database.MigrateAsync();
         var retained = await db.Set<OutboundMessage>().SingleAsync();
-        Assert.Equal(message.Id, retained.Id); Assert.Equal(message.Body, retained.Body); Assert.Equal(OutboundMessageStatus.Sent, retained.Status);
-        Assert.Equal(message.Revision, retained.Revision); Assert.Equal(clock.Utc, retained.SentAtUtc);
+        Assert.Equal(messageId, retained.Id); Assert.Equal(body, retained.Body); Assert.Equal(OutboundMessageStatus.Sent, retained.Status);
+        Assert.Equal(3, retained.Revision); Assert.Equal(clock.Utc, retained.SentAtUtc);
+        Assert.Equal(MessageDeliveryMode.Simulated, retained.DeliveryMode);
+        Assert.Equal(clock.Utc, retained.CreatedAtUtc); Assert.Equal(clock.Utc, retained.UpdatedAtUtc);
         Assert.Equal(receipt.Id, (await db.ParticipationReceipts.SingleAsync()).Id); Assert.Equal(audit.Id, (await db.Set<LocalAudit>().SingleAsync()).Id);
         Assert.Empty(await db.Set<Poll>().ToListAsync());
         Assert.Equal(0L, await db.Database.SqlQueryRaw<long>("SELECT COUNT(*) AS Value FROM pragma_foreign_key_check").SingleAsync());

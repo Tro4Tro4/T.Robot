@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TRobot.Application.Local;
 using TRobot.Application.Messaging;
+using TRobot.Application.WhatsApp;
 using TRobot.Domain;
 using TRobot.Infrastructure.Persistence;
 using LocalWebFactory = TRobot.Tests.WebFlowTests.LocalWebFactory;
@@ -17,8 +19,8 @@ public sealed class MessageTests
     private static readonly DateTime Noon = new(2026, 12, 31, 11, 0, 0, DateTimeKind.Utc);
     private sealed class Clock(DateTime utc) : TimeProvider
     { public DateTime Utc { get; set; } = utc; public override DateTimeOffset GetUtcNow() => new(Utc); }
-    private static MessageService Service(IServiceProvider provider, Clock clock)
-    { var store = provider.GetRequiredService<ILocalStore>(); return new(store, new LocalOperations(store, clock), clock); }
+    private static MessageService Service(IServiceProvider provider, Clock clock, RecordingGateway? gateway = null)
+    { return MessageTestSupport.Service(provider, clock, gateway ?? new RecordingGateway()); }
     private static MessageEdit Draft(string body = "Avviso aggregato", MessageKind kind = MessageKind.Operational, DateTime? local = null) => new(Guid.NewGuid(), body, kind, local, 0);
 
     [Fact]
@@ -88,6 +90,7 @@ public sealed class MessageTests
     {
         await using var factory = new LocalWebFactory(); using var scope = factory.Services.CreateScope();
         var service = Service(scope.ServiceProvider, new Clock(Noon)); var input = Draft();
+        await MessageTestSupport.ActivateAsync(scope.ServiceProvider, factory.EventId, factory.OrganizerPersonId, Noon);
         var id = await service.SaveDraftAsync(factory.OrganizerPersonId, factory.EventId, null, input);
         Assert.Equal(id, await service.SaveDraftAsync(factory.OrganizerPersonId, factory.EventId, null, input));
         await Assert.ThrowsAsync<LocalConflictException>(() => service.SaveDraftAsync(factory.OrganizerPersonId, factory.EventId, null, input with { Body = "Differente" }));
@@ -102,29 +105,30 @@ public sealed class MessageTests
         Assert.Equal(3,await scope.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<LocalAudit>().CountAsync());
     }
     [Fact]
-    public async Task SchedulerHonorsQueueDueQuietPauseAndDailyCapAndRetriesAreNoops()
+    public async Task DispatcherHonorsQueueDueQuietPauseAndDailyCapAndRetriesAreNoops()
     {
         await using var factory = new LocalWebFactory(); using var scope = factory.Services.CreateScope();
-        var clock = new Clock(Noon); var service = Service(scope.ServiceProvider,clock);
+        var clock = new Clock(Noon); var gateway = new RecordingGateway(); var service = Service(scope.ServiceProvider,clock,gateway);
         await SetEventDay(scope.ServiceProvider,factory.EventId,Noon);
-        for(var i=0;i<4;i++)
-        { var id=await service.SaveDraftAsync(factory.OrganizerPersonId,factory.EventId,null,Draft("Gioco "+i,MessageKind.Entertainment)); await service.TransitionAsync(factory.OrganizerPersonId,factory.EventId,id,0,true,false); }
+        await MessageTestSupport.ActivateAsync(scope.ServiceProvider, factory.EventId, factory.OrganizerPersonId, Noon);
+        for(var i=0;i<4;i++) await MessageTestSupport.QueueAsync(service, factory.OrganizerPersonId, factory.EventId, "Gioco "+i, MessageKind.Entertainment);
         var future=await service.SaveDraftAsync(factory.OrganizerPersonId,factory.EventId,null,Draft("Futuro",local:new DateTime(2027,1,2,12,0,0)));
         await service.TransitionAsync(factory.OrganizerPersonId,factory.EventId,future,0,true,false);
-        Assert.Equal(3,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
-        Assert.Equal(0,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
+        Assert.Equal(3,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
+        Assert.Equal(0,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
         clock.Utc=Noon.AddHours(12); // midnight in Rome, new day but still quiet
-        Assert.Equal(0,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
+        Assert.Equal(0,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
         var operational=await service.SaveDraftAsync(factory.OrganizerPersonId,factory.EventId,null,Draft());
         await service.TransitionAsync(factory.OrganizerPersonId,factory.EventId,operational,0,true,false);
         await service.ConfigureAsync(factory.OrganizerPersonId,factory.EventId,new(true,23,9,3,5,0));
-        Assert.Equal(0,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
+        Assert.Equal(0,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
         await service.ConfigureAsync(factory.OrganizerPersonId,factory.EventId,new(false,23,9,3,5,1));
-        Assert.Equal(1,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent); // Operational bypass
+        Assert.Equal(1,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent); // Operational bypass
         clock.Utc=Noon.AddDays(1);
-        Assert.Equal(1,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
+        Assert.Equal(1,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
         var messages=(await service.ListAsync(factory.OrganizerPersonId,factory.EventId)).Messages;
         Assert.Equal(5,messages.Count(x=>x.Status==OutboundMessageStatus.Sent)); Assert.Equal(OutboundMessageStatus.Queued,messages.Single(x=>x.Id==future).Status);
+        Assert.Equal(5,gateway.Sends);
     }
     [Theory]
     [InlineData(2026,3,29)] [InlineData(2026,10,25)]
@@ -137,13 +141,16 @@ public sealed class MessageTests
     [Fact]
     public async Task ScheduledLocalTimeConvertsToUtcAndWaitsUntilDue()
     {
-        await using var factory=new LocalWebFactory(); using var scope=factory.Services.CreateScope(); var clock=new Clock(Noon); var service=Service(scope.ServiceProvider,clock);
+        await using var factory=new LocalWebFactory(); using var scope=factory.Services.CreateScope(); var clock=new Clock(Noon); var gateway=new RecordingGateway(); var service=Service(scope.ServiceProvider,clock,gateway);
         await SetEventDay(scope.ServiceProvider,factory.EventId,Noon);
+        await MessageTestSupport.ActivateAsync(scope.ServiceProvider, factory.EventId, factory.OrganizerPersonId, Noon);
         var id=await service.SaveDraftAsync(factory.OrganizerPersonId,factory.EventId,null,Draft(local:new DateTime(2026,12,31,13,0,0)));
         await service.TransitionAsync(factory.OrganizerPersonId,factory.EventId,id,0,true,false);
         Assert.Equal(Noon.AddHours(1),Assert.Single((await service.ListAsync(factory.OrganizerPersonId,factory.EventId)).Messages).ScheduledAtUtc);
-        Assert.Equal(0,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
-        clock.Utc=Noon.AddHours(1); Assert.Equal(1,(await service.TickAsync(factory.OrganizerPersonId,factory.EventId,true)).Sent);
+        Assert.Equal(0,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
+        Assert.Empty(gateway.OperationIds);
+        clock.Utc=Noon.AddHours(1); Assert.Equal(1,(await service.DispatchAsync(factory.OrganizerPersonId,factory.EventId)).Sent);
+        Assert.Equal(id, Assert.Single(gateway.OperationIds));
     }
     [Fact]
     public async Task SummaryOnlyContainsAggregatesSkipsUnchangedAndPendingCopiesAndEventDay()
@@ -197,19 +204,41 @@ public sealed class MessageTests
     [Fact]
     public async Task HttpRequiresAuthenticationCsrfExplicitConfirmationAndEncodesPreview()
     {
-        await using var factory=new LocalWebFactory(); using var client=factory.CreateClient(new WebApplicationFactoryClientOptions{AllowAutoRedirect=false});
-        Assert.Equal(HttpStatusCode.Redirect,(await client.GetAsync("/Messages?eventId="+factory.EventId)).StatusCode);
+        await using var baseFactory = new LocalWebFactory();
+        var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<WhatsAppGatewayOptions>(); services.AddSingleton(MessageTestSupport.Options());
+            services.RemoveAll<IWhatsAppGateway>(); services.AddSingleton<IWhatsAppGateway>(new RecordingGateway());
+        }));
+        using (var seed = factory.Services.CreateScope())
+            await MessageTestSupport.ActivateAsync(seed.ServiceProvider, baseFactory.EventId, baseFactory.OrganizerPersonId, DateTime.UtcNow);
+        using var client=factory.CreateClient(new WebApplicationFactoryClientOptions{AllowAutoRedirect=false});
+        var eventId = baseFactory.EventId;
+        Assert.Equal(HttpStatusCode.Redirect,(await client.GetAsync("/Messages?eventId="+eventId)).StatusCode);
         var login=Token(await client.GetStringAsync("/Access/Login"));
         await client.PostAsync("/Access/Login",Form(("UserName",LocalWebFactory.UserName),("Password",LocalWebFactory.Password),("__RequestVerificationToken",login)));
-        var page=await client.GetStringAsync("/Messages/Create?eventId="+factory.EventId); var token=Token(page);
-        Assert.Equal(HttpStatusCode.BadRequest,(await client.PostAsync("/Messages/Save",Form(("EventId",factory.EventId.ToString()),("Body","x")))).StatusCode);
-        var create=await client.PostAsync("/Messages/Save",Form(("EventId",factory.EventId.ToString()),("Body","<script>private()</script>"),("OperationId",Guid.NewGuid().ToString()),("__RequestVerificationToken",token)));
+        var page=await client.GetStringAsync("/Messages/Create?eventId="+eventId); var token=Token(page);
+        Assert.Equal(HttpStatusCode.BadRequest,(await client.PostAsync("/Messages/Save",Form(("EventId",eventId.ToString()),("Body","x")))).StatusCode);
+        var create=await client.PostAsync("/Messages/Save",Form(("EventId",eventId.ToString()),("Body","<script>private()</script>"),("OperationId",Guid.NewGuid().ToString()),("__RequestVerificationToken",token)));
         Assert.Equal(HttpStatusCode.Redirect,create.StatusCode);
         var preview=await client.GetStringAsync(create.Headers.Location); Assert.Contains("&lt;script&gt;",preview); Assert.DoesNotContain("<script>private()</script>",preview);
-        Assert.Contains("Confermo testo",preview);
+        Assert.Contains("Confermo testo",preview); Assert.Contains("autorizzo l'invio WhatsApp",preview);
         Guid id; using(var scope=factory.Services.CreateScope()) id=(await scope.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<OutboundMessage>().SingleAsync()).Id;
-        Assert.Equal(HttpStatusCode.BadRequest,(await client.PostAsync("/Messages/Transition",Form(("EventId",factory.EventId.ToString()),("Id",id.ToString()),("Revision","0"),("__RequestVerificationToken",Token(preview))))).StatusCode);
-        Assert.Equal(HttpStatusCode.Redirect,(await client.PostAsync("/Messages/Transition",Form(("EventId",factory.EventId.ToString()),("Id",id.ToString()),("Revision","0"),("Confirmed","true"),("__RequestVerificationToken",Token(preview))))).StatusCode);
+        // Saving and previewing never send: the draft is still unauthorized.
+        using (var scope=factory.Services.CreateScope())
+        {
+            var draft = await scope.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<OutboundMessage>().SingleAsync();
+            Assert.Equal(OutboundMessageStatus.Draft, draft.Status); Assert.Null(draft.ConfirmedByActorId);
+        }
+        Assert.Equal(HttpStatusCode.BadRequest,(await client.PostAsync("/Messages/Transition",Form(("EventId",eventId.ToString()),("Id",id.ToString()),("Revision","0"),("__RequestVerificationToken",Token(preview))))).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect,(await client.PostAsync("/Messages/Transition",Form(("EventId",eventId.ToString()),("Id",id.ToString()),("Revision","0"),("Confirmed","true"),("__RequestVerificationToken",Token(preview))))).StatusCode);
+        using (var scope=factory.Services.CreateScope())
+        {
+            var message = await scope.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<OutboundMessage>().SingleAsync();
+            Assert.Equal(OutboundMessageStatus.Queued, message.Status); Assert.Equal(MessageDeliveryMode.WhatsApp, message.DeliveryMode);
+            Assert.Equal(baseFactory.OrganizerPersonId, message.ConfirmedByActorId);
+            Assert.Equal(RecordingGateway.SyntheticGroup, message.TargetGroupId);
+        }
     }
     [Fact]
     public async Task HttpEditRetainsScheduledSecondsAndFractionsWithoutSpuriousAudit()
@@ -259,20 +288,20 @@ public sealed class MessageTests
         await client.PostAsync("/Access/Login", Form(("UserName", LocalWebFactory.UserName), ("Password", LocalWebFactory.Password), ("__RequestVerificationToken", login)));
         var page = await client.GetStringAsync("/Messages/Create?eventId=" + factory.EventId);
         var token = Token(page); var operation = Guid.NewGuid();
-        var body = string.Concat(Enumerable.Repeat("a\r\n", 1999)) + "ab";
-        // 5999 raw characters normalize to 4000 before the domain limit is applied.
+        var body = string.Concat(Enumerable.Repeat("a\r\n", 499)) + "ab";
+        // 1499 raw characters normalize to 1000, the real gateway limit for a manual group message.
         var create = await client.PostAsync("/Messages/Save", Form(("EventId", factory.EventId.ToString()), ("Body", body),
             ("OperationId", operation.ToString()), ("__RequestVerificationToken", token)));
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
         using (var scope = factory.Services.CreateScope())
         {
             var message = await scope.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<OutboundMessage>().SingleAsync();
-            Assert.Equal(4000, message.Body.Length); Assert.DoesNotContain("\r", message.Body);
+            Assert.Equal(1000, message.Body.Length); Assert.DoesNotContain("\r", message.Body);
         }
         var edit = await client.PostAsync("/Messages/Save", Form(("EventId", factory.EventId.ToString()), ("Id", operation.ToString()),
             ("Revision", "0"), ("Body", body.ReplaceLineEndings("\n")), ("__RequestVerificationToken", token)));
         Assert.Equal(HttpStatusCode.Redirect, edit.StatusCode);
-        var tooLong = await client.PostAsync("/Messages/Save", Form(("EventId", factory.EventId.ToString()), ("Body", body + "x"),
+        var tooLong = await client.PostAsync("/Messages/Save", Form(("EventId", factory.EventId.ToString()), ("Body", new string('a', 1001)),
             ("OperationId", Guid.NewGuid().ToString()), ("__RequestVerificationToken", token)));
         Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
         using (var scope = factory.Services.CreateScope())

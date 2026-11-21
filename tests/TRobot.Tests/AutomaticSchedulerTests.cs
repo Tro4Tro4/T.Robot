@@ -43,11 +43,12 @@ public sealed class AutomaticSchedulerTests
         ev.UpdateDetails(ev.Name, utc, ev.TimeZoneId, ev.Location, ev.Program);
         await db.SaveChangesAsync();
     }
-    private static async Task<Guid> Queue(MessageService service, Guid actorId, Guid eventId, MessageKind kind = MessageKind.Operational)
+    /// <summary>Simulated outbox row: the local scheduler still handles summaries, polls and quizzes.</summary>
+    private static async Task<Guid> Queue(IServiceProvider provider, Guid eventId, MessageKind kind = MessageKind.Operational)
     {
-        var id = await service.SaveDraftAsync(actorId, eventId, null, new(Guid.NewGuid(), "Avviso sintetico", kind, null, 0));
-        await service.TransitionAsync(actorId, eventId, id, 0, true, false);
-        return id;
+        var db = provider.GetRequiredService<TRobotDbContext>();
+        var message = new OutboundMessage(eventId, Guid.NewGuid(), "Avviso sintetico", kind, Noon.AddHours(-1));
+        message.Queue(true); db.Add(message); await db.SaveChangesAsync(); return message.Id;
     }
 
     [Fact]
@@ -112,7 +113,7 @@ public sealed class AutomaticSchedulerTests
         var clock = new Clock(); var service = Service(scope.ServiceProvider, clock);
         var actor = factory.OrganizerPersonId; var eventId = factory.EventId;
         await EventDay(scope.ServiceProvider, eventId, Noon);
-        var id = await Queue(service, actor, eventId);
+        var id = await Queue(scope.ServiceProvider, eventId);
         await service.ConfigureAutomaticAsync(actor, eventId, true, 0, true);
         var discovery = scope.ServiceProvider.GetRequiredService<IAutomaticSchedulerStore>();
         var candidate = Assert.Single(await discovery.CandidatesAsync());
@@ -140,7 +141,7 @@ public sealed class AutomaticSchedulerTests
         var clock = new Clock(); var service = Service(scope.ServiceProvider, clock);
         var actor = factory.OrganizerPersonId; var eventId = factory.EventId;
         await EventDay(scope.ServiceProvider, eventId, Noon);
-        await Queue(service, actor, eventId);
+        await Queue(scope.ServiceProvider, eventId);
         await service.ConfigureAutomaticAsync(actor, eventId, true, 0, true);
         await service.ConfigureAutomaticAsync(actor, eventId, false, 1, true);
         Assert.Equal(new TickResult(0, false), await service.TickAutomaticAsync(actor, eventId));
@@ -168,8 +169,8 @@ public sealed class AutomaticSchedulerTests
         var actor = factory.OrganizerPersonId; var eventId = factory.EventId;
         await EventDay(scope.ServiceProvider, eventId, Noon);
         await service.ConfigureAutomaticAsync(actor, eventId, true, 0, true);
-        for (var i = 0; i < 4; i++) await Queue(service, actor, eventId, MessageKind.Entertainment);
-        await Queue(service, actor, eventId);
+        for (var i = 0; i < 4; i++) await Queue(scope.ServiceProvider, eventId, MessageKind.Entertainment);
+        await Queue(scope.ServiceProvider, eventId);
         Task<TickResult> Tick() => automatic ? service.TickAutomaticAsync(actor, eventId) : service.TickAsync(actor, eventId, true);
         await service.ConfigureAsync(actor, eventId, new(true, 23, 9, 2, 5, 1));
         Assert.Equal(new TickResult(0, false), await Tick());
@@ -181,7 +182,7 @@ public sealed class AutomaticSchedulerTests
         Assert.Equal(audits, await db.Set<LocalAudit>().CountAsync());
         Assert.Equal(3, (await service.ListAsync(actor, eventId)).Settings.Revision);
         clock.Utc = Noon.AddHours(12); // next local day, within quiet hours
-        await Queue(service, actor, eventId);
+        await Queue(scope.ServiceProvider, eventId);
         Assert.Equal(new TickResult(1, false), await Tick());
         clock.Utc = Noon.AddDays(1);
         Assert.Equal(new TickResult(2, false), await Tick());
@@ -244,7 +245,7 @@ public sealed class AutomaticSchedulerTests
         {
             var service = Service(setup.ServiceProvider, clock);
             await EventDay(setup.ServiceProvider, factory.EventId, Noon);
-            await Queue(service, factory.OrganizerPersonId, factory.EventId);
+            await Queue(setup.ServiceProvider, factory.EventId);
             await service.ConfigureAutomaticAsync(factory.OrganizerPersonId, factory.EventId, true, 0, true);
         }
         var broken = Guid.NewGuid();

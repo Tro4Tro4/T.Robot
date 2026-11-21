@@ -1,28 +1,76 @@
 @model TRobot.Application.Messaging.MessageOverview
+@using TRobot.Domain
 @using TRobot.Web.Models
 @{
     ViewData["Title"] = "Messaggi";
+    var zone = TimeZoneInfo.FindSystemTimeZoneById(Model.Event.TimeZoneId);
     var schedulerAvailable = ViewData["LocalSchedulerEnabled"] is not false;
+    var dispatcherEnabled = ViewData["DispatcherEnabled"] is true;
     var automationStatus = !Model.Settings.AutomaticEnabled ? "Disattivato"
         : !schedulerAvailable ? "Sospeso: elaborazione automatica disattivata in questa istanza"
         : !Model.AutomaticActorAuthorized ? "Sospeso: attivatore non più autorizzato"
         : Model.Settings.Paused ? "Sospeso: pausa invii" : "Attivo";
+    var connectionReady = Model.ActiveGroupId is not null;
+    var dispatcherStatus = !dispatcherEnabled ? "Disattivata in questa istanza: gli invii restano in attesa finché non usi Elabora ora"
+        : !Model.GatewayEnabled ? "Sospesa: gateway WhatsApp disattivato"
+        : Model.Settings.Paused ? "Sospesa: pausa invii" : "Attiva";
 }
-<h1>Messaggi — @Model.Event.Name</h1>
+<h1>Messaggi - @Model.Event.Name</h1>
 <partial name="_EventNavigation" model="Model.Event.Id" />
-<p>Trasporto simulato: nessun invio WhatsApp. Lo scheduler elabora la coda approvata e genera riepiloghi aggregati se necessari. Il giorno evento non vengono inviati riepiloghi.</p>
+<p>I messaggi composti qui vengono trasmessi davvero al gruppo WhatsApp dopo l'anteprima e la conferma esplicita. Riepiloghi automatici, sondaggi e quiz restano simulati e non vengono inviati a WhatsApp.</p>
 @if (TempData["MessagesResult"] is string result) { <p role="status" class="alert alert-info">@result</p> }
 <a class="btn btn-primary" asp-action="Create" asp-route-eventId="@Model.Event.Id">Componi messaggio</a>
-<div class="table-responsive" role="region" aria-label="Messaggi simulati" tabindex="0"><table class="table"><thead><tr><th>Anteprima</th><th>Categoria</th><th>Stato</th><th>UTC</th></tr></thead><tbody>
+
+<div class="table-responsive" role="region" aria-label="Messaggi" tabindex="0"><table class="table align-middle">
+<thead><tr><th>Anteprima</th><th>Categoria</th><th>Canale</th><th>Stato</th><th>Creato</th><th>Invio previsto</th><th>Inviato</th><th>Tentativi</th><th>Ultimo aggiornamento</th><th>Errore</th></tr></thead>
+<tbody>
 @foreach (var message in Model.Messages)
 {
-<tr><td><a asp-action="Preview" asp-route-eventId="@Model.Event.Id" asp-route-id="@message.Id">@(message.Body.Length > 100 ? message.Body[..100] + "…" : message.Body)</a></td><td>@MessageLabels.Kind(message.Kind)</td><td>@MessageLabels.Status(message.Status)</td><td>@message.ScheduledAtUtc.ToString("u")</td></tr>
+<tr>
+    <td><a asp-action="Preview" asp-route-eventId="@Model.Event.Id" asp-route-id="@message.Id">@(message.Body.Length > 80 ? message.Body[..80] + "…" : message.Body)</a></td>
+    <td>@MessageLabels.Kind(message.Kind)</td>
+    <td>@MessageLabels.Delivery(message.DeliveryMode)</td>
+    <td>@MessageLabels.Status(message.Status, message.DeliveryMode)</td>
+    <td>@MessageLabels.Local(message.CreatedAtUtc, zone)</td>
+    <td>@MessageLabels.Local(message.ScheduledAtUtc, zone)</td>
+    <td>@MessageLabels.Local(message.SentAtUtc, zone)</td>
+    <td>@message.Attempts</td>
+    <td>@MessageLabels.Local(message.UpdatedAtUtc, zone)</td>
+    <td>@(message.LastError ?? message.OutcomeNote ?? "-")</td>
+</tr>
 }
 </tbody></table></div>
+<p class="small text-muted">Orari nel fuso @Model.Event.TimeZoneId. Il gruppo mostrato in anteprima viene memorizzato con la conferma: se il collegamento cambia, l'invio non viene reindirizzato.</p>
+
+<section id="delivery-live" data-status-url="@Url.Action("Status", new { eventId = Model.Event.Id })" aria-labelledby="delivery-title">
+<h2 id="delivery-title">Stato della consegna</h2>
+<p>Quattro controlli distinti: gateway, connessione WhatsApp, elaborazione automatica e singolo messaggio.</p>
+<dl class="row">
+    <dt class="col-sm-3">Gateway</dt>
+    <dd class="col-sm-9"><strong id="gateway-state">@(Model.GatewayEnabled ? "Verifica in corso" : "Disattivato in questa istanza")</strong> <span id="gateway-detail" class="text-muted"></span></dd>
+    <dt class="col-sm-3">Connessione WhatsApp</dt>
+    <dd class="col-sm-9"><strong id="connection-state">@(connectionReady ? "Verifica in corso" : "Nessun gruppo attivo")</strong> <span id="connection-detail" class="text-muted">@(connectionReady ? "Gruppo configurato: " + MessageLabels.Group(Model.ActiveGroupId) : "")</span></dd>
+    <dt class="col-sm-3">Elaborazione automatica</dt>
+    <dd class="col-sm-9"><strong id="dispatcher-status">@dispatcherStatus</strong></dd>
+    <dt class="col-sm-3">Pausa invii</dt>
+    <dd class="col-sm-9"><strong>@(Model.Settings.Paused ? "Attiva" : "Non attiva")</strong></dd>
+</dl>
+<p id="delivery-updated" class="small text-muted" role="status">Gateway e connessione si aggiornano ogni 10 secondi. Il singolo messaggio mostra stato, tentativi ed errore nella tabella e nell'anteprima.</p>
+<p>Se un messaggio resta in attesa, controlla in ordine: gateway abilitato e raggiungibile, connessione WhatsApp e gruppo attivo, pausa o orario di silenzio, autorizzazione dell'organizzatore che ha confermato, singolo messaggio.</p>
+@if (Model.GatewayEnabled && connectionReady)
+{
+<form asp-action="Dispatch" method="post" class="border p-3 mb-4">
+    <input type="hidden" name="eventId" value="@Model.Event.Id" />
+    <label><input type="checkbox" name="confirmed" value="true" required /> Confermo l'elaborazione immediata dei messaggi programmati già confermati e dovuti</label>
+    <button class="btn btn-primary" type="submit">Elabora ora</button>
+</form>
+}
+</section>
+
 <section aria-labelledby="automation-title">
 <h2 id="automation-title">Scheduler automatico locale</h2>
 <p>Stato: <strong id="automation-status">@automationStatus</strong>.</p>
-<p>Controlla i messaggi ogni 30 secondi, solo mentre T.Robot è aperto. Non chiude sondaggi o quiz e non invia messaggi reali.</p>
+<p>Controlla i messaggi ogni 30 secondi, solo mentre T.Robot è aperto. Non invia messaggi WhatsApp reali: elabora riepiloghi, sondaggi e quiz simulati.</p>
 <p>L'attivazione è legata all'organizzatore che la salva: se perde accesso, l'elaborazione si sospende e può riprendere quando lo riottiene. Un altro organizzatore autorizzato può salvare l'attivazione a proprio nome o disattivarla.</p>
 @if (!schedulerAvailable)
 {
@@ -36,11 +84,11 @@
     <button class="btn btn-primary" type="submit">Salva automazione locale</button>
 </form>
 </section>
-<h2>Elaborazione manuale</h2>
+<h2>Elaborazione simulata</h2>
 <form asp-action="Tick" method="post" class="border p-3 my-3">
     <input type="hidden" name="eventId" value="@Model.Event.Id" />
-    <label><input type="checkbox" name="confirmed" value="true" required /> Confermo elaborazione e invii simulati dei messaggi pronti</label>
-    <button class="btn btn-primary" type="submit">Simula scheduler e invio</button>
+    <label><input type="checkbox" name="confirmed" value="true" required /> Confermo l'elaborazione dei contenuti simulati pronti</label>
+    <button class="btn btn-secondary" type="submit">Simula scheduler e invio</button>
 </form>
 <h2>Configurazione evento</h2>
 <p>Gli operativi già approvati superano silenzio e limite giornaliero; pausa blocca tutti gli invii e la generazione dei riepiloghi, anche con lo scheduler automatico attivo. Inizio e fine silenzio uguali disattivano il silenzio. Il limite conta riepiloghi e intrattenimento nel giorno locale (@Model.Event.TimeZoneId).</p>
@@ -54,3 +102,4 @@
     <button type="submit" class="btn btn-secondary">Salva configurazione</button>
 </form>
 <a asp-controller="Events" asp-action="Details" asp-route-id="@Model.Event.Id">Torna all'evento</a>
+@section Scripts { <script src="~/js/messages.js" asp-append-version="true"></script> }

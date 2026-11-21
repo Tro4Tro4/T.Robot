@@ -1,21 +1,80 @@
 @model TRobot.Domain.OutboundMessage
 @using TRobot.Domain
 @using TRobot.Web.Models
-@{ ViewData["Title"] = "Anteprima messaggio"; }
-<h1>Anteprima messaggio — @ViewData["EventName"]</h1>
-<p>@MessageLabels.Kind(Model.Kind) · @MessageLabels.Status(Model.Status)</p>
+@{
+    ViewData["Title"] = "Anteprima messaggio";
+    var zone = TimeZoneInfo.FindSystemTimeZoneById(ViewData["TimeZoneId"] as string ?? "UTC");
+    var gatewayEnabled = ViewData["GatewayEnabled"] is true;
+    var real = Model.DeliveryMode == MessageDeliveryMode.WhatsApp;
+    var immediate = Model.ScheduledAtUtc <= DateTime.UtcNow;
+}
+<h1>Anteprima messaggio - @ViewData["EventName"]</h1>
+<p>@MessageLabels.Kind(Model.Kind) · @MessageLabels.Delivery(Model.DeliveryMode) · <strong>@MessageLabels.Status(Model.Status, Model.DeliveryMode)</strong></p>
 <pre class="border p-3" style="white-space:pre-wrap">@Model.Body</pre>
-<p>Programmazione UTC: @Model.ScheduledAtUtc.ToString("u"). L'invio avviene solo tramite il pulsante di simulazione.</p>
+<dl class="row">
+    <dt class="col-sm-3">Creato</dt><dd class="col-sm-9">@MessageLabels.Local(Model.CreatedAtUtc, zone) (@zone.Id)</dd>
+    <dt class="col-sm-3">Invio previsto</dt><dd class="col-sm-9">@MessageLabels.Local(Model.ScheduledAtUtc, zone) (@zone.Id)</dd>
+    <dt class="col-sm-3">Invio effettivo</dt><dd class="col-sm-9">@MessageLabels.Local(Model.SentAtUtc, zone)</dd>
+    <dt class="col-sm-3">Confermato</dt><dd class="col-sm-9">@(Model.ConfirmedAtUtc.HasValue ? MessageLabels.Local(Model.ConfirmedAtUtc, zone) : "non ancora confermato")</dd>
+    <dt class="col-sm-3">Gruppo confermato</dt><dd class="col-sm-9">@MessageLabels.Group(Model.TargetGroupId)</dd>
+    <dt class="col-sm-3">Tentativi</dt><dd class="col-sm-9">@Model.Attempts (ultimo: @MessageLabels.Local(Model.LastAttemptAtUtc, zone))</dd>
+    <dt class="col-sm-3">Ultimo aggiornamento</dt><dd class="col-sm-9">@MessageLabels.Local(Model.UpdatedAtUtc, zone)</dd>
+    <dt class="col-sm-3">Errore</dt><dd class="col-sm-9">@(Model.LastError ?? "-")</dd>
+    <dt class="col-sm-3">Nota di risoluzione</dt><dd class="col-sm-9">@(Model.OutcomeNote ?? "-")</dd>
+</dl>
+@if (!real)
+{
+    <p class="alert alert-secondary">Questo messaggio appartiene alla coda simulata: non viene inviato a WhatsApp e non può essere convertito dopo l'accodamento.</p>
+}
 @if (Model.Status == OutboundMessageStatus.Draft)
 {
     <a asp-action="Edit" asp-route-eventId="@Model.EventId" asp-route-id="@Model.Id">Modifica bozza</a>
-    <form asp-action="Transition" method="post" class="my-3">
-        <input type="hidden" name="EventId" value="@Model.EventId" /><input type="hidden" name="Id" value="@Model.Id" /><input type="hidden" name="Revision" value="@Model.Revision" />
-        <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo testo e programmazione per il gruppo</label>
-        <button type="submit" class="btn btn-primary">Accoda</button>
-    </form>
+    if (gatewayEnabled)
+    {
+        <form asp-action="Transition" method="post" class="my-3 border p-3">
+            <input type="hidden" name="EventId" value="@Model.EventId" /><input type="hidden" name="Id" value="@Model.Id" /><input type="hidden" name="Revision" value="@Model.Revision" />
+            <p>Questa conferma autorizza l'invio reale al gruppo WhatsApp collegato, @(immediate ? "appena possibile" : $"alla data e ora indicate ({MessageLabels.Local(Model.ScheduledAtUtc, zone)})")".</p>
+            @if (immediate)
+            {
+                <p class="alert alert-warning">Invio immediato: dopo la conferma il messaggio entra nella coda reale e viene trasmesso dal worker.</p>
+            }
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo testo, gruppo e programmazione: autorizzo l'invio WhatsApp</label>
+            <button type="submit" class="btn btn-primary">Conferma e invia</button>
+        </form>
+    }
+    else
+    {
+        <p class="alert alert-info">Gateway WhatsApp disattivato in questa istanza: la conferma di invio non è disponibile.</p>
+    }
 }
-@if (Model.Status is OutboundMessageStatus.Draft or OutboundMessageStatus.Queued)
+@if (Model.Status == OutboundMessageStatus.Queued)
+{
+    <p class="alert alert-info">Messaggio confermato e in attesa di elaborazione. Il worker lo trasmette quando è dovuto; se l'elaborazione automatica è disattivata, usa Elabora ora dal pannello.</p>
+}
+@if (Model.Status == OutboundMessageStatus.Sending)
+{
+    <p class="alert alert-warning">Invio in corso. Se il processo si interrompe, il messaggio diventa "Esito incerto" e non viene reinviato automaticamente.</p>
+}
+@if (Model.Status == OutboundMessageStatus.Sent && real)
+{
+    <p class="alert alert-success">Invio confermato dal gateway il @MessageLabels.Local(Model.SentAtUtc, zone).</p>
+}
+@if (Model.Status is OutboundMessageStatus.Uncertain or OutboundMessageStatus.Failed)
+{
+    <section aria-labelledby="resolve-title" class="border p-3 my-3">
+        <h2 id="resolve-title" class="h4">Risoluzione manuale</h2>
+        <p>Verifica nel gruppo prima di decidere. La risoluzione registra il tuo esito e non invia nulla.</p>
+        <form asp-action="Resolve" method="post">
+            <input type="hidden" name="EventId" value="@Model.EventId" /><input type="hidden" name="Id" value="@Model.Id" /><input type="hidden" name="Revision" value="@Model.Revision" />
+            <div><label><input type="radio" name="AsSent" value="true" required /> Il messaggio è presente nel gruppo: registra come inviato</label></div>
+            <div><label><input type="radio" name="AsSent" value="false" required /> Il messaggio non è stato inviato: registra come fallito</label></div>
+            <div class="mb-2"><label for="Note">Come hai verificato</label><input id="Note" name="Note" maxlength="500" required class="form-control" /></div>
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la risoluzione manuale</label>
+            <button type="submit" class="btn btn-warning">Registra esito</button>
+        </form>
+    </section>
+}
+@if (Model.Status is OutboundMessageStatus.Draft or OutboundMessageStatus.Queued or OutboundMessageStatus.Uncertain or OutboundMessageStatus.Failed)
 {
     <form asp-action="Transition" method="post" class="my-3">
         <input type="hidden" name="EventId" value="@Model.EventId" /><input type="hidden" name="Id" value="@Model.Id" /><input type="hidden" name="Revision" value="@Model.Revision" /><input type="hidden" name="Cancel" value="true" />

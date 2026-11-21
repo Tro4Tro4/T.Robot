@@ -1408,16 +1408,42 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ConfirmedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ConfirmedByActorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DeliveryMode")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("EventId")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Kind")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OutcomeNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Revision")
                         .IsConcurrencyToken()
@@ -1436,17 +1462,34 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TargetGroupId")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ConfirmedByActorId");
 
                     b.HasIndex("EventId");
 
+                    b.HasIndex("DeliveryMode", "Status", "ScheduledAtUtc");
+
                     b.ToTable("OutboundMessages", null, t =>
                         {
+                            t.HasCheckConstraint("CK_OutboundMessages_Attempts", "Attempts >= 0");
+
+                            t.HasCheckConstraint("CK_OutboundMessages_Confirmation", "(ConfirmedAtUtc IS NULL AND ConfirmedByActorId IS NULL AND TargetGroupId IS NULL) OR (ConfirmedAtUtc IS NOT NULL AND ConfirmedByActorId IS NOT NULL AND TargetGroupId IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_OutboundMessages_Kind", "Kind IN (0,1,2)");
+
+                            t.HasCheckConstraint("CK_OutboundMessages_Mode", "DeliveryMode IN (0,1)");
 
                             t.HasCheckConstraint("CK_OutboundMessages_Outcome", "(Status = 2 AND SentAtUtc IS NOT NULL) OR (Status <> 2 AND SentAtUtc IS NULL)");
 
-                            t.HasCheckConstraint("CK_OutboundMessages_Status", "Status IN (0,1,2,3)");
+                            t.HasCheckConstraint("CK_OutboundMessages_Status", "Status IN (0,1,2,3,4,5,6)");
                         });
                 });
 
@@ -2916,6 +2959,11 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TRobot.Domain.OutboundMessage", b =>
                 {
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ConfirmedByActorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TRobot.Domain.Event", null)
                         .WithMany()
                         .HasForeignKey("EventId")
