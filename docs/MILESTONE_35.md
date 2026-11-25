@@ -2,7 +2,7 @@
 
 Incarico del 19 novembre 2026: completare il modulo Messaggi collegandolo al gateway WhatsApp esistente, con invio immediato e programmato, stati affidabili, diagnostica e protezione delle vecchie code simulate.
 
-Stato: implementazione e test locali completati. **Nessuna modifica all'ambiente Azure, alla sessione WhatsApp o al database operativo e' stata eseguita da questo incarico.** Lo scheduler Production resta disabilitato finche' non viene attivato esplicitamente secondo la procedura sotto.
+Stato al 21 novembre 2026: Web M35 pubblicato su Azure e invio manuale dal pannello riuscito. Il worker di invio automatico resta disabilitato (`Messaging__Dispatcher__Enabled` assente o `false`) e va attivato con la procedura sotto. L'invio manuale riuscito conferma che schema M35 e gateway sono attivi; le righe storiche restano `Simulated`.
 
 Aggiornamento del 21 novembre 2026: aggiunto al pannello lo stato live di gateway e connessione WhatsApp, separato dallo stato dello scheduler e dal singolo messaggio.
 
@@ -81,7 +81,7 @@ Protezioni attive: pausa invii per evento, orari di silenzio e limite giornalier
 - `dotnet ef migrations has-pending-model-changes --project src/TRobot.Infrastructure --startup-project src/TRobot.Infrastructure --no-build`: nessuna differenza.
 - Test mirati: conferma esplicita e gruppo memorizzato; stato live distinto per gateway, connessione e gruppo; invio immediato e programmato; gateway disabilitato e pausa; rifiuto definitivo; timeout e 5xx come incerti senza retry; claim interrotto recuperato; doppio dispatch concorrente con un solo invio; riavvio del worker senza duplicati; gruppo cambiato dopo la conferma; autorizzazione revocata; permessi; risoluzione manuale; coda storica esclusa dopo l'upgrade; simulazione che non puo' marcare inviato un messaggio WhatsApp; flusso HTTP di conferma ed elaborazione.
 
-Non eseguiti: test Node del gateway (codice gateway invariato), invii reali di prova, accesso al database o ai servizi Azure, collaudo dal telefono.
+Non eseguiti da questo incarico: test Node del gateway (codice gateway invariato), verifica diretta del database e dei servizi Azure, collaudo dal telefono. L'invio manuale e' stato eseguito dall'utente dal pannello, non da un test automatico.
 
 ## Procedura di rilascio (quando richiesta)
 
@@ -99,7 +99,7 @@ Non eseguiti: test Node del gateway (codice gateway invariato), invii reali di p
 2. Se serve tornare ai binari precedenti, ripristinare il pacchetto precedente e il DB dal backup coerente eseguito al punto 1. Non ripristinare un DB storico senza aver prima fermato Azure e acquisito una copia corrente.
 3. Non cancellare righe di `OutboundMessages` per "ripulire": gli stati storici restano consultabili.
 
-## Stato dello scheduler Production
+## Stato Azure al 21 novembre 2026
 
 Disabilitato. Questo incarico non ha creato o attivato servizi su Azure, non ha aperto sessioni WhatsApp e non ha inviato messaggi. L'attivazione resta un passaggio esplicito, successivo al collaudo controllato.
 
@@ -114,3 +114,60 @@ Il DB operativo era a `AddMealPreferences`: il rilascio `family-status-20261109-
 Verifiche dopo l'attivazione: `/health` del gateway `connected` con `activeGroupId` invariato, NRestarts=0 per Web e gateway, configurazione e chiavi identiche, smoke pubblico con TLS verificato senza override (login originale, 12 pagine riservate, 8 GET/POST ai moduli sospesi 404, 3 POST senza antiforgery 400, `Messages/Status` con gateway connesso e gruppo corrispondente, asset identici ai sorgenti, logout). Report privato `.local/azure/message-delivery-release-smoke-report.json`; contesto e backup sulla VM in `/root/trobot-provisioning/message-delivery-20261121-arm64-context.json`.
 
 Rollback previsto: rimuovere `Messaging:Dispatcher:Enabled` e riavviare il Web; per tornare ai binari precedenti ripristinare il pacchetto precedente e il DB dal backup coerente. Non necessario in questo rilascio.
+
+- Web M35 pubblicato su Azure; `js/messages.js` coincide con il commit e il pannello e' protetto dal login.
+- Migrazione `20261119084028_MessageDelivery` attiva; invio manuale dal pannello riuscito.
+- Worker di invio automatico ancora disabilitato: `Messaging__Dispatcher__Enabled` assente o `false`.
+- Le righe storiche restano `Simulated`; nessun reinvio automatico.
+
+## Attivazione del worker su Azure
+
+Il worker non ha un servizio systemd separato: viene registrato all'avvio di `trobot.service` solo con `Messaging__Dispatcher__Enabled=true`. La configurazione sta in `/etc/trobot/trobot.env`, root 0600, fuori dalla release. Il file contiene anche il token del gateway e non va stampato.
+
+### Prima di attivare
+
+1. Eseguire un backup coerente del DB e delle chiavi secondo `docs/AZURE_CLOUD.md`.
+2. Aprire Messaggi e controllare tutte le righe `Confermato, in attesa`: il primo ciclo invia ogni messaggio WhatsApp dovuto, non solo l'ultimo composto.
+3. Verificare gateway `connected`, gruppo attivo corrispondente e pausa invii disattivata.
+4. Controllare silenzio e limite giornaliero: valgono per i messaggi non operativi; gli operativi li superano.
+5. Sapere che il primo ciclo parte subito dopo il riavvio e che il limite e' 20 invii per evento per ciclo.
+
+### Comandi
+
+```bash
+sudo grep -n '^Messaging__Dispatcher__' /etc/trobot/trobot.env || true
+sudo sed -i '/^Messaging__Dispatcher__Enabled=/d; /^Messaging__Dispatcher__IntervalSeconds=/d' /etc/trobot/trobot.env
+printf '%s\n' \
+  'Messaging__Dispatcher__Enabled=true' \
+  'Messaging__Dispatcher__IntervalSeconds=30' \
+  | sudo tee -a /etc/trobot/trobot.env >/dev/null
+sudo systemctl restart trobot
+sudo systemctl status trobot --no-pager
+pid=$(systemctl show -p MainPID --value trobot)
+sudo tr '\0' '\n' < /proc/$pid/environ | grep '^Messaging__Dispatcher__'
+```
+
+Nel pannello Messaggi la voce `Elaborazione automatica` deve passare ad `Attiva`, oppure a `Sospesa: pausa invii` se la pausa e' attiva. Nei log il worker riporta solo conteggi, mai testo o identificativi WhatsApp.
+
+### Primo ciclo: cosa puo' partire
+
+- Solo righe `DeliveryMode=WhatsApp`, `Status=Queued` e `ScheduledAtUtc <= now`.
+- Le righe `Simulated`, comprese le quattro storiche e le vecchie `Queued` simulate, restano escluse.
+- Un messaggio confermato con un gruppo diverso da quello attivo, un attivatore non piu' autorizzato, pausa, silenzio o limite giornaliero restano in coda e vengono saltati.
+- Un claim `Sending` piu' vecchio di 5 minuti viene marcato `Uncertain`, non reinviato.
+- Timeout, rete e 5xx producono `Uncertain`; un 4xx produce `Failed`; nessun esito viene ritentato automaticamente.
+- Se ci sono piu' di 20 messaggi dovuti per evento, i successivi restano in coda per il ciclo seguente.
+
+### Dopo l'attivazione
+
+Controllare i conteggi nei log per i primi due o tre cicli, verificare nel gruppo che ogni messaggio compaia una sola volta e che in tabella lo stato sia `Inviato`. Un invio gia' avviato o concluso non puo' essere annullato; un esito incerto si risolve solo manualmente, senza reinvio.
+
+Per fermare il worker:
+
+```bash
+sudo sed -i '/^Messaging__Dispatcher__Enabled=/d' /etc/trobot/trobot.env
+printf '%s\n' 'Messaging__Dispatcher__Enabled=false' | sudo tee -a /etc/trobot/trobot.env >/dev/null
+sudo systemctl restart trobot
+```
+
+I messaggi gia' confermati restano in coda e non partono.

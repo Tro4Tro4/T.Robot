@@ -4,6 +4,8 @@
 
 **Nota 19 novembre 2026:** completato in locale l'invio reale dei messaggi del pannello (M35) con worker persistente. Nessuna modifica ad Azure, alla sessione WhatsApp o al DB operativo da questo incarico. Il worker resta disabilitato senza `Messaging__Dispatcher__Enabled=true`. Migrazione `20261119084028_MessageDelivery` e procedura di rilascio/rollback in [MILESTONE_35.md](MILESTONE_35.md).
 
+**Aggiornamento 21 novembre 2026:** Web M35 attivo su Azure con stato live dei messaggi e invio reale dal pannello. Migrazione `20261119084028_MessageDelivery` attiva; invio manuale dal pannello riuscito. Verificati DNS `4.223.75.149`, HTTPS/TLS, login `200`, pannello protetto e asset `js/messages.js` corrispondente al commit. Il worker di invio automatico resta disabilitato (`Messaging__Dispatcher__Enabled` assente o `false`). Procedura di attivazione, rischi del primo ciclo e rollback in [MILESTONE_35.md](MILESTONE_35.md).
+
 **Aggiornamento 5 novembre 2026:** Web `member-associations-20261105-arm64` attivo con evidenziazione dei membri WhatsApp gia associati. Gateway M34 conservato; nessuna migrazione, backup coerente e confronto di tutte le righe positivi, identita/gruppo ripristinati. Dettagli in [MEMBER_ASSOCIATIONS_RELEASE.md](MEMBER_ASSOCIATIONS_RELEASE.md).
 
 **Aggiornamento 1 novembre 2026:** Web `proposal-stay-20261101-arm64` attivo con controllo dei giorni di soggiorno personale confermato per `!proponi`. Gateway M34 conservato; nessuna migrazione, backup coerente e confronto di tutte le righe positivi, identita/gruppo ripristinati. Dettagli in [MENU_PROPOSAL_STAY.md](MENU_PROPOSAL_STAY.md).
