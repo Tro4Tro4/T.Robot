@@ -420,3 +420,10 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - "Ultima versione" coincide con il codice corrente di `main`, cioè M35 più la documentazione. La build x64 del 24 novembre è successiva all'ultima modifica del codice: prima di qualunque nuovo rilascio verificare sulla VM la release attiva.
 - Il rilascio `family-status-20261109-arm64`, preparato per Azure e mai attivato, è superato: le sue migrazioni sono state applicate con il rilascio M35 del 21 novembre.
 - Sempre il 25 novembre l'utente decide di non recuperare il DB Azure, ormai irraggiungibile: i dati inseriti su Azure dopo il 23 ottobre verranno ricostruiti a mano. Su richiesta esplicita è stato abilitato `trobot-backup.timer` su Google, dopo un backup di prova riuscito. Su richiesta sono stati abilitati all'avvio anche Web, gateway e Caddy. Resta da decidere la copia dei backup fuori dalla VM; dettagli in `docs/GOOGLE_CLOUD.md`.
+
+## 25 novembre 2026 - Procedura di rilascio Google
+
+- La procedura di rilascio Google è versionata in `deploy/google/` e non è più un insieme di script monouso in `.local`. Generalizza le procedure Azure già approvate: Web, gateway o entrambi, migrazione facoltativa generata dall'ultima migrazione presente sulla VM.
+- Le migrazioni si applicano con le foreign key disattivate fuori dalla transazione, secondo la procedura SQLite per le modifiche allo schema, e con `foreign_key_check` prima del commit. In M34 restavano attive: con le ricostruzioni di tabelle generate da EF potrebbero attivare cancellazioni a cascata.
+- Default: la verifica di preservazione rifiuta qualunque modifica delle righe esistenti. Le tabelle in cui una migrazione aggiorna dati si dichiarano con `--allow-changes`; il numero di righe deve comunque restare uguale. Le migrazioni distruttive richiedono una procedura dedicata.
+- Il gateway dopo l'attivazione non viene più avviato due volte con il recovery: `trobot-whatsapp.service` lo richiama già tramite `Wants=`, e una seconda esecuzione a connessione già attiva fallirebbe.
