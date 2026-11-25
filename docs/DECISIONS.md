@@ -427,3 +427,10 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - Le migrazioni si applicano con le foreign key disattivate fuori dalla transazione, secondo la procedura SQLite per le modifiche allo schema, e con `foreign_key_check` prima del commit. In M34 restavano attive: con le ricostruzioni di tabelle generate da EF potrebbero attivare cancellazioni a cascata.
 - Default: la verifica di preservazione rifiuta qualunque modifica delle righe esistenti. Le tabelle in cui una migrazione aggiorna dati si dichiarano con `--allow-changes`; il numero di righe deve comunque restare uguale. Le migrazioni distruttive richiedono una procedura dedicata.
 - Il gateway dopo l'attivazione non viene più avviato due volte con il recovery: `trobot-whatsapp.service` lo richiama già tramite `Wants=`, e una seconda esecuzione a connessione già attiva fallirebbe.
+
+## 25 novembre 2026 - Ricostruzione delle presenze
+
+- Su autorizzazione esplicita ed eccezionale dell'utente, presenze e soggiorni persi con il DB Azure vengono reinseriti con lo strumento monouso `tools/TRobot.AttendanceRestore`. Lo strumento riproduce il codice dei servizi e attribuisce tutto all'organizzatore, con azione `StayRestored`. Scartata la simulazione dei messaggi al bot: avrebbe inviato risposte WhatsApp reali e attribuito alle persone messaggi mai scritti.
+- Regola dell'organizzatore: chi appartiene a un nucleo risponde sempre per tutto il nucleo.
+- Nuovi partecipanti e appartenenze ai nuclei passano dal portale, con le form normali dell'organizzatore.
+- Primo blocco applicato il 25 novembre dopo backup: 27 persone. Je Amico 4 e 5 sono stati aggiunti al nucleo Salerno dal portale. Integrità e foreign key OK, gateway riconnesso al gruppo, smoke pubblico positivo.
