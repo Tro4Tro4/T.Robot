@@ -1,5 +1,7 @@
 # Azure - preparazione hosting T.Robot
 
+**Aggiornamento 21 novembre 2026:** Web `message-delivery-20261121-arm64` attivo con invio reale dei messaggi del pannello e stato live di gateway e connessione. Il DB operativo era a `AddMealPreferences`: il rilascio `family-status-20261109-arm64` non era mai stato attivato, quindi sono state applicate sia `AddAttendanceFamilyStatus` sia `MessageDelivery`, dopo backup coerente e rehearsal. Gateway M34 conservato e connesso, righe storiche tutte `Simulated`, worker di invio disabilitato. Dettagli in [MILESTONE_35.md](MILESTONE_35.md).
+
 **Nota 19 novembre 2026:** completato in locale l'invio reale dei messaggi del pannello (M35) con worker persistente. Nessuna modifica ad Azure, alla sessione WhatsApp o al DB operativo da questo incarico. Il worker resta disabilitato senza `Messaging__Dispatcher__Enabled=true`. Migrazione `20261119084028_MessageDelivery` e procedura di rilascio/rollback in [MILESTONE_35.md](MILESTONE_35.md).
 
 **Aggiornamento 5 novembre 2026:** Web `member-associations-20261105-arm64` attivo con evidenziazione dei membri WhatsApp gia associati. Gateway M34 conservato; nessuna migrazione, backup coerente e confronto di tutte le righe positivi, identita/gruppo ripristinati. Dettagli in [MEMBER_ASSOCIATIONS_RELEASE.md](MEMBER_ASSOCIATIONS_RELEASE.md).

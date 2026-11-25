@@ -406,3 +406,10 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 ## 21 novembre 2026 - Stato live nel pannello Messaggi
 
 - Il pannello Messaggi mostra quattro livelli distinti: gateway, connessione WhatsApp, elaborazione automatica e singolo messaggio. La diagnostica live usa `Messages/Status`, richiede l'accesso all'evento, non restituisce QR, nomi o testi del gateway, limita l'attesa a 3 secondi e aggiorna la pagina ogni 10 secondi senza modificare lo stato. Default: nessun controllo live durante il caricamento iniziale, cosi' un gateway fermo non blocca il pannello.
+
+## 21 novembre 2026 - Rilascio Azure del pannello Messaggi
+
+- Su richiesta esplicita dell'utente il Web M35 (`message-delivery-20261121-arm64`) e' stato pubblicato su Azure con gateway invariato in `m34-20261031-arm64`. Il worker di invio resta disabilitato: `Messaging:Dispatcher:Enabled` assente o false, gli invii automatici richiedono un'attivazione esplicita successiva.
+- Il DB operativo era fermo alla migrazione `20261031205555_AddMealPreferences`: il rilascio `family-status-20261109-arm64` era stato preparato ma mai attivato su Azure. La release ha quindi applicato entrambe le migrazioni `20261108152657_AddAttendanceFamilyStatus` e `20261119084028_MessageDelivery`, dopo backup coerente e rehearsal su copia del DB corrente. Scelta documentata perche' amplia il solo M35 ed evita binari con modello piu' recente dello schema.
+- Corretto un difetto della migrazione M35: l'istruzione `UPDATE` di backfill non era terminata da `;`, quindi lo script generato da `dotnet ef migrations script` risultava non valido. Aggiunto il punto e virgola finale in `20261119084028_MessageDelivery.cs`, senza modifiche al modello o allo snapshot.
+- Righe storiche conservate e tutte `Simulated` (confronto per hash di tutte le 56 tabelle); nessun invio reale, nessun messaggio di prova, scheduler automatico locale invariato.

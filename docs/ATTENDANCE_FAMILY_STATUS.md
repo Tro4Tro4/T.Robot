@@ -37,3 +37,5 @@ Implementato nel branch di sessione l'8 novembre 2026. Non rilasciato su Azure: 
 - Verifiche nel container cloud con SDK 10.0.114 su copia senza `global.json` (10.0.401 non scaricabile dalla rete dell'ambiente): build 0 avvisi/errori, 679/679 test (baseline 663), nessuna modifica di modello pendente. Revisione indipendente in sola lettura APPROVED.
 - Suggerimenti facoltativi non applicati: test dedicato al cambio di collegamento tra domanda e risposta; plurale "1 bambini" ereditato dal flusso `si`; un "si" generico entro 15 minuti estende lo stato alla famiglia, stesso rischio gia accettato per `!presenza si`.
 - Collaudo dal telefono non eseguito.
+
+**Aggiornamento 21 novembre 2026:** rilasciata su Azure con la release `message-delivery-20261121-arm64`; migrazione applicata dopo backup coerente e rehearsal, righe di `AttendanceDialogues` conservate e `FamilyStatus` nullo sulle righe preesistenti.

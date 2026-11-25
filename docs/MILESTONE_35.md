@@ -102,3 +102,15 @@ Non eseguiti: test Node del gateway (codice gateway invariato), invii reali di p
 ## Stato dello scheduler Production
 
 Disabilitato. Questo incarico non ha creato o attivato servizi su Azure, non ha aperto sessioni WhatsApp e non ha inviato messaggi. L'attivazione resta un passaggio esplicito, successivo al collaudo controllato.
+
+## Rilascio Azure 21 novembre 2026
+
+Su richiesta esplicita dell'utente il Web M35 e' stato pubblicato su Azure; gateway invariato in `m34-20261031-arm64`. Release `message-delivery-20261121-arm64` (226 file, 9.157.702 byte, SHA-256 `71c4f5b71023d4eb96f6c537ae4c24a7151680a1445b9856f6cb6d9a238c5c2b`), script di migrazione SHA-256 `9b87540c1959e1d39f8a51c0d6b5bfea3a4e8526040db6f43952579a3ae10a89`. Worker di invio non attivato.
+
+Procedura eseguita: upload e staging senza modifiche ai servizi; arresto di timer di backup, recovery, gateway e Web; snapshot del DB; backup coerente con DB, chiavi Data Protection e stato WhatsApp, piu' copia della configurazione Web; rehearsal della migrazione su copia del DB con FK attive e confronto di tutte le 56 tabelle; applicazione della migrazione in transazione; cambio atomico del link `current`; riavvio Web con verifica di DB, chiavi, configurazione, identita e associazione al gruppo; recovery del gateway `connected` sul gruppo autorizzato; timer di backup riattivato.
+
+Il DB operativo era a `AddMealPreferences`: il rilascio `family-status-20261109-arm64` non era mai stato attivato. Sono quindi state applicate `20261108152657_AddAttendanceFamilyStatus` (colonna nullable `FamilyStatus`, righe conservate) e `20261119084028_MessageDelivery`. Tutte le righe di `OutboundMessages` restano `Simulated` con `DeliveryMode=0`, senza conferme, tentativi o stati di invio; `BotSettings` e le altre tabelle risultano invariate; integrity e foreign key OK.
+
+Verifiche dopo l'attivazione: `/health` del gateway `connected` con `activeGroupId` invariato, NRestarts=0 per Web e gateway, configurazione e chiavi identiche, smoke pubblico con TLS verificato senza override (login originale, 12 pagine riservate, 8 GET/POST ai moduli sospesi 404, 3 POST senza antiforgery 400, `Messages/Status` con gateway connesso e gruppo corrispondente, asset identici ai sorgenti, logout). Report privato `.local/azure/message-delivery-release-smoke-report.json`; contesto e backup sulla VM in `/root/trobot-provisioning/message-delivery-20261121-arm64-context.json`.
+
+Rollback previsto: rimuovere `Messaging:Dispatcher:Enabled` e riavviare il Web; per tornare ai binari precedenti ripristinare il pacchetto precedente e il DB dal backup coerente. Non necessario in questo rilascio.

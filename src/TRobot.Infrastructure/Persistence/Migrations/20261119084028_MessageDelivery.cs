@@ -85,7 +85,7 @@ namespace TRobot.Infrastructure.Persistence.Migrations
             // Backfill the new timestamps from data that already existed. DeliveryMode stays 0 (simulated):
             // every pre-existing row, including the historical Queued ones, remains excluded from real sends.
             migrationBuilder.Sql("UPDATE OutboundMessages SET CreatedAtUtc = ScheduledAtUtc, " +
-                "UpdatedAtUtc = CASE WHEN SentAtUtc IS NOT NULL THEN SentAtUtc ELSE ScheduledAtUtc END");
+                "UpdatedAtUtc = CASE WHEN SentAtUtc IS NOT NULL THEN SentAtUtc ELSE ScheduledAtUtc END;");
 
             migrationBuilder.CreateIndex(
                 name: "IX_OutboundMessages_ConfirmedByActorId",
