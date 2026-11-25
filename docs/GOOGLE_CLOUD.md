@@ -27,9 +27,12 @@
 - Il 25 novembre `trobot-backup.timer` era disabilitato e non era mai partito. Prima di attivarlo è stato eseguito un backup di prova: esito positivo, 8,1 MB con DB, chiavi, configurazione e sessione WhatsApp, integrità e foreign key verificate. Il gateway, fermato durante la copia, si è riconnesso da solo al gruppo autorizzato in circa due minuti.
 - Il timer è abilitato e attivo: ogni giorno alle 03:30 UTC, con un ritardo casuale fino a 15 minuti. I backup restano sulla VM in `/var/backups/trobot`, senza rotazione automatica né copia esterna.
 
+## Avvio automatico
+
+Il 25 novembre `trobot.service`, `trobot-whatsapp.service` e `caddy.service` risultavano `disabled`: dopo un riavvio della VM non sarebbero ripartiti da soli. Su richiesta dell'utente sono stati abilitati all'avvio (`systemctl enable`, senza riavviarli). Il gateway richiama `trobot-whatsapp-resume.service` tramite `Wants=`. Dopo la modifica tutti i servizi risultano attivi, con NRestarts=0, e il sito risponde 200. Il comportamento dopo un riavvio reale non è ancora stato collaudato.
+
 ## Punti aperti
 
-- `trobot.service` e `trobot-whatsapp.service` risultano `disabled`: dopo un riavvio della VM (per esempio per manutenzione Google) non ripartirebbero da soli. Su Azure erano abilitati. Abilitarli richiede una decisione esplicita.
 - Manca una copia dei backup fuori dalla VM.
 - La procedura di rilascio va adattata dagli script Azure a x64 e `gcloud`/SSH: upload con hash, staging, backup coerente, rehearsal delle migrazioni, cambio atomico di `current`, recovery del gateway e smoke pubblico.
 
