@@ -434,3 +434,4 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - Regola dell'organizzatore: chi appartiene a un nucleo risponde sempre per tutto il nucleo.
 - Nuovi partecipanti e appartenenze ai nuclei passano dal portale, con le form normali dell'organizzatore.
 - Primo blocco applicato il 25 novembre dopo backup: 27 persone. Je Amico 4 e 5 sono stati aggiunti al nucleo Salerno dal portale. Integrità e foreign key OK, gateway riconnesso al gruppo, smoke pubblico positivo.
+- Secondo blocco, sempre il 25 novembre, dopo backup: 8 assenti (nuclei Mozzati e Poloni, Tony, Vale). Angy era già indecisa e non è stata toccata; T-Robot, l'account del bot, è escluso. Stato finale: 23 confermati con soggiorno, 12 assenti, 1 indecisa. Integrità e foreign key OK, gateway connesso, smoke positivo. Ricostruzione delle presenze completata.
