@@ -22,6 +22,8 @@ Leggi `PROJECT_CONTEXT.md` (root, analisi verificata sul codice) prima di proget
 
 ## Milestone corrente
 
+Passaggio a Google Cloud comunicato dall'utente il 25 novembre 2026 (cambio eseguito il giorno precedente, fuori da questo repository): `trobot-capodanno.duckdns.org` risolve `34.29.22.143` e risponde da Google con HTTPS e login 200. Google e la nuova fonte operativa; Azure non va piu considerato attivo ne riattivato senza richiesta esplicita, e i rollback vanno basati su un export coerente da Google. Pacchetto x64 preparato il 24 novembre in `.local/publish-x64` e `.local/gcp-bundle.tar.gz`, compilato dopo l'ultima modifica del codice (M35). Accesso amministrativo, progetto, VM e procedura di rilascio ancora da documentare in `docs/GOOGLE_CLOUD.md`.
+
 Incremento del 5 novembre 2026 rilasciato su Azure: membri WhatsApp gia associati raggruppati ed evidenziati nel pannello. Web `member-associations-20261105-arm64`, gateway M34 invariato; nessuna migrazione, backup e dati/identita conservati, 663 test .NET e smoke pubblico positivo. Dettagli in `docs/MEMBER_ASSOCIATIONS_RELEASE.md`.
 
 Incremento del 1 novembre 2026 rilasciato su Azure: `!proponi` limitato ai giorni del soggiorno personale con presenza confermata, controllo alla scelta e alla conferma. Web `proposal-stay-20261101-arm64`, gateway M34 invariato; nessuna migrazione, backup e dati/identita conservati, 662 test .NET e review APPROVED. Dettagli in `docs/MENU_PROPOSAL_STAY.md`.

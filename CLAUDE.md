@@ -28,7 +28,7 @@ src/TRobot.Web             MVC/Razor per soli organizzatori, Program.cs, callbac
 gateway/TRobot.WhatsApp    processo Node ESM separato (Baileys non ufficiale), test con trasporti finti
 tests/TRobot.Tests         xUnit: dominio, servizi, SQLite, migrazioni, pipeline HTTP
 tools/                     strumenti monouso (seeder, transfer, cleanup) con README: non passaggi ordinari
-deploy/oracle, deploy/azure  servizi, backup, recovery; molti file "oracle" sono riusati su Azure
+deploy/oracle, deploy/azure  servizi, backup, recovery; molti file "oracle" sono riusati su Azure e Google
 ```
 
 Dipendenze: Web -> Application + Infrastructure; Infrastructure -> Application + Domain; Application -> Domain.
@@ -66,7 +66,7 @@ Le verifiche numeriche dei documenti (es. 663 test .NET al 5 novembre 2026) sono
 ## Cosa non fare mai senza richiesta esplicita
 
 - Collegare, avviare o inviare messaggi con il gateway WhatsApp reale; nessun messaggio di prova automatico.
-- Toccare Azure (VM `rg-trobot-host`), DB operativo, sessione WhatsApp o riattivare copie Oracle/PC: Azure e l'unica fonte operativa.
+- Toccare la VM Google (fonte operativa dal 24 novembre 2026, vedi `docs/GOOGLE_CLOUD.md`), DB operativo, sessione WhatsApp o riattivare copie Azure/Oracle/PC.
 - Reinserire lo scenario sintetico rimosso nel DB operativo.
 - Versionare `.local/`, credenziali, token, numeri reali, QR, sessioni, journal o file `*.db`.
 - Pubblicare saldi o dati personali individuali nel gruppo; aggiungere DM oltre `!proponi` e `!preferenze`.

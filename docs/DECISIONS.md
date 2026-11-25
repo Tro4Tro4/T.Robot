@@ -413,3 +413,9 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 - Il DB operativo era fermo alla migrazione `20261031205555_AddMealPreferences`: il rilascio `family-status-20261109-arm64` era stato preparato ma mai attivato su Azure. La release ha quindi applicato entrambe le migrazioni `20261108152657_AddAttendanceFamilyStatus` e `20261119084028_MessageDelivery`, dopo backup coerente e rehearsal su copia del DB corrente. Scelta documentata perche' amplia il solo M35 ed evita binari con modello piu' recente dello schema.
 - Corretto un difetto della migrazione M35: l'istruzione `UPDATE` di backfill non era terminata da `;`, quindi lo script generato da `dotnet ef migrations script` risultava non valido. Aggiunto il punto e virgola finale in `20261119084028_MessageDelivery.cs`, senza modifiche al modello o allo snapshot.
 - Righe storiche conservate e tutte `Simulated` (confronto per hash di tutte le 56 tabelle); nessun invio reale, nessun messaggio di prova, scheduler automatico locale invariato.
+
+## 25 novembre 2026 - Fonte operativa Google Cloud
+
+- L'utente comunica di aver spostato l'hosting da Azure a Google il 24 novembre. Il DNS pubblico punta a `34.29.22.143`. Da ora Google è la fonte operativa e Azure non va riattivato senza richiesta esplicita.
+- "Ultima versione" coincide con il codice corrente di `main`, cioè M35 più la documentazione. La build x64 del 24 novembre è successiva all'ultima modifica del codice: prima di qualunque nuovo rilascio verificare sulla VM la release attiva.
+- Il rilascio `family-status-20261109-arm64`, preparato per Azure e mai attivato, è superato: le sue migrazioni sono state applicate con il rilascio M35 del 21 novembre.
