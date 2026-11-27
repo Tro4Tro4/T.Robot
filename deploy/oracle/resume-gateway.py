@@ -142,7 +142,11 @@ def resume():
         if binding() != initial or not registered():
             raise RuntimeError('binding_changed')
         health = request(secret, '/groups', {'groupIds': groups})
-        if (health.get('status') != 'connected' or sorted(health.get('activeGroupIds') or []) != sorted(groups)
+        active = set(health.get('activeGroupIds') or [])
+        unavailable = set(health.get('unavailableGroupIds') or [])
+        # An unavailable group must not block the other events from resuming.
+        if (health.get('status') != 'connected' or active & unavailable
+                or active | unavailable != set(groups)
                 or binding() != initial or not registered()):
             raise RuntimeError('binding_changed')
         print('T.Robot gateway recovery: approved connection restored.')

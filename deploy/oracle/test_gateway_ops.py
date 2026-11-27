@@ -105,6 +105,7 @@ class RecoveryTests(unittest.TestCase):
         self.stack.enter_context(patch.object(ops.time, 'sleep'))
         self.calls = []
         self.health = 'disconnected'
+        self.unavailable = []
         self.request = self.stack.enter_context(patch.object(ops, 'request', side_effect=self.gateway))
         self.output = self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
 
@@ -115,7 +116,8 @@ class RecoveryTests(unittest.TestCase):
             self.health = 'connected'
         if path == '/disconnect':
             self.health = 'disconnected'
-        return {'status': self.health, 'activeGroupIds': [BINDING[2]] if path == '/groups' else []}
+        return {'status': self.health, 'activeGroupIds': [BINDING[2]] if path == '/groups' else [],
+                'unavailableGroupIds': self.unavailable if path == '/groups' else []}
 
     def test_restores_existing_groups_without_sending(self):
         self.assertEqual(0, ops.main())
@@ -123,6 +125,14 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual({'groupIds': [BINDING[2]]}, self.calls[-1][1])
         self.assertNotIn(BINDING[2], self.output.getvalue())
         self.assertNotIn(SECRET, self.output.getvalue())
+
+    def test_one_unavailable_group_does_not_block_the_others(self):
+        other = (*BINDING[:2], '99999@g.us', *BINDING[3:])
+        self.binding.return_value = [BINDING, other]
+        self.unavailable = [other[2]]
+        self.assertEqual(0, ops.main())
+        self.assertEqual({'groupIds': [BINDING[2], other[2]]}, self.calls[-1][1])
+        self.assertNotIn(other[2], self.output.getvalue())
 
     def test_missing_binding_or_session_skips_successfully(self):
         self.binding.return_value = []

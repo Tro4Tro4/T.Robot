@@ -32,10 +32,12 @@ public sealed partial class WhatsAppIntegrationTests
     public async Task MultiEventMessagesUseOnlyTheGroupAndConnectionOfTheirEvent()
     {
         await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
-        var service = Service(p, new FakeGateway(), new Clock()); var person = await Activate(p, f, service);
+        var gateway = new FakeGateway(); var service = Service(p, gateway, new Clock()); var person = await Activate(p, f, service);
         var (_, second, connection) = await AddSecondEventAsync(p, f, person);
         var db = p.GetRequiredService<TRobotDbContext>();
 
+        await service.SyncGroupsAsync();
+        Assert.Equal(new[] { Group, SecondGroup }.OrderBy(x => x), gateway.ActiveGroups.OrderBy(x => x));
         var secondReply = await service.IncomingAsync(Incoming("!aiuto", "second-event-help") with { GroupId = SecondGroup });
         Assert.True(secondReply.Handled);
         Assert.Single(await db.Set<WhatsAppCommandReceipt>().Where(x => x.EventId == second.Id).ToListAsync());
@@ -43,6 +45,18 @@ public sealed partial class WhatsAppIntegrationTests
 
         Assert.Equal(SecondGroup, connection.GroupId);
         Assert.Equal(f.EventId, (await db.Set<WhatsAppConnection>().SingleAsync(x => x.GroupId == Group)).EventId);
+
+        var first = await db.Set<WhatsAppConnection>().SingleAsync(x => x.EventId == f.EventId);
+        Assert.True(await service.UpdateFeaturesAsync(f.OrganizerPersonId, f.EventId,
+            new(WhatsAppFeature.Attendance), first.FeaturesRevision, true));
+        Assert.False((await service.IncomingAsync(Incoming("!aiuto", "first-info-off"))).Handled);
+        Assert.True((await service.IncomingAsync(Incoming("!aiuto", "second-info-on") with { GroupId = SecondGroup })).Handled);
+
+        Assert.True((await service.IncomingAsync(Incoming("!presenza no", "first-absent"))).Handled);
+        Assert.Equal(ParticipationStatus.Absent,
+            (await db.EventParticipants.SingleAsync(x => x.EventId == f.EventId)).Status);
+        Assert.Equal(ParticipationStatus.NoResponse,
+            (await db.EventParticipants.SingleAsync(x => x.EventId == second.Id)).Status);
     }
 
     [Fact]

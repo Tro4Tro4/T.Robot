@@ -418,23 +418,22 @@ public sealed partial class WhatsAppIntegrationTests
         public int Disconnects { get; private set; }
         public TaskCompletionSource? SendStarted { get; set; }
         public TaskCompletionSource? ReleaseSend { get; set; }
-        public string? ActiveGroup { get; private set; }
+        public IReadOnlyList<string> ActiveGroups { get; private set; } = [Group];
         public Task<GatewayHealth> HealthAsync(CancellationToken ct)
         {
             HealthReads++; if (FailHealth) throw new HttpRequestException("Gateway non disponibile");
-            var active = HealthGroupOverride is not null ? new[] { HealthGroupOverride }
-                : ActiveGroup is null ? [] : new[] { ActiveGroup };
+            var active = HealthGroupOverride is not null ? new[] { HealthGroupOverride } : ActiveGroups;
             return Task.FromResult(new GatewayHealth("connected", null, active, []));
         }
         public Task<GatewayHealth> ConnectAsync(CancellationToken ct) { Connects++; return HealthAsync(ct); }
-        public Task<GatewayHealth> DisconnectAsync(CancellationToken ct) { Disconnects++; ActiveGroup = null; return Task.FromResult(new GatewayHealth("disconnected")); }
+        public Task<GatewayHealth> DisconnectAsync(CancellationToken ct) { Disconnects++; ActiveGroups = []; return Task.FromResult(new GatewayHealth("disconnected")); }
         public Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) => Task.FromResult(AvailableGroups);
         public IReadOnlyList<GatewayMember> AvailableMembers { get; set; } = [new(Sender, [Alternate], "Membro sintetico")];
         public Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) => Task.FromResult(AvailableMembers);
         public Task<GatewayHealth> SetGroupsAsync(IReadOnlyList<string> groupIds, CancellationToken ct)
         {
             GroupSets++; if (FailGroup) throw new InvalidOperationException("Errore tecnico sintetico");
-            ActiveGroup = groupIds.FirstOrDefault(); return HealthAsync(ct);
+            ActiveGroups = groupIds.ToArray(); return HealthAsync(ct);
         }
         public async Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct)
         { Sends++; SendStarted?.TrySetResult(); if (ReleaseSend is not null) await ReleaseSend.Task.WaitAsync(ct); if (FailSend) throw new TaskCanceledException(); return new GatewaySendResult("sent", "synthetic-outgoing"); }
