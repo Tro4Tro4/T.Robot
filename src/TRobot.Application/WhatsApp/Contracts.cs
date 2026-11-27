@@ -22,7 +22,12 @@ public sealed class WhatsAppGatewayOptions(bool enabled, string baseUrl, string 
     { RequireEnabled(); return Convert.ToHexStringLower(HMACSHA256.HashData(Convert.FromHexString(Token), Encoding.UTF8.GetBytes($"TRobot:whatsapp:v1:{kind}:{value}"))); }
 }
 
-public sealed record GatewayHealth(string Status, string? QrDataUrl = null, string? ActiveGroupId = null);
+public sealed record GatewayHealth(string Status, string? QrDataUrl = null,
+    IReadOnlyList<string>? ActiveGroupIds = null, IReadOnlyList<string>? UnavailableGroupIds = null)
+{
+    public bool IsActive(string groupId) => ActiveGroupIds?.Contains(groupId) == true;
+    public bool IsUnavailable(string groupId) => UnavailableGroupIds?.Contains(groupId) == true;
+}
 public sealed record GatewayGroup(string Id, string Name);
 public sealed record GatewayMember(string Id, IReadOnlyList<string> AlternateIds, string Label, bool IsAssociated = false);
 public sealed record GatewaySendResult(string Status, string? MessageId = null);
@@ -32,7 +37,7 @@ public sealed class WhatsAppGatewayRejectedException(string? code) : Exception
 {
     public string? Code { get; } = code;
 }
-public sealed record WhatsAppIncoming(string GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds, bool IsPrivate = false);
+public sealed record WhatsAppIncoming(string? GroupId, IReadOnlyList<string> SenderIds, string MessageId, string Text, long TimestampUnixSeconds, bool IsPrivate = false);
 public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false, string? Reaction = null,
     string? ReplyText = null, Guid? ReplyOperationId = null, bool ReplyPrivately = false);
 public sealed record WhatsAppListPreview(Guid EventId, WhatsAppListKind Kind, string GroupId, int ConnectionRevision,
@@ -52,13 +57,14 @@ public interface IWhatsAppGateway
     Task<GatewayHealth> DisconnectAsync(CancellationToken ct);
     Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct);
     Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct);
-    Task SetGroupAsync(string? groupId, CancellationToken ct);
+    Task<GatewayHealth> SetGroupsAsync(IReadOnlyList<string> groupIds, CancellationToken ct);
     Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct);
 }
 public interface IWhatsAppStore
 {
     Task<bool> IsAdministratorAsync(Guid personId, CancellationToken ct);
-    Task<WhatsAppConnection?> ActiveConnectionAsync(CancellationToken ct);
+    Task<IReadOnlyList<WhatsAppConnection>> ActiveConnectionsAsync(CancellationToken ct);
+    Task<WhatsAppConnection?> ConnectionByGroupAsync(string groupId, CancellationToken ct);
     Task<EventParticipant?> ParticipantAsync(Guid eventId, Guid personId, CancellationToken ct);
     Task<WhatsAppIncomingReceipt?> ReceiptAsync(Guid eventId, string messageHash, CancellationToken ct);
     Task<IReadOnlyList<LocalAudit>> AuditsSinceAsync(Guid eventId, string action, DateTime afterUtc, CancellationToken ct);

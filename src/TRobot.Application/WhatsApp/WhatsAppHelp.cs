@@ -47,32 +47,66 @@ public sealed partial class WhatsAppService
         var topic = parts.Length == 2 ? parts[1].ToLowerInvariant() : null;
         var text = topic switch
         {
-            null when parts.Length == 1 => await HelpIndexWithDeadlineAsync(connection.EventId, state, ct),
-            "presenza" or "presenze" => await WithAttendanceDeadlineAsync(connection.EventId, PresenceHelp, ct),
-            "riepilogo" or "riepiloghi" => SummaryHelp,
-            "pasti" or "pasto" or "piatti" or "proponi" or "preferenze" => (state.ProposalsOpen ? MealsHelpProposalsOpen : MealsHelpProposalsClosed) + state.VoteHelp,
-            "elenchi" or "elenco" or "menu" or "todo" or "impegni" or "porto" or "prendo" or "fatto" when state.Lists => ListsHelp(state),
+            null when parts.Length == 1 => await HelpIndexWithDeadlineAsync(connection, state, ct),
+            "presenza" or "presenze" when connection.Allows(WhatsAppFeature.Attendance) => await WithAttendanceDeadlineAsync(connection.EventId, PresenceHelp, ct),
+            "riepilogo" or "riepiloghi" when connection.Allows(WhatsAppFeature.Information) => SummaryHelp,
+            "pasti" or "pasto" or "piatti" or "proponi" or "preferenze"
+                when connection.Allows(WhatsAppFeature.MealProposals) || connection.Allows(WhatsAppFeature.MealPreferences) => MealsHelp(connection, state),
+            "elenchi" or "elenco" or "menu" or "todo" or "impegni" or "porto" or "prendo" or "fatto"
+                when state.Lists && (connection.Allows(WhatsAppFeature.Information) || connection.Allows(WhatsAppFeature.Operations)) => ListsHelp(connection, state),
             _ => null
         };
-        return text ?? HelpNotFound + await HelpIndexWithDeadlineAsync(connection.EventId, state, ct);
+        return text ?? HelpNotFound + await HelpIndexWithDeadlineAsync(connection, state, ct);
     }
 
-    private async Task<string> HelpIndexWithDeadlineAsync(Guid eventId, HelpState state, CancellationToken ct) =>
-        await WithAttendanceDeadlineAsync(eventId, HelpIndex(state), ct);
+    private async Task<string> HelpIndexWithDeadlineAsync(WhatsAppConnection connection, HelpState state, CancellationToken ct) =>
+        await WithAttendanceDeadlineAsync(connection.EventId, HelpIndex(connection, state), ct);
 
-    private static string HelpIndex(HelpState state) => HelpTitle
-        + "!aiuto presenza - conferme, date e famiglia\n"
-        + "!aiuto riepilogo - chi c'è e quando\n"
-        + "!aiuto pasti - proposte e preferenze sui piatti"
-        + (state.Lists ? "\n!aiuto elenchi - menu e incarichi da prendere" : "");
+    private static string HelpIndex(WhatsAppConnection connection, HelpState state)
+    {
+        var text = HelpTitle;
+        if (connection.Allows(WhatsAppFeature.Attendance)) text += "!aiuto presenza - conferme, date e famiglia\n";
+        if (connection.Allows(WhatsAppFeature.Information)) text += "!aiuto riepilogo - chi c'è e quando\n";
+        if (connection.Allows(WhatsAppFeature.MealProposals) || connection.Allows(WhatsAppFeature.MealPreferences))
+            text += "!aiuto pasti - proposte e preferenze sui piatti";
+        if (state.Lists && (connection.Allows(WhatsAppFeature.Information) || connection.Allows(WhatsAppFeature.Operations)))
+            text += "\n!aiuto elenchi - menu e incarichi da prendere";
+        return text.TrimEnd();
+    }
 
-    private static string ListsHelp(HelpState state)
+    private static string MealsHelp(WhatsAppConnection connection, HelpState state)
+    {
+        var text = string.Empty;
+        if (connection.Allows(WhatsAppFeature.MealProposals))
+        {
+            var proposals = state.ProposalsOpen ? MealsHelpProposalsOpen : MealsHelpProposalsClosed;
+            if (!connection.Allows(WhatsAppFeature.MealPreferences))
+            {
+                var marker = proposals.IndexOf("*Votare i piatti*", StringComparison.Ordinal);
+                if (marker >= 0) proposals = proposals[..marker].TrimEnd();
+            }
+            text += proposals;
+        }
+        if (connection.Allows(WhatsAppFeature.MealPreferences)) text += state.VoteHelp;
+        return text;
+    }
+
+    private static string ListsHelp(WhatsAppConnection connection, HelpState state)
     {
         var text = "📋 *Elenchi*\nServe la presenza confermata; i bambini non possono usare i comandi che modificano.";
-        if (state.Menu) text += "\n\n🍽️ *Menu*\n!menu [pagina] - mostra il menu\n!porto <rif> - ti proponi di portare una voce libera o già tua";
-        if (state.Todo) text += "\n\n✅ *Cose da fare*\n!todo [pagina] - mostra le attività\n!prendo <rif> - ti proponi per un'attività\n!fatto <rif> - segni come completata un'attività tua";
-        var verbs = state.Menu && state.Todo ? "!porto, !prendo e !fatto" : state.Menu ? "!porto" : "!prendo e !fatto";
-        return text + $"\n\n🙋 Per {verbs} ti rispondo con un codice: invia !conferma <codice> entro cinque minuti e solo allora la modifica viene salvata.";
+        if (connection.Allows(WhatsAppFeature.Information) && state.Menu)
+            text += "\n\n🍽️ *Menu*\n!menu [pagina] - mostra il menu\n!porto <rif> - ti proponi di portare una voce libera o già tua";
+        if (connection.Allows(WhatsAppFeature.Information) && state.Todo)
+            text += "\n\n✅ *Cose da fare*\n!todo [pagina] - mostra le attività\n!prendo <rif> - ti proponi per un'attività\n!fatto <rif> - segni come completata un'attività tua";
+        if (connection.Allows(WhatsAppFeature.Operations))
+        {
+            var verbs = new List<string>();
+            if (connection.Allows(WhatsAppFeature.Information) && state.Menu) verbs.Add("!porto");
+            if (connection.Allows(WhatsAppFeature.Information) && state.Todo) verbs.Add("!prendo e !fatto");
+            if (verbs.Count > 0)
+                text += $"\n\n🙋 Per {string.Join(", ", verbs)} ti rispondo con un codice: invia !conferma <codice> entro cinque minuti e solo allora la modifica viene salvata.";
+        }
+        return text;
     }
 
     private async Task<HelpState> HelpStateAsync(WhatsAppConnection connection, CancellationToken ct)

@@ -107,6 +107,7 @@ public sealed partial class WhatsAppIntegrationTests
         var next = new Event("Secondo evento proposte", new DateTime(2030, 12, 31, 12, 0, 0, DateTimeKind.Utc));
         var binding = new WhatsAppConnection(next.Id);
         binding.Activate(Group, f.OrganizerPersonId, Now);
+        binding.UpdateFeatures(WhatsAppFeatureSet.All);
         db.AddRange(next, new EventParticipant(next.Id, person), new EventOrganizer(next.Id, f.OrganizerPersonId), binding);
         foreach (var sender in Incoming().SenderIds)
             db.Add(new WhatsAppIdentityAlias(next.Id, Options().Fingerprint("sender", sender), person));

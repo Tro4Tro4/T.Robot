@@ -34,7 +34,7 @@ async function harness(t, options = {}) {
     callback: async payload => { callbacks.push(payload); return { handled: true, duplicate: false, reaction: '✅' }; },
     now: () => time, timers, ...options });
   return { gateway, journal, sockets, callbacks, scheduled, directory, setTime: value => { time = value; },
-    async ready() { await gateway.connect(); sockets.at(-1).handlers.update({ connection: 'open' }); await gateway.group(group); } };
+    async ready() { await gateway.connect(); sockets.at(-1).handlers.update({ connection: 'open' }); await gateway.setGroups([group]); } };
 }
 const incoming = (id = 'incoming-synthetic', overrides = {}) => ({
   key: { remoteJid: group, participant: '111:4@lid', participantAlt: '222:5@s.whatsapp.net', id, fromMe: false },
@@ -54,7 +54,7 @@ const request = (server, path, { method = 'GET', authorization = 'Bearer ' + tok
 test('HTTP host starts disconnected and every endpoint requires constant-time bearer authorization', async t => {
   const h = await harness(t); const server = createGatewayServer(h.gateway, token);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise(resolve => server.close(resolve)));
-  for (const path of ['/health', '/groups', '/groups/12345%40g.us/members', '/connect', '/disconnect', '/group', '/send']) {
+  for (const path of ['/health', '/groups', '/groups/12345%40g.us/members', '/connect', '/disconnect', '/send']) {
     assert.equal((await request(server, path, { authorization: null })).status, 401);
     assert.equal((await request(server, path, { authorization: 'Bearer ' + 'b'.repeat(64) })).status, 401);
   }
@@ -79,15 +79,35 @@ test('Explicit lifecycle, QR is health-only, pin validates membership and member
   assert.equal(h.gateway.health().status, 'qr');
   h.sockets[0].handlers.update({ connection: 'open' });
   assert.equal(h.gateway.health().qrDataUrl, null);
-  await assert.rejects(h.gateway.group('111@s.whatsapp.net'), GatewayError);
-  await assert.rejects(h.gateway.group('99999@g.us'), e => e.code === 'group_not_available');
+  await assert.rejects(h.gateway.setGroups(['111@s.whatsapp.net']), e => e.code === 'invalid_groups');
+  const missing = await h.gateway.setGroups(['99999@g.us']);
+  assert.deepEqual(missing.activeGroupIds, []); assert.deepEqual(missing.unavailableGroupIds, ['99999@g.us']);
   await assert.rejects(h.gateway.members(group), e => e.code === 'inactive_group');
-  await h.gateway.group(group);
+  await h.gateway.setGroups([group]);
   assert.deepEqual((await h.gateway.members(group)).members[0].alternateIds, ['222@s.whatsapp.net']);
   await assert.rejects(h.gateway.members(otherGroup), e => e.code === 'inactive_group');
-  h.gateway.disconnect(); assert.equal(h.gateway.health().activeGroupId, null);
+  h.gateway.disconnect(); assert.deepEqual(h.gateway.health().activeGroupIds, []);
   await h.gateway.closing;
   assert.equal(h.sockets[0].closed, 1);
+});
+
+test('PUT /groups installs multiple active groups and scopes members, sends and validation', async t => {
+  const h = await harness(t); const server = createGatewayServer(h.gateway, token);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  assert.equal((await request(server, '/connect', { method: 'POST', body: {} })).status, 200);
+  h.sockets[0].handlers.update({ connection: 'open' });
+  const installed = await request(server, '/groups', { method: 'PUT', body: { groupIds: [group, otherGroup, '99999@g.us'] } });
+  assert.equal(installed.status, 200);
+  assert.deepEqual(installed.body.activeGroupIds, [group, otherGroup]);
+  assert.deepEqual(installed.body.unavailableGroupIds, ['99999@g.us']);
+  assert.equal((await request(server, '/groups/' + encodeURIComponent(otherGroup) + '/members')).status, 200);
+  assert.equal((await request(server, '/send', { method: 'POST', body: { operationId: randomUUID(), groupId: group, text: 'A' } })).status, 200);
+  assert.equal((await request(server, '/send', { method: 'POST', body: { operationId: randomUUID(), groupId: otherGroup, text: 'B' } })).status, 200);
+  assert.equal((await request(server, '/send', { method: 'POST', body: { operationId: randomUUID(), groupId: '99999@g.us', text: 'C' } })).status, 403);
+  assert.equal((await request(server, '/groups', { method: 'PUT', body: { groupIds: [group, group] } })).status, 400);
+  const empty = await request(server, '/groups', { method: 'PUT', body: { groupIds: [] } });
+  assert.deepEqual(empty.body.activeGroupIds, []); assert.deepEqual(empty.body.unavailableGroupIds, []);
 });
 
 test('Journal is durable before send, identical concurrent retries send once and changed payload conflicts', async t => {
@@ -125,7 +145,7 @@ test('Send rejects inactive groups and invalid payloads; repin while journal per
   await assert.rejects(h.gateway.send({ ...payload, groupId: otherGroup }), e => e.code === 'inactive_group');
   await assert.rejects(h.gateway.send({ ...payload, text: 'x'.repeat(1001) }), e => e.code === 'invalid_send');
   const original = h.journal.pending.bind(h.journal);
-  h.journal.pending = async (...args) => { await original(...args); await h.gateway.group(otherGroup); };
+  h.journal.pending = async (...args) => { await original(...args); await h.gateway.setGroups([otherGroup]); };
   assert.equal((await h.gateway.send(payload)).status, 'uncertain'); assert.equal(h.sockets[0].sent.length, 0);
 });
 
@@ -356,7 +376,7 @@ test('Attendance candidate callbacks cannot survive same-group repin or a change
   const originalSocket = h.sockets[0];
   let release; h.gateway.callbackTail = new Promise(resolve => { release = resolve; });
   originalSocket.handlers.messages({ type: 'notify', messages: [incoming('candidate-repin', { message: { conversation: '4' } })] });
-  await h.gateway.group(group); release();
+  await h.gateway.setGroups([group]); release();
   await h.gateway.idle(); assert.equal(h.callbacks.length, 0);
   originalSocket.handlers.messages({ type: 'notify', messages: [incoming('candidate-reconnect', { message: { conversation: 'sì' } })] });
   h.gateway.disconnect(); await h.ready(); await h.gateway.idle();
@@ -558,7 +578,7 @@ test('Private plain input uses remote identity only, active group, bounded paylo
     privateMessage('self-private', 'Pasta', { key: { ...privateMessage('self-private', '').key, fromMe: true } })] });
   await h.gateway.idle(); assert.equal(h.callbacks.length, 1);
   assert.deepEqual(h.callbacks[0].senderIds, ['111@lid', '222@s.whatsapp.net']);
-  assert.equal(h.callbacks[0].groupId, group); assert.equal(h.callbacks[0].isPrivate, true);
+  assert.equal(h.callbacks[0].groupId, null); assert.equal(h.callbacks[0].isPrivate, true);
   assert.equal(h.callbacks[0].text, 'Pasta al forno'); assert.equal(socket.reactions.length, 0);
   h.gateway.callback = async () => ({ handled: true, duplicate: false, replyText: 'Riservato', replyOperationId: randomUUID() });
   socket.handlers.messages({ type: 'notify', messages: [privateMessage('no-fallback', '!annulla')] });
@@ -590,7 +610,7 @@ test('A failed private send remains uncertain, never falls back to group and nev
     socket.handlers.messages({ type: 'notify', messages: [privateMessage(id, 'Pasta')] }); await h.gateway.idle();
   }
   assert.equal(attempts, 1); assert.equal(socket.sent.length, 0); assert.equal(socket.reactions.length, 0);
-  assert.equal((await h.journal.get(operationId, h.journal.fingerprint(group + ':private:111@lid', 'Riservato'))).status, 'uncertain');
+  assert.equal((await h.journal.get(operationId, h.journal.fingerprint('private:111@lid', 'Riservato'))).status, 'uncertain');
 });
 
 test('Private callback journal binds recipient, never replays and keeps private text out of durable files', async t => {
@@ -630,13 +650,13 @@ for (const boundary of ['callback', 'sendTail', 'journal-get', 'journal-pending'
       originalSocket.handlers.messages({ type: 'notify', messages: [privateReply ? privateMessage('fenced-private', 'Pasta')
         : incoming('fenced-info', { message: { conversation: '!aiuto' } })] });
       await started;
-      if (change === 'repin') await h.gateway.group(group);
+      if (change === 'repin') await h.gateway.setGroups([group]);
       else { h.gateway.disconnect(); await h.ready(); }
       release(); await h.gateway.idle();
       assert.ok(h.sockets.every(socket => socket.sent.length === 0 && socket.privateSent.length === 0 && socket.reactions.length === 0));
       // A fenced or uncertain operation is never replayed automatically after restart.
       if (boundary !== 'callback' && change === 'repin') assert.equal((await h.journal.get(operationId,
-        h.journal.fingerprint(privateReply ? group + ':private:111@lid' : group, reply.replyText))).status, 'uncertain');
+        h.journal.fingerprint(privateReply ? 'private:111@lid' : group, reply.replyText))).status, 'uncertain');
     });
   }
 }

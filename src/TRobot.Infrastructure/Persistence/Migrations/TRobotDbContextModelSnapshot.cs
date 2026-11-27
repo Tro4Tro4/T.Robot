@@ -2082,6 +2082,30 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EventId")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("FeatureAttendance")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FeatureFunReplies")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FeatureInformation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FeatureMealPreferences")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FeatureMealProposals")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FeatureOperations")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FeaturesRevision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("GroupId")
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
@@ -2094,11 +2118,14 @@ namespace TRobot.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ActorId");
 
-                    b.HasIndex("Enabled")
-                        .IsUnique()
-                        .HasFilter("Enabled = 1");
+                    b.HasIndex("Enabled");
 
-                    b.HasIndex("EventId");
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("GroupId")
+                        .IsUnique()
+                        .HasFilter("\"Enabled\" = 1");
 
                     b.ToTable("WhatsAppConnections", null, t =>
                         {

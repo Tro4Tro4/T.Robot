@@ -50,7 +50,8 @@ export class WhatsAppGateway {
   constructor({ transportFactory, journal, token, callback, now = () => Date.now(), timers = globalThis }) {
     Object.assign(this, { transportFactory, journal, token, callback, now, timers });
     this.status = 'disconnected'; this.errorCode = null; this.qrDataUrl = null;
-    this.activeGroupId = null; this.activation = 0; this.socket = null;
+    this.activeGroupIds = new Set(); this.unavailableGroupIds = new Set();
+    this.routingEpoch = 0; this.activation = 0; this.socket = null;
     this.epoch = 0; this.requested = false; this.retries = 0; this.reconnect = null;
     this.startTail = Promise.resolve(); this.closing = Promise.resolve();
     this.sendTail = Promise.resolve(); this.callbackTail = Promise.resolve(); this.queued = 0;
@@ -61,7 +62,8 @@ export class WhatsAppGateway {
       callbackAttempts: 0, callbackHandled: 0, callbackIgnored: 0, callbackDuplicate: 0,
       callbackFailed: 0, reactionSent: 0, reactionFailed: 0 };
   }
-  health() { return { status: this.status, qrDataUrl: this.qrDataUrl, activeGroupId: this.activeGroupId,
+  health() { return { status: this.status, qrDataUrl: this.qrDataUrl,
+    activeGroupIds: [...this.activeGroupIds], unavailableGroupIds: [...this.unavailableGroupIds],
     errorCode: this.errorCode, diagnostics: { ...this.diagnostics } }; }
   count(name) { this.diagnostics[name] = Math.min(Number.MAX_SAFE_INTEGER, this.diagnostics[name] + 1); }
   async connect() {
@@ -130,7 +132,8 @@ export class WhatsAppGateway {
     this.reconnect = null;
     this.closeTransport(this.socket); this.socket = null;
     this.status = 'disconnected'; this.errorCode = null; this.qrDataUrl = null;
-    this.activeGroupId = null; this.activation = this.now();
+    this.activeGroupIds.clear(); this.unavailableGroupIds.clear();
+    this.routingEpoch++; this.activation = this.now();
     return this.health();
   }
   connected() {
@@ -140,25 +143,26 @@ export class WhatsAppGateway {
   async groups() { return { groups: await this.connected().groups() }; }
   async members(groupId) {
     if (!validGroup(groupId)) throw new GatewayError('invalid_group');
-    if (groupId !== this.activeGroupId) throw new GatewayError('inactive_group', 403);
+    if (!this.activeGroupIds.has(groupId)) throw new GatewayError('inactive_group', 403);
     const socket = this.connected();
-    const epoch = this.epoch; const pinEpoch = this.pinEpoch;
+    const epoch = this.epoch; const routingEpoch = this.routingEpoch;
     if (!(await socket.groups()).some(g => g.id === groupId)) throw new GatewayError('group_not_available', 403);
     const members = await socket.members(groupId);
-    if (socket !== this.socket || epoch !== this.epoch || pinEpoch !== this.pinEpoch || groupId !== this.activeGroupId)
-      throw new GatewayError('connection_changed', 409);
+    if (socket !== this.socket || epoch !== this.epoch || routingEpoch !== this.routingEpoch
+      || !this.activeGroupIds.has(groupId)) throw new GatewayError('connection_changed', 409);
     return { members };
   }
-  async group(groupId) {
-    if (groupId !== null) {
-      if (!validGroup(groupId)) throw new GatewayError('invalid_group');
-      const socket = this.connected(); const epoch = this.epoch;
-      if (!(await socket.groups()).some(g => g.id === groupId)) throw new GatewayError('group_not_available', 403);
-      if (socket !== this.socket || epoch !== this.epoch) throw new GatewayError('connection_changed', 409);
-    }
-    this.activeGroupId = groupId; this.activation = this.now();
-    // Pin changes also invalidate already queued callbacks, even if the same group is reselected.
-    this.pinEpoch = (this.pinEpoch ?? 0) + 1;
+  async setGroups(groupIds) {
+    if (!Array.isArray(groupIds) || groupIds.length > 50 || new Set(groupIds).size !== groupIds.length
+      || groupIds.some(id => !validGroup(id))) throw new GatewayError('invalid_groups');
+    const socket = this.connected(); const epoch = this.epoch;
+    const available = new Set((await socket.groups()).map(group => group.id));
+    if (socket !== this.socket || epoch !== this.epoch) throw new GatewayError('connection_changed', 409);
+    this.activeGroupIds = new Set(groupIds.filter(id => available.has(id)));
+    this.unavailableGroupIds = new Set(groupIds.filter(id => !available.has(id)));
+    // Any routing change invalidates callbacks queued for the previous set.
+    this.routingEpoch++;
+    this.activation = this.now();
     return this.health();
   }
   send(request) {
@@ -167,23 +171,25 @@ export class WhatsAppGateway {
     return task;
   }
   async sendOnce({ operationId, groupId, text }, original = null, maximum = 1000, privateRecipient = null) {
-    if (!validOperation(operationId) || !validGroup(groupId) || typeof text !== 'string'
-      || !text.trim() || text.length > maximum) throw new GatewayError('invalid_send');
-    const { socket, epoch, pinEpoch } = original ?? { socket: this.socket, epoch: this.epoch, pinEpoch: this.pinEpoch };
-    operationId = operationId.toLowerCase();
-    if (privateRecipient !== null && (!original || normalizeSender(privateRecipient) !== privateRecipient))
+    const privateSend = privateRecipient !== null;
+    if (!validOperation(operationId) || typeof text !== 'string' || !text.trim() || text.length > maximum
+      || (!privateSend && !validGroup(groupId))) throw new GatewayError('invalid_send');
+    if (privateSend && (!original || normalizeSender(privateRecipient) !== privateRecipient))
       throw new GatewayError('invalid_send');
-    const digest = this.journal.fingerprint(privateRecipient === null ? groupId : groupId + ':private:' + privateRecipient, text);
+    const { socket, epoch, routingEpoch } = original ?? { socket: this.socket, epoch: this.epoch, routingEpoch: this.routingEpoch };
+    operationId = operationId.toLowerCase();
+    const scope = privateSend ? 'private:' + privateRecipient : groupId;
+    const digest = this.journal.fingerprint(scope, text);
     const prior = await this.journal.get(operationId, digest);
     if (prior) return prior;
     this.connected();
-    if (groupId !== this.activeGroupId) throw new GatewayError('inactive_group', 403);
+    if (!privateSend && !this.activeGroupIds.has(groupId)) throw new GatewayError('inactive_group', 403);
     await this.journal.pending(operationId, digest);
     let result = { status: 'uncertain', messageId: null };
     try {
-      if (socket === this.socket && epoch === this.epoch && pinEpoch === this.pinEpoch
-        && groupId === this.activeGroupId && this.status === 'connected') {
-        const messageId = privateRecipient === null ? await socket.send(groupId, text) : await socket.sendPrivate(privateRecipient, text);
+      if (socket === this.socket && epoch === this.epoch && routingEpoch === this.routingEpoch
+        && (privateSend || this.activeGroupIds.has(groupId)) && this.status === 'connected') {
+        const messageId = privateSend ? await socket.sendPrivate(privateRecipient, text) : await socket.send(groupId, text);
         result = { status: 'sent', messageId: typeof messageId === 'string' ? messageId : null };
       }
     } catch { /* An external send failure can be ambiguous. Never retry it automatically. */ }
@@ -199,17 +205,18 @@ export class WhatsAppGateway {
     while (this.rates.size >= 1000) this.rates.delete(this.rates.keys().next().value);
   }
   incoming(epoch, batch) {
-    if (epoch !== this.epoch || this.status !== 'connected' || batch?.type !== 'notify' || !this.activeGroupId) return;
+    if (epoch !== this.epoch || this.status !== 'connected' || batch?.type !== 'notify' || this.activeGroupIds.size === 0) return;
     this.count('notifyBatches');
     for (const message of batch.messages ?? []) {
       this.count('received');
       const key = message.key;
       const remoteJid = key?.remoteJid;
       const isPrivate = normalizeSender(remoteJid) !== null;
-      const groupId = isPrivate ? this.activeGroupId : remoteJid;
+      const groupId = isPrivate ? null : remoteJid;
       const timestamp = Number(message.messageTimestamp);
       const now = this.now();
-      if (key?.fromMe || !validGroup(groupId) || groupId !== this.activeGroupId || (!isPrivate && !key?.participant)
+      if (key?.fromMe || (isPrivate ? false : (!validGroup(groupId) || !this.activeGroupIds.has(groupId)))
+        || (!isPrivate && !key?.participant)
         || typeof key.id !== 'string' || !key.id || key.id.length > 200 || !Number.isSafeInteger(timestamp) || timestamp <= 0
         || timestamp * 1000 < Math.max(this.activation, this.socketStarted) - 999
         || timestamp * 1000 < now - 120000 || timestamp * 1000 > now + 30000) { this.count('contextRejected'); continue; }
@@ -225,17 +232,18 @@ export class WhatsAppGateway {
       this.trimCaches(now);
       const seenId = this.digest('incoming:' + remoteJid + ':' + key.id);
       if (this.seen.has(seenId) || this.queued >= 50) { this.count('duplicateOrBusy'); continue; }
-      // Keep the group budget unchanged while allowing a private dialog correction.
-      const sender = this.digest((isPrivate ? 'private-sender:' : 'sender:') + senderIds[0]);
+      // Each event has its own group budget; private dialogs keep a separate per-sender budget.
+      const sender = this.digest((isPrivate ? 'private-sender:' : groupId + ':sender:') + senderIds[0]);
       const rate = this.rates.get(sender) ?? { count: 0, until: now + 60000 };
       if (rate.count >= (isPrivate ? 15 : 6)) { this.count('rateRejected'); continue; }
       rate.count++; this.rates.set(sender, rate); this.seen.set(seenId, now + 600000);
       this.queued++;
       this.count('queued');
-      const pinEpoch = this.pinEpoch; const socket = this.socket;
+      const routingEpoch = this.routingEpoch; const socket = this.socket;
       const payload = { groupId, senderIds, messageId: key.id, text, timestampUnixSeconds: timestamp, isPrivate };
       this.callbackTail = this.callbackTail.then(async () => {
-        if (epoch !== this.epoch || pinEpoch !== this.pinEpoch || groupId !== this.activeGroupId || socket !== this.socket) return;
+        if (epoch !== this.epoch || routingEpoch !== this.routingEpoch || socket !== this.socket
+          || (!isPrivate && !this.activeGroupIds.has(groupId))) return;
         this.count('callbackAttempts');
         let result;
         try { result = validateCallback(await this.callback(payload)); }
@@ -252,13 +260,13 @@ export class WhatsAppGateway {
           // Preserve the originating socket and pin through both the send queue and
           // every journal await. A new socket or same-group repin cannot adopt it.
           const task = this.sendTail.then(() => this.sendOnce({ operationId: result.replyOperationId,
-            groupId, text: result.replyText }, { socket, epoch, pinEpoch }, 2000,
+            groupId, text: result.replyText }, { socket, epoch, routingEpoch }, 2000,
           result.replyPrivately ? senderIds[0] : null));
           this.sendTail = task.catch(() => {});
           await task.catch(() => {});
         }
         if (!isPrivate && result?.handled && !result.duplicate && result.reaction
-          && epoch === this.epoch && pinEpoch === this.pinEpoch && groupId === this.activeGroupId
+          && epoch === this.epoch && routingEpoch === this.routingEpoch && this.activeGroupIds.has(groupId)
           && socket === this.socket && this.status === 'connected') {
           try { await socket.react(groupId, key, '✅'); this.count('reactionSent'); }
           catch { this.count('reactionFailed'); }

@@ -10,9 +10,12 @@
     if (!response.ok) throw new Error('gateway_unavailable');
     return response.json();
   }
-  function options(select, rows, label) {
+  function options(select, rows, label, active = [], unavailable = []) {
     select.replaceChildren(new Option(label, ''));
-    for (const row of rows) select.add(new Option(row.name || row.label || 'Membro senza nome', row.id));
+    for (const row of rows) {
+      const state = active.includes(row.id) ? ' (attivo)' : unavailable.includes(row.id) ? ' (non disponibile)' : '';
+      select.add(new Option((row.name || row.label || 'Membro senza nome') + state, row.id));
+    }
   }
   function memberOptions(select, rows) {
     select.replaceChildren(new Option('Seleziona un membro', ''));
@@ -40,22 +43,28 @@
     try {
       const health = await get(device.dataset.statusUrl);
       const names = { disconnected: 'Disconnesso', connecting: 'Collegamento in corso', qr: 'Scansiona il QR', connected: 'Dispositivo collegato', error: 'Gateway non disponibile' };
+      const active = Array.isArray(health.activeGroupIds) ? health.activeGroupIds : [];
+      const unavailable = Array.isArray(health.unavailableGroupIds) ? health.unavailableGroupIds : [];
       status.textContent = names[health.status] || 'Stato gateway non disponibile';
       const validQr = typeof health.qrDataUrl === 'string' && health.qrDataUrl.length < 1000000 && health.qrDataUrl.startsWith('data:image/png;base64,');
       qr.hidden = !validQr;
       if (validQr) qr.src = health.qrDataUrl;
       else qr.removeAttribute('src');
       if (health.status === 'connected' && !loadedGroups) {
-        options(document.getElementById('whatsapp-group'), await get(device.dataset.groupsUrl), 'Seleziona il gruppo di prova');
+        options(document.getElementById('whatsapp-group'), await get(device.dataset.groupsUrl), 'Seleziona il gruppo di prova', active, unavailable);
         loadedGroups = true;
       }
       const member = document.getElementById('whatsapp-member');
-      if (member && health.status === 'connected' && health.activeGroupId === device.dataset.bindingGroup && !loadedMembers) {
+      const binding = device.dataset.bindingGroup;
+      if (member && health.status === 'connected' && binding && active.includes(binding) && !loadedMembers) {
         memberOptions(member, await get(device.dataset.membersUrl));
         loadedMembers = true;
       }
-      if (device.dataset.bindingGroup && health.status === 'connected' && health.activeGroupId !== device.dataset.bindingGroup)
-        status.textContent += '. Seleziona e attiva nuovamente il gruppo: il gateway non ha un gruppo corrispondente.';
+      if (binding && health.status === 'connected' && !active.includes(binding)) {
+        status.textContent += unavailable.includes(binding)
+          ? '. Il gruppo salvato non è più disponibile sul dispositivo: scegline un altro.'
+          : '. Seleziona e attiva il gruppo: il gateway non ha un gruppo corrispondente.';
+      }
     } catch { status.textContent = 'Gateway non disponibile o accesso scaduto. Ricarica la pagina dopo aver verificato il collegamento.'; qr.hidden = true; qr.removeAttribute('src'); }
   }
   poll();

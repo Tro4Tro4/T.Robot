@@ -31,7 +31,7 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                     var matches = (await gateway.GroupsAsync(ct)).Where(x => x.Id == message.GroupId).Take(2).ToArray();
                     if (matches.Length == 1 && !string.IsNullOrWhiteSpace(matches[0].Name) && matches[0].Name.Length <= 200)
                         groupName = matches[0].Name.Trim();
-                    pinMatches = health.ActiveGroupId == message.GroupId;
+                    pinMatches = health.IsActive(message.GroupId);
                     metadataStatus = groupName is null ? "Nome del gruppo non disponibile per l'ID approvato. Invio disabilitato."
                         : !pinMatches ? "Il gruppo attivo sul dispositivo non corrisponde al destinatario approvato. Invio disabilitato."
                         : "Destinatario verificato: nome e ID corrispondono al gruppo attivo.";
@@ -69,12 +69,29 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
     }
 
     public async Task<GatewayHealth> HealthAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
-    { await RequireAdmin(actorId, eventId, ct); return await gateway.HealthAsync(ct); }
+    {
+        await RequireAdmin(actorId, eventId, ct);
+        var connection = await store.FindAsync<WhatsAppConnection>(eventId, eventId, ct);
+        var group = connection?.Enabled == true ? connection.GroupId : null;
+        var health = await gateway.HealthAsync(ct);
+        // Never expose groups belonging to other events through the event page.
+        return health with
+        {
+            ActiveGroupIds = group is null ? [] : health.ActiveGroupIds?.Where(x => x == group).ToArray() ?? [],
+            UnavailableGroupIds = group is null ? [] : health.UnavailableGroupIds?.Where(x => x == group).ToArray() ?? []
+        };
+    }
     public async Task<GatewayHealth> ConnectAsync(Guid actorId, Guid eventId, bool confirmed, CancellationToken ct = default)
     {
         await RequireAdmin(actorId, eventId, ct); Confirm(confirmed);
         await DeviceGate.WaitAsync(ct);
-        try { await RequireAdmin(actorId, eventId, ct); return await gateway.ConnectAsync(ct); }
+        try
+        {
+            await RequireAdmin(actorId, eventId, ct);
+            var health = await gateway.ConnectAsync(ct);
+            if (health.Status == "connected") await SyncGroupsAsync(ct);
+            return health;
+        }
         finally { DeviceGate.Release(); }
     }
     public async Task DisconnectAsync(Guid actorId, Guid eventId, bool confirmed, CancellationToken ct = default)
@@ -85,10 +102,15 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             await operations.ChangeAsync(actorId, eventId, async token =>
             {
                 await RequireAdmin(actorId, eventId, token);
-                var active = await identities.ActiveConnectionAsync(token);
-                if (active is not null && active.EventId != eventId) throw new LocalConflictException("Il gateway è attivo per un altro evento. Disattivalo dalla relativa pagina.");
-                if (active?.Disable() == true)
-                { operations.Audit(eventId, actorId, eventId, "WhatsApp", "Disconnected"); await store.SaveAsync(token); }
+                var active = await identities.ActiveConnectionsAsync(token);
+                var changed = false;
+                foreach (var connection in active)
+                {
+                    if (!connection.Disable()) continue;
+                    operations.Audit(connection.EventId, actorId, connection.EventId, "WhatsApp", "Disconnected");
+                    changed = true;
+                }
+                if (changed) await store.SaveAsync(token);
                 return true;
             }, ct);
             await gateway.DisconnectAsync(ct);
@@ -128,8 +150,8 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             var claimedRevision = await operations.ChangeAsync(actorId, eventId, async token =>
             {
                 await RequireAdmin(actorId, eventId, token);
-                var active = await identities.ActiveConnectionAsync(token);
-                if (active is not null && active.EventId != eventId) throw new LocalConflictException("Un altro evento ha già un gruppo attivo; disattivalo prima.");
+                var other = await identities.ConnectionByGroupAsync(groupId, token);
+                if (other is not null && other.EventId != eventId) throw new LocalConflictException("Il gruppo è già attivo per un altro evento.");
                 var connection = await store.FindAsync<WhatsAppConnection>(eventId, eventId, token);
                 var fresh = connection is null; connection ??= new(eventId); LocalOperations.Revision(connection, revision);
                 var disabled = connection.Disable();
@@ -137,7 +159,6 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                 if (fresh || disabled) { operations.Audit(eventId, actorId, eventId, "WhatsApp", "GroupChangeStarted"); await store.SaveAsync(token); }
                 return connection.Revision;
             }, ct);
-            await gateway.SetGroupAsync(groupId, ct);
             await operations.ChangeAsync(actorId, eventId, async token =>
             {
                 await RequireAdmin(actorId, eventId, token);
@@ -148,8 +169,65 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                 connection.Activate(groupId, actorId, new DateTime(utc.Ticks - utc.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc));
                 operations.Audit(eventId, actorId, eventId, "WhatsApp", "GroupActivated"); await store.SaveAsync(token); return true;
             }, ct);
+            try { await SyncGroupsAsync(ct); }
+            catch
+            {
+                // The gateway refused the set: keep this event disabled until recovery retries.
+                await operations.ChangeAsync(actorId, eventId, async token =>
+                {
+                    var connection = await store.FindAsync<WhatsAppConnection>(eventId, eventId, token);
+                    if (connection is null || !connection.Enabled || connection.GroupId != groupId) return false;
+                    connection.Disable(); operations.Audit(eventId, actorId, eventId, "WhatsApp", "Disconnected");
+                    await store.SaveAsync(token); return true;
+                }, CancellationToken.None);
+                throw;
+            }
         }
         finally { DeviceGate.Release(); }
+    }
+
+    public async Task<bool> DeactivateGroupAsync(Guid actorId, Guid eventId, int revision, bool confirmed, CancellationToken ct = default)
+    {
+        await RequireAdmin(actorId, eventId, ct); Confirm(confirmed); await DeviceGate.WaitAsync(ct);
+        try
+        {
+            await RequireAdmin(actorId, eventId, ct);
+            var changed = await operations.ChangeAsync(actorId, eventId, async token =>
+            {
+                await RequireAdmin(actorId, eventId, token);
+                var connection = await store.FindAsync<WhatsAppConnection>(eventId, eventId, token) ?? throw new LocalValidationException("Nessun collegamento WhatsApp per questo evento.");
+                LocalOperations.Revision(connection, revision);
+                if (!connection.Disable()) return false;
+                operations.Audit(eventId, actorId, eventId, "WhatsApp", "GroupDeactivated"); await store.SaveAsync(token); return true;
+            }, ct);
+            if (changed) await SyncGroupsAsync(ct);
+            return changed;
+        }
+        finally { DeviceGate.Release(); }
+    }
+
+    public async Task<bool> UpdateFeaturesAsync(Guid actorId, Guid eventId, WhatsAppFeatureSet features, int featuresRevision, bool confirmed, CancellationToken ct = default)
+    {
+        await RequireAdmin(actorId, eventId, ct); Confirm(confirmed);
+        var connection = await RequireConnection(eventId, ct);
+        return await operations.ChangeAsync(actorId, eventId, async token =>
+        {
+            await RequireAdmin(actorId, eventId, token);
+            var current = await RequireConnection(eventId, token);
+            if (current.FeaturesRevision != featuresRevision) throw new LocalConflictException("Funzioni modificate nel frattempo. Ricarica la pagina.");
+            var changed = current.UpdateFeatures(features);
+            if (!changed) return false;
+            operations.Audit(eventId, actorId, eventId, "WhatsApp", "FeaturesUpdated"); await store.SaveAsync(token); return true;
+        }, ct);
+    }
+
+    public async Task<GatewayHealth> SyncGroupsAsync(CancellationToken ct = default)
+    {
+        options.RequireEnabled();
+        var groupIds = new List<string>();
+        foreach (var connection in await identities.ActiveConnectionsAsync(ct))
+            if (connection.GroupId is { } groupId && await AuthorizedActivatorAsync(connection, ct)) groupIds.Add(groupId);
+        return await gateway.SetGroupsAsync(groupIds, ct);
     }
 
     public async Task MapAsync(Guid actorId, Guid eventId, string memberId, Guid personId, int connectionRevision, bool confirmed, CancellationToken ct = default)
@@ -207,15 +285,18 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
         try { timestamp = DateTimeOffset.FromUnixTimeSeconds(input.TimestampUnixSeconds).UtcDateTime; }
         catch (ArgumentOutOfRangeException) { return new(false); }
         // Discovery is not authorization: repeat every check inside the mutating transaction.
-        var active = await identities.ActiveConnectionAsync(ct);
-        if (active?.ActorId is not { } actor || active.GroupId != input.GroupId) return new(false);
-        return await operations.ChangeAsync(actor, active.EventId, async token =>
+        var active = await RequireConnectionByGroup(input.GroupId!, ct);
+        if (active?.ActorId is not { } actor) return new(false);
+        var eventId = active.EventId;
+        return await operations.ChangeAsync(actor, eventId, async token =>
         {
-            await RequireAdmin(actor, active.EventId, token);
-            var connection = await identities.ActiveConnectionAsync(token);
+            await RequireAdmin(actor, eventId, token);
+            var connection = await identities.ConnectionByGroupAsync(input.GroupId!, token);
             var now = clock.GetUtcNow().UtcDateTime;
-            if (connection is null || connection.EventId != active.EventId || connection.ActorId != actor || connection.GroupId != input.GroupId
+            if (connection is null || connection.EventId != eventId || connection.ActorId != actor || connection.GroupId != input.GroupId
                 || !connection.ActivatedAtUtc.HasValue || timestamp < connection.ActivatedAtUtc.Value || timestamp < now.AddSeconds(-120) || timestamp > now.AddSeconds(30)) return new WhatsAppIncomingResult(false);
+            var required = RequiredCommandFeature(command, informational, operational, attendanceAnswer, attendanceEdit, presenceMisuse);
+            if (required is { } feature && !connection.Allows(feature)) return new WhatsAppIncomingResult(false);
             var matches = (await store.ListAsync<WhatsAppIdentityAlias>(connection.EventId, token)).Where(x => x.IsActive && hashes.Contains(x.SenderHash)).Select(x => x.PersonId).Distinct().ToArray();
             if (matches.Length != 1) return new WhatsAppIncomingResult(false);
             var participant = await identities.ParticipantAsync(connection.EventId, matches[0], token);
@@ -234,8 +315,11 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                         throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
                     return new WhatsAppIncomingResult(true, true);
                 }
+                var funReplies = connection.Allows(WhatsAppFeature.FunReplies);
+                var presenceFun = presenceMisuse && funReplies
+                    && await FunReplyAllowedAsync(connection.EventId, participant.PersonId, commandReceipts, now, token);
                 var outcome = presenceMisuse
-                    ? (Reply: await FunReplyAllowedAsync(connection.EventId, participant.PersonId, commandReceipts, now, token) ? PresenceMisuseReply(messageHash) : null, Success: false)
+                    ? (Reply: !funReplies ? PresenceUsage : presenceFun ? PresenceMisuseReply(messageHash) : null, Success: false)
                     : attendanceEdit
                     ? (Reply: (string?)await StartAttendanceEditAsync(connection, participant, now, token), Success: false)
                     : attendanceAnswer
@@ -245,7 +329,8 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                     : (Reply: (string?)await InformationReplyAsync(connection, parts, token), Success: false);
                 if (attendanceAnswer && outcome.Reply is null) return new WhatsAppIncomingResult(false);
                 // Over the limit the existing syntax text is still sent, only without the fun phrase.
-                var funSent = presenceMisuse ? outcome.Reply is not null : informational && MisuseTexts(command) is not null && IsSyntaxReply(outcome.Reply)
+                var funSent = presenceMisuse ? presenceFun
+                    : informational && connection.Allows(WhatsAppFeature.FunReplies) && MisuseTexts(command) is not null && IsSyntaxReply(outcome.Reply)
                     && await FunReplyAllowedAsync(connection.EventId, participant.PersonId, commandReceipts, now, token);
                 if (funSent && !presenceMisuse) outcome.Reply = SyntaxMisuseReply(command, messageHash, outcome.Reply!);
                 var informationRecord = new WhatsAppCommandReceipt(connection.EventId, messageHash, commandHash, participant.PersonId, actor, now);
@@ -346,6 +431,20 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
             throw new LocalValidationException("Nessun gruppo attivo con attivatore autorizzato per questo evento.");
         return connection;
     }
+    private async Task<WhatsAppConnection?> RequireConnectionByGroup(string groupId, CancellationToken ct)
+    {
+        var connection = await identities.ConnectionByGroupAsync(groupId, ct);
+        if (connection is null) return null;
+        return await AuthorizedActivatorAsync(connection, ct) ? connection : null;
+    }
+    private async Task<bool> AuthorizedActivatorAsync(WhatsAppConnection connection, CancellationToken ct) =>
+        connection.GroupId is not null && connection.ActorId is { } actor
+        && await store.CanManageAsync(actor, connection.EventId, ct) && await identities.IsAdministratorAsync(actor, ct);
+    private static WhatsAppFeature? RequiredCommandFeature(string command, bool informational, bool operational,
+        bool attendanceAnswer, bool attendanceEdit, bool presenceMisuse) =>
+        command == "!presenza" || attendanceAnswer || attendanceEdit || presenceMisuse ? WhatsAppFeature.Attendance
+        : informational ? WhatsAppFeature.Information
+        : operational ? WhatsAppFeature.Operations : null;
     private string[] HashAliases(IReadOnlyList<string> aliases)
     {
         if (aliases is null || aliases.Count is < 1 or > 4 || aliases.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 200

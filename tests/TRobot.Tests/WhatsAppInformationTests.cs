@@ -125,7 +125,7 @@ public sealed partial class WhatsAppIntegrationTests
         var preview = await service.PreviewListAsync(f.OrganizerPersonId, f.EventId, WhatsAppListKind.Menu);
         await service.IncomingAsync(Incoming("!aiuto")); var db = p.GetRequiredService<TRobotDbContext>();
         (await db.EventOrganizers.SingleAsync()).SetActive(false); await db.SaveChangesAsync();
-        await Assert.ThrowsAsync<LocalAccessException>(() => service.IncomingAsync(Incoming("!aiuto")));
+        Assert.False((await service.IncomingAsync(Incoming("!aiuto"))).Handled);
         await Assert.ThrowsAsync<LocalAccessException>(() => ApproveInformation(service, f, preview));
         await Assert.ThrowsAsync<LocalAccessException>(() => service.PreviewListAsync(f.OrganizerPersonId, f.EventId, preview.Kind));
         Assert.Single(await db.Set<WhatsAppCommandReceipt>().ToListAsync()); Assert.Empty(await db.Set<WhatsAppListApproval>().ToListAsync());

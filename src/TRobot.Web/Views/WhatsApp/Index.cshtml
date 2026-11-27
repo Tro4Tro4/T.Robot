@@ -1,6 +1,6 @@
 @model TRobot.Application.WhatsApp.WhatsAppPage
 @{ ViewData["Title"] = "WhatsApp sperimentale"; }
-<h1>WhatsApp sperimentale — @Model.Event.Name</h1>
+<h1>WhatsApp sperimentale - @Model.Event.Name</h1>
 <partial name="_EventNavigation" model="Model.Event.Id" />
 <p>Gateway non ufficiale per il numero dedicato e il gruppo di prova. Le operazioni in questa pagina possono comunicare realmente con WhatsApp; la simulazione resta separata.</p>
 @if (!Model.GatewayEnabled)
@@ -24,7 +24,7 @@ else
         </form>
         <form asp-action="Disconnect" method="post" class="mb-3">
             <input type="hidden" name="EventId" value="@Model.Event.Id" />
-            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la disconnessione e la disattivazione del gruppo.</label>
+            <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la disconnessione del dispositivo e la disattivazione di tutti i gruppi di questo evento.</label>
             <button class="btn btn-outline-secondary" type="submit">Disconnetti dispositivo</button>
         </form>
         <h2>Gruppo di prova</h2>
@@ -38,6 +38,26 @@ else
         </form>
         @if (Model.Connection?.Enabled == true)
         {
+            <form asp-action="DeactivateGroup" method="post" class="mb-3">
+                <input type="hidden" name="EventId" value="@Model.Event.Id" />
+                <input type="hidden" name="Revision" value="@Model.Connection.Revision" />
+                <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo la disattivazione di questo gruppo per l'evento. Il dispositivo resta collegato per gli altri gruppi.</label>
+                <button class="btn btn-outline-danger" type="submit">Disattiva questo gruppo</button>
+            </form>
+            <h2>Funzioni attive nel gruppo</h2>
+            <p>Ogni gruppo dell'evento ha il proprio insieme di funzioni. I nuovi gruppi partono con presenza e informazioni attive.</p>
+            <form asp-action="UpdateFeatures" method="post" class="mb-3">
+                <input type="hidden" name="EventId" value="@Model.Event.Id" />
+                <input type="hidden" name="FeaturesRevision" value="@Model.Connection.FeaturesRevision" />
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="feature-attendance" name="Attendance" value="true" checked="@Model.Connection.Features.Allows(TRobot.Domain.WhatsAppFeature.Attendance)" /><label class="form-check-label" for="feature-attendance">Presenza: conferme, date e famiglia</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="feature-information" name="Information" value="true" checked="@Model.Connection.Features.Allows(TRobot.Domain.WhatsAppFeature.Information)" /><label class="form-check-label" for="feature-information">Informazioni: riepiloghi, menu e attività in lettura</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="feature-operations" name="Operations" value="true" checked="@Model.Connection.Features.Allows(TRobot.Domain.WhatsAppFeature.Operations)" /><label class="form-check-label" for="feature-operations">Operazioni: prendo, porto e fatto con conferma</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="feature-meal-proposals" name="MealProposals" value="true" checked="@Model.Connection.Features.Allows(TRobot.Domain.WhatsAppFeature.MealProposals)" /><label class="form-check-label" for="feature-meal-proposals">Proposte pasti in privato</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="feature-meal-preferences" name="MealPreferences" value="true" checked="@Model.Connection.Features.Allows(TRobot.Domain.WhatsAppFeature.MealPreferences)" /><label class="form-check-label" for="feature-meal-preferences">Preferenze sui piatti in privato</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="feature-fun-replies" name="FunReplies" value="true" checked="@Model.Connection.Features.Allows(TRobot.Domain.WhatsAppFeature.FunReplies)" /><label class="form-check-label" for="feature-fun-replies">Risposte spiritose ai comandi usati male</label></div>
+                <label class="mt-2"><input type="checkbox" name="Confirmed" value="true" required /> Confermo le funzioni da attivare per questo gruppo.</label>
+                <button class="btn btn-primary" type="submit">Salva funzioni</button>
+            </form>
             <h2>Associa membri a partecipanti esistenti</h2>
             <p>Le associazioni non importano persone e non cambiano le identità usate dal simulatore. Comandi reali: <code>!presenza si|forse|no</code>, <code>!aiuto</code>, <code>!menu [pagina]</code> e <code>!todo [pagina]</code>.</p>
             <form asp-action="Map" method="post" class="mb-3">

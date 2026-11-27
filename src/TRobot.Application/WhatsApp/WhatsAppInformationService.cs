@@ -15,7 +15,7 @@ public sealed partial class WhatsAppService
         var connection = await RequireConnection(eventId, ct);
         var groupId = connection.GroupId!; var revision = connection.Revision;
         var health = await gateway.HealthAsync(ct);
-        if (health.Status != "connected" || health.ActiveGroupId != groupId)
+        if (health.Status != "connected" || !health.IsActive(groupId))
             throw new LocalValidationException("Collega il dispositivo e verifica il gruppo attivo prima dell'anteprima.");
         var matches = (await gateway.GroupsAsync(ct)).Where(x => x.Id == groupId).Take(2).ToArray();
         if (matches.Length != 1 || string.IsNullOrWhiteSpace(matches[0].Name) || matches[0].Name.Length > 200)

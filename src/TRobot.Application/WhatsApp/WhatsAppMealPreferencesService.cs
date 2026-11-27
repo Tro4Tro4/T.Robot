@@ -10,6 +10,11 @@ public sealed partial class WhatsAppService
         Guid voter, Guid actor, string identity, DateTime now, Guid operationId, CancellationToken ct)
     {
         var session = await store.FindAsync<MealPreferenceSession>(connection.EventId, voter, ct);
+        if (!connection.Allows(WhatsAppFeature.MealPreferences))
+        {
+            if (session is not null && session.Step != MealPreferenceStep.Closed) { session.Close(); await store.SaveAsync(ct); }
+            return null;
+        }
         var valid = session?.IsValid(actor, connection.GroupId!, connection.Revision, identity, now) == true;
         if (session is not null && session.Step != MealPreferenceStep.Closed && !valid) session.Close();
         var starting = !input.IsPrivate && input.Text.Trim().Equals("!preferenze", StringComparison.OrdinalIgnoreCase);

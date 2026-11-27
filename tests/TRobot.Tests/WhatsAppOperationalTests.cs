@@ -82,7 +82,7 @@ public sealed partial class WhatsAppIntegrationTests
         if (change == "alias") foreach (var alias in await db.Set<WhatsAppIdentityAlias>().ToListAsync()) alias.SetActive(false);
         await db.SaveChangesAsync();
         var input = Incoming("!conferma " + code, "confirm") with { TimestampUnixSeconds = new DateTimeOffset(clock.Utc).ToUnixTimeSeconds() };
-        if (change == "revoked") await Assert.ThrowsAsync<LocalAccessException>(() => service.IncomingAsync(input));
+        if (change == "revoked") Assert.False((await service.IncomingAsync(input)).Handled);
         else { var result = await service.IncomingAsync(input); Assert.Null(result.Reaction); if (change != "alias") Assert.Contains("non disponibile", result.ReplyText); }
         Assert.Null((await db.Set<WhatsAppOperationalProposal>().SingleAsync()).ConsumedAtUtc);
         Assert.Equal(OrganizationTaskStatus.Todo, (await db.Set<OrganizationTask>().SingleAsync()).Status);

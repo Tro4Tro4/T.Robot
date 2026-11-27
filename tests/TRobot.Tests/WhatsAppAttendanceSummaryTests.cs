@@ -157,7 +157,7 @@ public sealed partial class WhatsAppIntegrationTests
         if (scenario == "revoked")
         {
             (await db.EventOrganizers.SingleAsync()).SetActive(false); await db.SaveChangesAsync();
-            await Assert.ThrowsAsync<LocalAccessException>(() => service.IncomingAsync(message));
+            Assert.False((await service.IncomingAsync(message)).Handled);
         }
         else Assert.False((await service.IncomingAsync(message)).Handled);
         Assert.Empty(await db.Set<WhatsAppCommandReceipt>().ToListAsync());

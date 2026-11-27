@@ -35,13 +35,11 @@ def binding():
                             check=True, capture_output=True, text=True, timeout=10)
     rows = json.loads(result.stdout)
     if not rows:
-        return None
-    if len(rows) != 1 or len(rows[0]) != 6:
-        raise ValueError('invalid_binding')
-    row = rows[0]
-    if not isinstance(row[2], str) or not re.fullmatch(r'[0-9-]+@g\.us', row[2]):
-        raise ValueError('invalid_binding')
-    return tuple(row)
+        return []
+    for row in rows:
+        if len(row) != 6 or not isinstance(row[2], str) or not re.fullmatch(r'[0-9-]+@g\.us', row[2]):
+            raise ValueError('invalid_binding')
+    return [tuple(row) for row in rows]
 
 
 def registered():
@@ -123,7 +121,7 @@ def wait_ready(check, seconds=45):
 def resume():
     secret = token()
     initial = binding()
-    if initial is None or not registered():
+    if not initial or not registered():
         print('T.Robot gateway recovery: manual setup required; skipped.')
         return
     attempted = False
@@ -134,16 +132,21 @@ def resume():
             raise RuntimeError('binding_changed')
         attempted = True
         request(secret, '/connect', {})
+        groups = [row[2] for row in initial]
         def connected():
             health = request(secret, '/health')
             if health.get('status') in ('qr', 'error'):
                 raise RuntimeError('manual_setup_required')
-            return health.get('status') == 'connected' and health.get('activeGroupId') is None
+            return health.get('status') == 'connected' and not health.get('activeGroupIds')
         wait_ready(connected)
         if binding() != initial or not registered():
             raise RuntimeError('binding_changed')
-        health = request(secret, '/group', {'groupId': initial[2]})
-        if (health.get('status') != 'connected' or health.get('activeGroupId') != initial[2]
+        health = request(secret, '/groups', {'groupIds': groups})
+        active = set(health.get('activeGroupIds') or [])
+        unavailable = set(health.get('unavailableGroupIds') or [])
+        # An unavailable group must not block the other events from resuming.
+        if (health.get('status') != 'connected' or active & unavailable
+                or active | unavailable != set(groups)
                 or binding() != initial or not registered()):
             raise RuntimeError('binding_changed')
         print('T.Robot gateway recovery: approved connection restored.')

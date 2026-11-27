@@ -69,6 +69,8 @@ public sealed class MessageDispatchService(
     public async Task<DispatchOutcome> DispatchEventAsync(Guid eventId, CancellationToken ct = default)
     {
         if (!GatewayReady) return DispatchOutcome.Empty;
+        // Do not claim messages for an event whose group is not in the gateway routing set.
+        if (!(await StatusAsync(eventId, ct)).Ready) return DispatchOutcome.Empty;
         var claims = new List<Claim>();
         int skipped = 0, recovered = 0;
         await Gate.WaitAsync(ct);
@@ -106,7 +108,8 @@ public sealed class MessageDispatchService(
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
             var health = await gateway.HealthAsync(linked.Token);
             var state = health.Status is "connected" or "qr" or "connecting" or "disconnected" ? health.Status : "unknown";
-            return new(true, true, state, group, state == "connected" && group is not null && health.ActiveGroupId == group);
+            return new(true, true, state, group, state == "connected" && group is not null
+                && health.IsActive(group) && !health.IsUnavailable(group));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch { return new(true, false, "unreachable", group, false); }

@@ -16,15 +16,18 @@ internal sealed class RecordingGateway : IWhatsAppGateway
     /// <summary>Custom transport: throw WhatsAppGatewayRejectedException for a definite refusal.</summary>
     public Func<Guid, string, string, Task<GatewaySendResult>>? OnSend { get; set; }
     public string? ActiveGroup { get; set; } = SyntheticGroup;
+    public int GroupSets { get; private set; }
     public Func<GatewayHealth>? OnHealth { get; set; }
-    public Task<GatewayHealth> HealthAsync(CancellationToken ct) => Task.FromResult(OnHealth?.Invoke() ?? new GatewayHealth("connected", null, ActiveGroup));
+    public Task<GatewayHealth> HealthAsync(CancellationToken ct) => Task.FromResult(OnHealth?.Invoke()
+        ?? new GatewayHealth("connected", null, ActiveGroup is null ? [] : [ActiveGroup], []));
     public Task<GatewayHealth> ConnectAsync(CancellationToken ct) => HealthAsync(ct);
     public Task<GatewayHealth> DisconnectAsync(CancellationToken ct) { ActiveGroup = null; return Task.FromResult(new GatewayHealth("disconnected")); }
     public Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<GatewayGroup>>([new(SyntheticGroup, "Gruppo sintetico")]);
     public Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<GatewayMember>>([]);
-    public Task SetGroupAsync(string? groupId, CancellationToken ct) { ActiveGroup = groupId; return Task.CompletedTask; }
+    public Task<GatewayHealth> SetGroupsAsync(IReadOnlyList<string> groupIds, CancellationToken ct)
+    { GroupSets++; ActiveGroup = groupIds.FirstOrDefault(); return HealthAsync(ct); }
     public async Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct)
     {
         Sends++; OperationIds.Add(operationId);
@@ -61,6 +64,7 @@ internal static class MessageTestSupport
         var connection = await store.FindAsync<WhatsAppConnection>(eventId, eventId, default);
         if (connection is null) { connection = new WhatsAppConnection(eventId); store.Add(connection); }
         connection.Activate(groupId, actorId, utc);
+        connection.UpdateFeatures(WhatsAppFeatureSet.All);
         await store.SaveAsync(default);
     }
 
