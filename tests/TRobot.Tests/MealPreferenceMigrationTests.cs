@@ -25,7 +25,7 @@ public sealed class MealPreferenceMigrationTests
             new OrganizerUser { Id = Guid.NewGuid(), PersonId = person.Id, UserName = "synthetic-upgrade",
                 PasswordHash = "synthetic-hash", SecurityStamp = "synthetic-stamp", IsEnabled = true });
         await db.SaveChangesAsync(); var before = await MealProposalMigrationTests.Rows(connection);
-        await db.Database.MigrateAsync(); db.ChangeTracker.Clear();
+        await db.GetService<IMigrator>().MigrateAsync("20261031205555_AddMealPreferences"); db.ChangeTracker.Clear();
         var after = await MealProposalMigrationTests.Rows(connection);
         Assert.Equal(before.Count + 6, after.Count);
         foreach (var table in before) Assert.Equal(table.Value, after[table.Key]);

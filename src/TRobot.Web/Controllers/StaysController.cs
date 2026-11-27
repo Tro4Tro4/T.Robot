@@ -20,6 +20,30 @@ public sealed class StaysController(WhatsAppService service) : LocalControllerBa
     });
 
     [HttpPost, ValidateAntiForgeryToken]
+    public Task<IActionResult> StayMode(AttendanceStayModeInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!ModelState.IsValid) return BadRequest();
+        await service.SetAttendanceStayModeAsync(ActorId, input.EventId, input.AskStayDates, input.EventDays, input.Revision, input.Confirmed, ct);
+        return RedirectToAction(nameof(Index), new { input.EventId });
+    });
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public Task<IActionResult> AddQuestion(AttendanceQuestionInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!ModelState.IsValid) return BadRequest();
+        await service.AddAttendanceQuestionAsync(ActorId, input.EventId, input.Text, input.Options, input.Confirmed, ct);
+        return RedirectToAction(nameof(Index), new { input.EventId });
+    });
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public Task<IActionResult> QuestionActive(AttendanceQuestionActiveInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!ModelState.IsValid) return BadRequest();
+        await service.SetAttendanceQuestionActiveAsync(ActorId, input.EventId, input.QuestionId, input.Active, input.Revision, input.Confirmed, ct);
+        return RedirectToAction(nameof(Index), new { input.EventId });
+    });
+
+    [HttpPost, ValidateAntiForgeryToken]
     public Task<IActionResult> Reminder(AttendanceReminderInput input, CancellationToken ct) => ExecuteAsync(async () =>
     {
         if (!ModelState.IsValid) return BadRequest();

@@ -5,7 +5,8 @@ namespace TRobot.Application.WhatsApp;
 public sealed record AttendanceStayRow(Guid PersonId, string Name, ParticipationStatus Status, AttendanceStay? Stay);
 public sealed record AttendanceDailyCount(DateOnly Day, int People);
 public sealed record AttendanceOverview(Guid EventId, string EventName, IReadOnlyList<AttendanceStayRow> People,
-    IReadOnlyList<AttendanceDailyCount> Days, AttendanceCollectionInfo Collection)
+    IReadOnlyList<AttendanceDailyCount> Days, AttendanceCollectionInfo Collection,
+    IReadOnlyList<AttendanceQuestionView>? Questions = null)
 {
     public IReadOnlyList<AttendanceStayRow> Pending => People.Where(p => p.Status is ParticipationStatus.NoResponse or ParticipationStatus.Undecided
         || p.Status == ParticipationStatus.Confirmed && p.Stay is null).ToArray();
@@ -25,6 +26,6 @@ public sealed partial class WhatsAppService
             .GroupBy(day => day).OrderBy(g => g.Key).Select(g => new AttendanceDailyCount(g.Key, g.Count())).ToArray();
         var collection = await AttendanceCollectionInfoAsync(eventId, ct);
         await operations.AuthorizeAsync(actorId, eventId, ct);
-        return new(eventId, ev.Name, rows, counts, collection);
+        return new(eventId, ev.Name, rows, counts, collection, await AttendanceQuestionViewsAsync(eventId, ct));
     }
 }

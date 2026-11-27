@@ -9,7 +9,12 @@ internal sealed class AttendanceCollectionSettingsConfiguration : IEntityTypeCon
     public void Configure(EntityTypeBuilder<AttendanceCollectionSettings> b)
     {
         LocalMapping.Record(b, "AttendanceCollectionSettings"); b.HasIndex(x => x.EventId).IsUnique();
-        b.ToTable("AttendanceCollectionSettings", t => t.HasCheckConstraint("CK_AttendanceCollectionSettings_Event", "Id = EventId"));
+        b.ToTable("AttendanceCollectionSettings", t =>
+        {
+            t.HasCheckConstraint("CK_AttendanceCollectionSettings_Event", "Id = EventId");
+        });
+        b.Property(x => x.AskStayDates).HasDefaultValue(true);
+        b.Property(x => x.EventDays).HasDefaultValue(1);
         b.Property(x => x.DeadlineUtc).HasConversion(x => x,
             x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
     }

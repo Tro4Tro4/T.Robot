@@ -40,7 +40,7 @@ public sealed class AttendanceStayChange : ILocalRecord
     public int Revision { get; private set; }
 }
 
-public enum AttendanceDialogueStep { Closed, Arrival, Days, Confirmation, EditChoice, FamilyStatus }
+public enum AttendanceDialogueStep { Closed, Arrival, Days, Confirmation, EditChoice, FamilyStatus, Question }
 
 /// <summary>One current technical dialogue per participant; never stores chat text or names.</summary>
 public sealed class AttendanceDialogue : ILocalRecord
@@ -58,6 +58,8 @@ public sealed class AttendanceDialogue : ILocalRecord
     public DateOnly? Arrival { get; private set; }
     public int? Days { get; private set; }
     public Guid? HouseholdId { get; private set; }
+    /// <summary>Domanda aggiuntiva in corso; valida solo con Step = Question.</summary>
+    public Guid? QuestionId { get; private set; }
     public string? SnapshotHash { get; private set; }
     public string? InitialSnapshotHash { get; private set; }
     public bool IsEdit { get; private set; }
@@ -68,13 +70,13 @@ public sealed class AttendanceDialogue : ILocalRecord
     public void Start(Guid actor, string group, int connectionRevision, DateTime utc)
     { ActorId = actor; GroupId = group; ConnectionRevision = connectionRevision; StartedAtUtc = utc; ExpiresAtUtc = utc.AddMinutes(15);
         Step = AttendanceDialogueStep.Arrival; Arrival = null; Days = null; HouseholdId = null; SnapshotHash = null;
-        InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; FamilyStatus = null; Revision++; }
+        InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; FamilyStatus = null; QuestionId = null; Revision++; }
     public void StartFamilyStatus(Guid actor, string group, int connectionRevision, DateTime utc, ParticipationStatus status, Guid household, string snapshot)
     {
         if (status is not (ParticipationStatus.Undecided or ParticipationStatus.Absent)) throw new ArgumentOutOfRangeException(nameof(status));
         if (household == Guid.Empty || string.IsNullOrWhiteSpace(snapshot)) throw new ArgumentException("Nucleo o snapshot non validi.");
         ActorId = actor; GroupId = group; ConnectionRevision = connectionRevision; StartedAtUtc = utc; ExpiresAtUtc = utc.AddMinutes(15);
-        Step = AttendanceDialogueStep.FamilyStatus; FamilyStatus = status; Arrival = null; Days = null; HouseholdId = household;
+        Step = AttendanceDialogueStep.FamilyStatus; FamilyStatus = status; QuestionId = null; Arrival = null; Days = null; HouseholdId = household;
         SnapshotHash = snapshot; InitialSnapshotHash = null; IsEdit = false; PreserveDays = false; Revision++;
     }
     public void BeginEdit(DateOnly? arrival, int? days, Guid? household, string snapshot)
@@ -91,5 +93,12 @@ public sealed class AttendanceDialogue : ILocalRecord
     public void SetArrival(DateOnly arrival) { Arrival = arrival; Step = AttendanceDialogueStep.Days; Revision++; }
     public void Summarize(int days, Guid? household, string snapshot)
     { Days = days; HouseholdId = household; SnapshotHash = snapshot; Step = AttendanceDialogueStep.Confirmation; Revision++; }
-    public void Close() { Step = AttendanceDialogueStep.Closed; FamilyStatus = null; Revision++; }
+    public void AskQuestion(Guid questionId)
+    {
+        if (questionId == Guid.Empty) throw new ArgumentException("Domanda non valida.");
+        // Il soggiorno e' gia' salvato: gli snapshot della fase precedente non valgono piu'.
+        Step = AttendanceDialogueStep.Question; QuestionId = questionId; FamilyStatus = null;
+        IsEdit = false; PreserveDays = false; SnapshotHash = null; InitialSnapshotHash = null; Revision++;
+    }
+    public void Close() { Step = AttendanceDialogueStep.Closed; FamilyStatus = null; QuestionId = null; Revision++; }
 }

@@ -20,6 +20,9 @@ public sealed partial class WhatsAppService
         if (dialogue is null) { dialogue = new(connection.EventId, participant.PersonId); store.Add(dialogue); }
         dialogue.Start(connection.ActorId!.Value, connection.GroupId!, connection.Revision, now);
         var name = (await store.ParticipantsAsync(connection.EventId, ct)).Single(x => x.Id == participant.PersonId).Name;
+        var settings = await AttendanceSettingsAsync(connection.EventId, ct);
+        if (settings is { AskStayDates: false })
+            return await WithAttendanceDeadlineAsync(connection.EventId, await StartFixedStayAsync(connection, participant, dialogue, settings, name, now, ct), ct);
         return await WithAttendanceDeadlineAsync(connection.EventId, $"🎉 {SafeAttendanceName(name)}, ci sei! Quando arrivi?\nScrivi gg/mm oppure gg/mm/aaaa.\n!annulla interrompe i dettagli.", ct);
     }
 
@@ -47,6 +50,15 @@ public sealed partial class WhatsAppService
             return "ℹ️ Prima conferma la tua presenza con !presenza si. Poi raccogliamo le date!";
         var dialogue = await store.FindAsync<AttendanceDialogue>(connection.EventId, participant.PersonId, ct);
         if (dialogue is null) { dialogue = new(connection.EventId, participant.PersonId); store.Add(dialogue); }
+        if (await AttendanceSettingsAsync(connection.EventId, ct) is { AskStayDates: false })
+        {
+            // Le date seguono l'evento: si possono solo rivedere le risposte alle domande aggiuntive.
+            dialogue.Start(connection.ActorId!.Value, connection.GroupId!, connection.Revision, now);
+            var again = await AdvanceAttendanceQuestionAsync(connection.EventId, dialogue, null,
+                "✏️ Le date seguono l'evento: puoi rivedere solo le risposte aggiuntive. Hai 15 minuti.", ct);
+            return dialogue.Step == AttendanceDialogueStep.Closed
+                ? "ℹ️ Per questo evento la presenza vale per la data dell'evento e non ci sono altri dettagli da modificare." : again;
+        }
         var stay = await store.FindAsync<AttendanceStay>(connection.EventId, participant.PersonId, ct);
         var household = await AttendanceHouseholdAsync(connection.EventId, participant.PersonId, ct);
         dialogue.Start(connection.ActorId!.Value, connection.GroupId!, connection.Revision, now);
@@ -92,11 +104,15 @@ public sealed partial class WhatsAppService
             return await FamilyStatusReplyAsync(connection, participant, dialogue, text, now, ct);
         if (dialogue.ActorId != connection.ActorId || dialogue.GroupId != connection.GroupId || dialogue.ConnectionRevision != connection.Revision
             || now < dialogue.StartedAtUtc || now >= dialogue.ExpiresAtUtc)
-        { dialogue.Close(); return "⌛ Dettagli scaduti o collegamento cambiato. Riparti con !presenza si."; }
+        { var inQuestion = dialogue.Step == AttendanceDialogueStep.Question; dialogue.Close();
+            return inQuestion ? "⌛ Domande scadute o collegamento cambiato. La presenza resta salvata: per rispondere riparti con !presenza modifica."
+                : "⌛ Dettagli scaduti o collegamento cambiato. Riparti con !presenza si."; }
         if (text.Equals("!annulla", StringComparison.OrdinalIgnoreCase))
         { dialogue.Close(); return "👌 Raccolta dettagli interrotta. La presenza e i soggiorni già registrati restano salvati."; }
         if (await IsAttendanceChildAsync(connection.EventId, participant.PersonId, ct))
         { dialogue.Close(); return "👨‍👩‍👧 Le date dei bambini seguono il genitore collegato al nucleo. Ripartite dal suo !presenza modifica."; }
+        if (dialogue.Step == AttendanceDialogueStep.Question)
+            return await AttendanceQuestionReplyAsync(connection, participant, dialogue, text.Trim().ToLowerInvariant(), now, ct);
         if (dialogue.IsEdit && dialogue.InitialSnapshotHash != await AttendanceSnapshotAsync(connection.EventId, participant.PersonId, dialogue.HouseholdId, ct))
         { dialogue.Close(); return "🔄 Presenze, soggiorni o nucleo sono cambiati. Riparti con !presenza modifica per usare i dati aggiornati."; }
         text = text.Trim().ToLowerInvariant();
@@ -130,6 +146,13 @@ public sealed partial class WhatsAppService
         { dialogue.Close(); return "🔄 Presenze, soggiorni o nucleo sono cambiati. Riparti con !presenza si per confermare dati aggiornati."; }
         if (text == "no" && !dialogue.HouseholdId.HasValue)
         { dialogue.Close(); return "👌 Soggiorno non salvato. Per correggere le date riparti con !presenza si."; }
+        return await SaveAttendanceAsync(connection, participant, dialogue, text, now, ct);
+    }
+
+    // Salva i soggiorni confermati (snapshot gia' verificato dal chiamante) e passa alle domande aggiuntive.
+    private async Task<string> SaveAttendanceAsync(WhatsAppConnection connection, EventParticipant participant, AttendanceDialogue dialogue,
+        string text, DateTime now, CancellationToken ct, string? lead = null)
+    {
         var targets = await AttendanceIndividualTargetsAsync(connection.EventId, participant.PersonId, ct);
         if (text != "no" && dialogue.HouseholdId.HasValue)
         {
@@ -147,10 +170,25 @@ public sealed partial class WhatsAppService
             stay.Set(dialogue.Arrival.Value, dialogue.Days.Value); target.ChangeStatus(ParticipationStatus.Confirmed, now);
             store.Add(change); operations.Audit(connection.EventId, connection.ActorId.Value, change.Id, "Attendance", "StayConfirmed");
         }
-        dialogue.Close();
-        return text != "no" && dialogue.HouseholdId.HasValue ? "🎉 Presenza e date salvate per tutta la famiglia!"
-            : targets.Count > 1 ? $"🎉 Soggiorno salvato per te e {Number(targets.Count - 1)} bambini collegati!"
-            : "🎉 Soggiorno salvato! Per correggerlo usa !presenza modifica.";
+        var fixedStay = await AttendanceSettingsAsync(connection.EventId, ct) is { AskStayDates: false };
+        var saved = text != "no" && dialogue.HouseholdId.HasValue ? (fixedStay ? "🎉 Presenza salvata per tutta la famiglia!" : "🎉 Presenza e date salvate per tutta la famiglia!")
+            : targets.Count > 1 ? $"🎉 {(fixedStay ? "Presenza" : "Soggiorno")} salvat{(fixedStay ? "a" : "o")} per te e {Number(targets.Count - 1)} bambini collegati!"
+            : fixedStay ? "🎉 Presenza salvata!" : "🎉 Soggiorno salvato! Per correggerlo usa !presenza modifica.";
+        if (lead is not null) saved = lead + "\n📅 La tua presenza vale per la data dell'evento.";
+        return await AdvanceAttendanceQuestionAsync(connection.EventId, dialogue, null, saved, ct);
+    }
+
+    // Evento con date fisse: nessuna domanda su arrivo e durata. La presenza copre i giorni dell'evento e,
+    // se c'e' un nucleo, serve solo la conferma per tutta la famiglia (stesso passaggio delle date libere).
+    private async Task<string> StartFixedStayAsync(WhatsAppConnection connection, EventParticipant participant, AttendanceDialogue dialogue,
+        AttendanceCollectionSettings settings, string name, DateTime now, CancellationToken ct)
+    {
+        var ev = (await store.EventAsync(connection.EventId, ct))!;
+        var eventDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(ev.StartsAtUtc, TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId)));
+        dialogue.SetArrival(eventDate);
+        var prompt = await SummarizeAttendanceAsync(connection, participant, dialogue, settings.EventDays, ct);
+        if (dialogue.HouseholdId.HasValue) return prompt;
+        return await SaveAttendanceAsync(connection, participant, dialogue, "si", now, ct, $"🎉 {SafeAttendanceName(name)}, ci sei!");
     }
 
     private static string FamilyStatusLabel(ParticipationStatus status) => status == ParticipationStatus.Absent ? "assente" : "forse";
@@ -216,12 +254,14 @@ public sealed partial class WhatsAppService
     {
         var household = dialogue.IsEdit ? dialogue.HouseholdId : await AttendanceHouseholdAsync(connection.EventId, participant.PersonId, ct);
         dialogue.Summarize(days, household, await AttendanceSnapshotAsync(connection.EventId, participant.PersonId, household, ct));
-        var summary = $"📅 Dal {dialogue.Arrival:dd/MM/yyyy} al {dialogue.Arrival!.Value.AddDays(days - 1):dd/MM/yyyy}: {days} giorni, {days - 1} notti.\n";
+        var fixedStay = await AttendanceSettingsAsync(connection.EventId, ct) is { AskStayDates: false };
+        var summary = fixedStay ? $"📅 La presenza vale per l'evento: dal {dialogue.Arrival:dd/MM/yyyy}, {days} {(days == 1 ? "giorno" : "giorni")}.\n"
+            : $"📅 Dal {dialogue.Arrival:dd/MM/yyyy} al {dialogue.Arrival!.Value.AddDays(days - 1):dd/MM/yyyy}: {days} giorni, {days - 1} notti.\n";
         if (household.HasValue)
         {
             var family = await store.FindAsync<Household>(connection.EventId, household.Value, ct);
             var children = (await AttendanceIndividualTargetsAsync(connection.EventId, participant.PersonId, ct)).Count - 1;
-            return summary + $"👨‍👩‍👧 Confermi le stesse date per tutta la famiglia {SafeAttendanceName(family!.Name)}?\nSì per tutti, no "
+            return summary + $"👨‍👩‍👧 Confermi {(fixedStay ? "la presenza" : "le stesse date")} per tutta la famiglia {SafeAttendanceName(family!.Name)}?\nSì per tutti, no "
                 + (children == 0 ? "solo per te" : $"per te e {Number(children)} bambini collegati") + ". !annulla per interrompere.";
         }
         return summary + "✅ Confermi il tuo soggiorno? Sì per salvare, no per ricominciare.";

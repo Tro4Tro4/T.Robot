@@ -37,6 +37,8 @@ public sealed class AttendanceFamilyStatusMigrationTests
         var after = await Rows(connection, before);
         Assert.Equal(before.Keys.Order(), after.Keys.Order());
         foreach (var table in before) Assert.Equal(table.Value.Rows, after[table.Key].Rows);
+        // Il modello attuale ha colonne successive: completo la migrazione prima di leggere le entita.
+        await db.GetService<IMigrator>().MigrateAsync(); db.ChangeTracker.Clear();
         var dialogue = await db.Set<AttendanceDialogue>().SingleAsync();
         Assert.Equal(AttendanceDialogueStep.Confirmation, dialogue.Step); Assert.Null(dialogue.FamilyStatus);
         Assert.Equal(new DateOnly(2030, 12, 30), dialogue.Arrival); Assert.Equal(4, dialogue.Days); Assert.Equal(3, dialogue.Revision);

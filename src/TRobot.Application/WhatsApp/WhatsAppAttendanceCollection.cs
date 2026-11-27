@@ -4,7 +4,8 @@ using TRobot.Domain;
 
 namespace TRobot.Application.WhatsApp;
 
-public sealed record AttendanceCollectionInfo(string TimeZoneId, DateTime? DeadlineLocal, bool Expired, int Revision);
+public sealed record AttendanceCollectionInfo(string TimeZoneId, DateTime? DeadlineLocal, bool Expired, int Revision,
+    bool AskStayDates = true, int EventDays = 1);
 
 public sealed partial class WhatsAppService
 {
@@ -12,6 +13,10 @@ public sealed partial class WhatsAppService
         + "Se ci sei, scrivi !presenza si e segui le domande su arrivo e giorni.\n"
         + "Se sei già confermato e vuoi sistemare le date, scrivi !presenza modifica.\n\n"
         + "🧳 Anche le valigie vogliono sapere quando partire. Grazie!";
+
+    private const string AttendanceFixedReminderBody = "📣 Piccolo appello per chi deve ancora rispondere!\n\n"
+        + "Se ci sei, scrivi !presenza si: la presenza vale per la data dell'evento. Se ci sono domande aggiuntive, rispondi con il numero.\n"
+        + "Per rivedere le risposte scrivi !presenza modifica.\n\nGrazie!";
 
     public Task SetAttendanceDeadlineAsync(Guid actorId, Guid eventId, DateTime? deadlineLocal, int revision,
         bool confirmed, CancellationToken ct = default) => operations.ChangeAsync(actorId, eventId, async token =>
@@ -37,7 +42,8 @@ public sealed partial class WhatsAppService
         var deadline = settings?.DeadlineUtc;
         return new(ev.TimeZoneId, deadline.HasValue ? TimeZoneInfo.ConvertTimeFromUtc(deadline.Value,
             TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId)) : null,
-            deadline.HasValue && deadline.Value <= clock.GetUtcNow().UtcDateTime, settings?.Revision ?? 0);
+            deadline.HasValue && deadline.Value <= clock.GetUtcNow().UtcDateTime, settings?.Revision ?? 0,
+            settings?.AskStayDates ?? true, settings?.EventDays ?? 1);
     }
 
     internal async Task<string?> AttendanceDeadlineTextAsync(Guid eventId, CancellationToken ct)
@@ -50,12 +56,13 @@ public sealed partial class WhatsAppService
 
     public async Task<Guid> DraftAttendanceReminderAsync(Guid actorId, Guid eventId, Guid operationId, CancellationToken ct = default)
     {
+        var fixedStay = await AttendanceSettingsAsync(eventId, ct) is { AskStayDates: false };
         await operations.AuthorizeAsync(actorId, eventId, ct);
         var people = await store.ParticipationsAsync(eventId, ct);
         var stays = await store.ListAsync<AttendanceStay>(eventId, ct);
         if (!people.Any(p => p.Status is ParticipationStatus.NoResponse or ParticipationStatus.Undecided
             || p.Status == ParticipationStatus.Confirmed && !stays.Any(s => s.Id == p.PersonId)))
             throw new LocalValidationException("Non ci sono risposte o soggiorni da completare.");
-        return await DraftAsync(actorId, eventId, operationId, AttendanceReminderBody, ct);
+        return await DraftAsync(actorId, eventId, operationId, fixedStay ? AttendanceFixedReminderBody : AttendanceReminderBody, ct);
     }
 }

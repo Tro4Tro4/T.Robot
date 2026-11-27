@@ -22,6 +22,56 @@
         <button class="btn btn-primary" type="submit">Salva termine</button>
     </form>
 </section>
+<section class="card card-body mb-4" aria-labelledby="mode-title">
+    <h2 id="mode-title" class="h4">Date della presenza</h2>
+    <form asp-action="StayMode" method="post">
+        <input type="hidden" name="EventId" value="@Model.EventId" />
+        <input type="hidden" name="Revision" value="@Model.Collection.Revision" />
+        <div class="form-check mb-2"><input id="ask-dates" class="form-check-input" type="checkbox" name="AskStayDates" value="true" checked="@Model.Collection.AskStayDates" /><label for="ask-dates" class="form-check-label">Chiedi a ogni partecipante data di arrivo e numero di giorni</label></div>
+        <p class="form-text">Se disattivato, la presenza vale per la data dell'evento: nel gruppo non vengono chieste né date né notti.</p>
+        <label for="event-days" class="form-label">Giorni dell'evento (usati solo se le date non vengono chieste)</label>
+        <input id="event-days" class="form-control mb-2" type="number" min="1" max="31" name="EventDays" value="@Model.Collection.EventDays" />
+        <div class="form-check mb-2"><input id="mode-confirm" class="form-check-input" type="checkbox" name="Confirmed" value="true" required /><label for="mode-confirm" class="form-check-label">Confermo la modifica</label></div>
+        <button class="btn btn-primary" type="submit">Salva modalità</button>
+    </form>
+</section>
+<section class="card card-body mb-4" aria-labelledby="questions-title">
+    <h2 id="questions-title" class="h4">Domande aggiuntive</h2>
+    <p>Dopo la conferma della presenza, il bot pone queste domande a risposta chiusa (per te e per i bambini collegati). Le domande disattivate non vengono più poste ma conservano le risposte.</p>
+    @if (Model.Questions is { Count: > 0 })
+    {
+        @foreach (var question in Model.Questions)
+        {
+            <div class="mb-3">
+                <h3 class="h5">@question.Text @if (!question.IsActive) { <span class="badge text-bg-secondary">Disattivata</span> }</h3>
+                <ul>
+                    @foreach (var option in question.Options)
+                    {
+                        <li><strong>@option.Text</strong> · @option.People.Count@(option.People.Count > 0 ? ": " + string.Join(", ", option.People) : "")</li>
+                    }
+                </ul>
+                <form asp-action="QuestionActive" method="post" class="d-inline">
+                    <input type="hidden" name="EventId" value="@Model.EventId" />
+                    <input type="hidden" name="QuestionId" value="@question.Id" />
+                    <input type="hidden" name="Revision" value="@question.Revision" />
+                    <input type="hidden" name="Active" value="@(question.IsActive ? "false" : "true")" />
+                    <input type="hidden" name="Confirmed" value="true" />
+                    <button class="btn btn-outline-secondary btn-sm" type="submit">@(question.IsActive ? "Disattiva" : "Riattiva")</button>
+                </form>
+            </div>
+        }
+    }
+    else { <p>Nessuna domanda configurata.</p> }
+    <form asp-action="AddQuestion" method="post">
+        <input type="hidden" name="EventId" value="@Model.EventId" />
+        <label for="question-text" class="form-label">Nuova domanda</label>
+        <input id="question-text" class="form-control mb-2" type="text" name="Text" maxlength="200" required placeholder="Come sali alla baita?" />
+        <label for="question-options" class="form-label">Risposte possibili, una per riga (da 2 a 8)</label>
+        <textarea id="question-options" class="form-control mb-2" name="Options" rows="4" maxlength="600" required placeholder="A piedi&#10;Con il gatto delle nevi"></textarea>
+        <div class="form-check mb-2"><input id="question-confirm" class="form-check-input" type="checkbox" name="Confirmed" value="true" required /><label for="question-confirm" class="form-check-label">Confermo l'aggiunta</label></div>
+        <button class="btn btn-primary" type="submit">Aggiungi domanda</button>
+    </form>
+</section>
 <section class="mb-4" aria-labelledby="pending-title">
     <h2 id="pending-title" class="h4">Da completare · @Model.Pending.Count</h2>
     @if (Model.Pending.Count == 0) { <p>Tutte le risposte e le date sono complete.</p> }

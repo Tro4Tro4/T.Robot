@@ -143,14 +143,68 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.ToTable("AccountingSettings", (string)null);
                 });
 
+            modelBuilder.Entity("TRobot.Domain.AttendanceAnswer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AnsweredAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("OptionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("SenderId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("OptionId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("EventId", "PersonId", "QuestionId")
+                        .IsUnique();
+
+                    b.ToTable("AttendanceAnswers", (string)null);
+                });
+
             modelBuilder.Entity("TRobot.Domain.AttendanceCollectionSettings", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("AskStayDates")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
                     b.Property<DateTime?>("DeadlineUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("EventDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
 
                     b.Property<Guid>("EventId")
                         .HasColumnType("TEXT");
@@ -214,6 +268,9 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PreserveDays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("QuestionId")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Revision")
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
@@ -235,6 +292,73 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.HasIndex("EventId");
 
                     b.ToTable("AttendanceDialogues", (string)null);
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AttendanceQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventId", "Position");
+
+                    b.ToTable("AttendanceQuestions", (string)null);
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AttendanceQuestionOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("QuestionId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("AttendanceQuestionOptions", (string)null);
                 });
 
             modelBuilder.Entity("TRobot.Domain.AttendanceStay", b =>
@@ -2516,6 +2640,39 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TRobot.Domain.AttendanceAnswer", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.AttendanceQuestionOption", null)
+                        .WithMany()
+                        .HasForeignKey("OptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.AttendanceQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.Person", null)
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.EventParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("EventId", "PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TRobot.Domain.AttendanceCollectionSettings", b =>
                 {
                     b.HasOne("TRobot.Domain.Event", null)
@@ -2542,6 +2699,30 @@ namespace TRobot.Infrastructure.Persistence.Migrations
                     b.HasOne("TRobot.Domain.EventParticipant", null)
                         .WithMany()
                         .HasForeignKey("EventId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AttendanceQuestion", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TRobot.Domain.AttendanceQuestionOption", b =>
+                {
+                    b.HasOne("TRobot.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TRobot.Domain.AttendanceQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
