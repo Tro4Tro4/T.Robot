@@ -10,7 +10,11 @@ internal sealed class WhatsAppConnectionConfiguration : IEntityTypeConfiguration
     {
         LocalMapping.Record(b, "WhatsAppConnections");
         b.Property(x => x.GroupId).HasMaxLength(200);
-        b.HasIndex(x => x.Enabled).IsUnique().HasFilter("Enabled = 1");
+        b.Ignore(x => x.Features);
+        b.Property(x => x.FeaturesRevision).HasDefaultValue(0).IsConcurrencyToken();
+        b.HasIndex(x => x.EventId).IsUnique();
+        b.HasIndex(x => x.Enabled);
+        b.HasIndex(x => x.GroupId).IsUnique().HasFilter("\"Enabled\" = 1");
         b.HasOne<Person>().WithMany().HasForeignKey(x => x.ActorId).OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.ActivatedAtUtc).HasConversion(x => x, x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Utc) : x);
         b.ToTable("WhatsAppConnections", t => t.HasCheckConstraint("CK_WhatsAppConnections_Active", "Enabled = 0 OR (GroupId IS NOT NULL AND ActorId IS NOT NULL AND ActivatedAtUtc IS NOT NULL)"));

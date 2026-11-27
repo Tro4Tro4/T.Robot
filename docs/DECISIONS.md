@@ -406,3 +406,12 @@ L'utente richiede rilascio completo, commit e push. Suite completa finale 651/65
 ## 21 novembre 2026 - Stato live nel pannello Messaggi
 
 - Il pannello Messaggi mostra quattro livelli distinti: gateway, connessione WhatsApp, elaborazione automatica e singolo messaggio. La diagnostica live usa `Messages/Status`, richiede l'accesso all'evento, non restituisce QR, nomi o testi del gateway, limita l'attesa a 3 secondi e aggiorna la pagina ogni 10 secondi senza modificare lo stato. Default: nessun controllo live durante il caricamento iniziale, cosi' un gateway fermo non blocca il pannello.
+
+## 27 novembre 2026 - Più eventi sullo stesso numero WhatsApp
+
+- Scelta dell'utente: lo stesso numero dedicato serve più eventi contemporaneamente, con un solo gruppo attivo per evento. Non si supportano più gruppi dello stesso evento né più sessioni Baileys.
+- `WhatsAppConnection` resta l'entità del collegamento. Si rimuove l'unicità globale su `Enabled`, si aggiunge l'unicità filtrata su `GroupId` per i collegamenti attivi e si rende univoco `EventId`. Ogni gruppo appartiene quindi a un solo evento.
+- Le funzionalità sono flag per gruppo, con `FeaturesRevision` separata da `Revision`: modificarle non invalida bozze, approvazioni o dialoghi. Righe esistenti con tutte le funzioni attive; nuovi gruppi con presenza e informazioni attive, le altre da abilitare. I messaggi manuali restano indipendenti dai flag.
+- Il gateway passa da un `activeGroupId` a un insieme di gruppi autorizzati tramite `PUT /groups`, con elenco degli indisponibili e senza bloccare gli altri eventi. Ricezione, membri, invio e recovery verificano l'appartenenza all'insieme.
+- I DM di `!proponi` e `!preferenze` vengono instradati solo quando esiste una sola sessione aperta e valida del mittente tra i collegamenti attivi. Con zero o più sessioni il messaggio viene ignorato; il gateway non mantiene stato di routing privato.
+- Default: preflight del dispatcher sul gruppo dell'evento prima del claim, pausa/silenzio/limite/scheduler restano per evento, disconnessione del dispositivo globale e riservata all'amministratore globale. Disegno completo in docs/MILESTONE_36.md.
