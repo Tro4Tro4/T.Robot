@@ -91,5 +91,5 @@ test('Migrated journal remains compatible with preserved token and startup stays
   assert.deepEqual(await migrated.get(operation, digest), { status: 'sent', messageId: 'synthetic-id' });
   const gateway = new WhatsAppGateway({ token, journal: migrated,
     transportFactory: () => { throw new Error('must_not_connect'); }, callback: () => {} });
-  assert.equal(gateway.status, 'disconnected'); assert.equal(gateway.activeGroupId, null);
+  assert.equal(gateway.status, 'disconnected'); assert.equal(gateway.activeGroupIds.size, 0);
 });

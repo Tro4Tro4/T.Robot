@@ -5,35 +5,67 @@ namespace TRobot.Application.WhatsApp;
 
 public sealed partial class WhatsAppService
 {
+    private sealed record PrivateMealRoute(WhatsAppConnection Connection, Guid Actor, Guid Voter, string Identity);
+
     private async Task<WhatsAppIncomingResult> MealIncomingAsync(WhatsAppIncoming input, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(input.GroupId) || input.GroupId.Length > 200 || !input.GroupId.EndsWith("@g.us", StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(input.MessageId) || input.MessageId.Length > 200
+        if (input.GroupId is { } groupId && (groupId.Length > 200 || !groupId.EndsWith("@g.us", StringComparison.Ordinal)))
+            return new(false);
+        if (!input.IsPrivate && string.IsNullOrWhiteSpace(input.GroupId)) return new(false);
+        if (string.IsNullOrWhiteSpace(input.MessageId) || input.MessageId.Length > 200
             || string.IsNullOrWhiteSpace(input.Text) || input.Text.Length > (input.IsPrivate ? 300 : 100)) return new(false);
         string[] hashes;
         try { hashes = HashAliases(input.SenderIds); } catch (LocalValidationException) { return new(false); }
         DateTime timestamp;
         try { timestamp = DateTimeOffset.FromUnixTimeSeconds(input.TimestampUnixSeconds).UtcDateTime; }
         catch (ArgumentOutOfRangeException) { return new(false); }
-        var active = await identities.ActiveConnectionAsync(ct);
-        if (active?.ActorId is not { } actor || active.GroupId != input.GroupId) return new(false);
-        return await operations.ChangeAsync(actor, active.EventId, async token =>
+
+        if (input.IsPrivate)
         {
-            await RequireAdmin(actor, active.EventId, token);
-            var connection = await identities.ActiveConnectionAsync(token);
+            var route = await ResolvePrivateMealRouteAsync(hashes, timestamp, ct);
+            if (route is null) return await PrivateMealReplayAsync(input, hashes, ct) ?? new(false);
+            return await MealTransactionAsync(input, route.Connection, route.Actor, route.Voter, route.Identity, timestamp, ct);
+        }
+
+        var connection = await identities.ConnectionByGroupAsync(input.GroupId!, ct);
+        if (connection?.ActorId is not { } actor || !await AuthorizedActivatorAsync(connection, ct)) return new(false);
+        return await MealTransactionAsync(input, connection, actor, null, null, timestamp, ct);
+    }
+
+    private async Task<WhatsAppIncomingResult> MealTransactionAsync(WhatsAppIncoming input, WhatsAppConnection resolved,
+        Guid actor, Guid? knownVoter, string? knownIdentity, DateTime timestamp, CancellationToken ct)
+    {
+        var groupId = resolved.GroupId!;
+        return await operations.ChangeAsync(actor, resolved.EventId, async token =>
+        {
+            await RequireAdmin(actor, resolved.EventId, token);
+            var connection = await identities.ConnectionByGroupAsync(groupId, token);
             var now = clock.GetUtcNow().UtcDateTime;
-            if (connection is null || !connection.Enabled || connection.EventId != active.EventId || connection.ActorId != actor
-                || connection.GroupId != input.GroupId || !connection.ActivatedAtUtc.HasValue || timestamp < connection.ActivatedAtUtc.Value
+            if (connection is null || !connection.Enabled || connection.EventId != resolved.EventId || connection.ActorId != actor
+                || connection.GroupId != groupId || !connection.ActivatedAtUtc.HasValue || timestamp < connection.ActivatedAtUtc.Value
                 || timestamp < now.AddSeconds(-120) || timestamp > now.AddSeconds(30)) return new WhatsAppIncomingResult(false);
+
+            var text = input.Text.Trim();
+            if (!input.IsPrivate && text.Equals("!preferenze", StringComparison.OrdinalIgnoreCase)
+                && !connection.Allows(WhatsAppFeature.MealPreferences)) return new WhatsAppIncomingResult(false);
+            if (!input.IsPrivate && text.Equals("!proponi", StringComparison.OrdinalIgnoreCase)
+                && !connection.Allows(WhatsAppFeature.MealProposals)) return new WhatsAppIncomingResult(false);
+
             var aliases = await store.ListAsync<WhatsAppIdentityAlias>(connection.EventId, token);
-            var matches = aliases.Where(x => x.IsActive && hashes.Contains(x.SenderHash)).Select(x => x.PersonId).Distinct().ToArray();
-            if (matches.Length != 1 || await identities.ParticipantAsync(connection.EventId, matches[0], token) is not { } participant)
+            Guid voter;
+            if (knownVoter is { } known) voter = known;
+            else
+            {
+                var hashes = HashAliases(input.SenderIds);
+                var matches = aliases.Where(x => x.IsActive && hashes.Contains(x.SenderHash)).Select(x => x.PersonId).Distinct().ToArray();
+                if (matches.Length != 1) return new WhatsAppIncomingResult(false);
+                voter = matches[0];
+            }
+            if (await identities.ParticipantAsync(connection.EventId, voter, token) is not { } participant)
                 return new WhatsAppIncomingResult(false);
             var ev = await store.EventAsync(connection.EventId, token) ?? throw new LocalAccessException();
-            var eventDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(ev.StartsAtUtc, TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId)));
-            var identity = options.Fingerprint("meal-identity", $"event:{ev.Revision};" + string.Join(';', aliases.Where(x => x.PersonId == participant.PersonId)
-                .OrderBy(x => x.Id).Select(x => $"{x.Id}:{x.Revision}:{x.IsActive}")));
-            var messageHash = options.Fingerprint("message", (input.IsPrivate ? "private:" : "") + input.GroupId + ":" + input.MessageId);
+            var identity = knownIdentity ?? MealIdentity(ev, aliases, participant.PersonId);
+            var messageHash = options.Fingerprint("message", (input.IsPrivate ? "private:" : groupId + ":") + input.MessageId);
             var commandHash = options.Fingerprint("command", input.Text);
             var previous = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, token)).SingleOrDefault(x => x.MessageHash == messageHash);
             if (previous is not null)
@@ -52,6 +84,11 @@ public sealed partial class WhatsAppService
                 await store.SaveAsync(token); return preference;
             }
             var session = await store.FindAsync<MealProposalSession>(connection.EventId, participant.PersonId, token);
+            if (!connection.Allows(WhatsAppFeature.MealProposals))
+            {
+                if (session is not null && session.Step != MealProposalStep.Closed) { session.Close(); await store.SaveAsync(token); }
+                return new WhatsAppIncomingResult(false);
+            }
             var valid = session is not null && session.Step != MealProposalStep.Closed && session.ActorId == actor
                 && session.GroupId == connection.GroupId && session.ConnectionRevision == connection.Revision
                 && session.IdentityFingerprint == identity && now >= session.StartedAtUtc && now < session.ExpiresAtUtc;
@@ -67,6 +104,7 @@ public sealed partial class WhatsAppService
             var success = false;
             string? rejection = null;
             var stay = await store.FindAsync<AttendanceStay>(connection.EventId, participant.PersonId, token);
+            var eventDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(ev.StartsAtUtc, TimeZoneInfo.FindSystemTimeZoneById(ev.TimeZoneId)));
             if (!input.IsPrivate)
             {
                 if (session is null) { session = new(connection.EventId, participant.PersonId); store.Add(session); }
@@ -82,7 +120,6 @@ public sealed partial class WhatsAppService
                 }
                 if (timestamp.Ticks < session!.StartedAtUtc.Ticks - session.StartedAtUtc.Ticks % TimeSpan.TicksPerSecond)
                     return new WhatsAppIncomingResult(false);
-                var text = input.Text.Trim();
                 if (text.Equals("!annulla", StringComparison.OrdinalIgnoreCase))
                 { session.Close(); reply = "Proposta annullata. Nessun piatto registrato."; }
                 else if (text.Equals("!proponi", StringComparison.OrdinalIgnoreCase)) reply = MealPrompt(session, eventDate);
@@ -136,6 +173,72 @@ public sealed partial class WhatsAppService
                 ReplyText: reply, ReplyOperationId: receipt.Id, ReplyPrivately: true);
         }, ct);
     }
+
+    private async Task<PrivateMealRoute?> ResolvePrivateMealRouteAsync(string[] hashes, DateTime timestamp, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow().UtcDateTime;
+        var routes = new List<PrivateMealRoute>();
+        foreach (var connection in await identities.ActiveConnectionsAsync(ct))
+        {
+            if (connection.GroupId is not { } groupId || connection.ActorId is not { } actor
+                || !await AuthorizedActivatorAsync(connection, ct)) continue;
+            var aliases = await store.ListAsync<WhatsAppIdentityAlias>(connection.EventId, ct);
+            var matches = aliases.Where(x => x.IsActive && hashes.Contains(x.SenderHash)).Select(x => x.PersonId).Distinct().ToArray();
+            if (matches.Length != 1 || await identities.ParticipantAsync(connection.EventId, matches[0], ct) is not { } participant)
+                continue;
+            var ev = await store.EventAsync(connection.EventId, ct) ?? throw new LocalAccessException();
+            var identity = MealIdentity(ev, aliases, participant.PersonId);
+
+            var proposal = await store.FindAsync<MealProposalSession>(connection.EventId, participant.PersonId, ct);
+            if (proposal is not null && proposal.Step != MealProposalStep.Closed)
+            {
+                var valid = proposal.ActorId == actor && proposal.GroupId == groupId
+                    && proposal.ConnectionRevision == connection.Revision && proposal.IdentityFingerprint == identity
+                    && new DateTimeOffset(timestamp).ToUnixTimeSeconds() >= new DateTimeOffset(proposal.StartedAtUtc).ToUnixTimeSeconds()
+                    && now >= proposal.StartedAtUtc && now < proposal.ExpiresAtUtc;
+                if (valid && connection.Allows(WhatsAppFeature.MealProposals))
+                    routes.Add(new(connection, actor, participant.PersonId, identity));
+                else { proposal.Close(); await store.SaveAsync(ct); }
+            }
+
+            var preference = await store.FindAsync<MealPreferenceSession>(connection.EventId, participant.PersonId, ct);
+            if (preference is not null && preference.Step != MealPreferenceStep.Closed)
+            {
+                var valid = preference.IsValid(actor, groupId, connection.Revision, identity, now);
+                if (valid && connection.Allows(WhatsAppFeature.MealPreferences))
+                    routes.Add(new(connection, actor, participant.PersonId, identity));
+                else { preference.Close(); await store.SaveAsync(ct); }
+            }
+        }
+        // Zero or more than one open dialog: never choose an event arbitrarily.
+        return routes.Count == 1 ? routes[0] : null;
+    }
+
+    private async Task<WhatsAppIncomingResult?> PrivateMealReplayAsync(WhatsAppIncoming input, string[] hashes, CancellationToken ct)
+    {
+        foreach (var connection in await identities.ActiveConnectionsAsync(ct))
+        {
+            if (connection.GroupId is null || connection.ActorId is not { } actor
+                || !await AuthorizedActivatorAsync(connection, ct)) continue;
+            var aliases = await store.ListAsync<WhatsAppIdentityAlias>(connection.EventId, ct);
+            var matches = aliases.Where(x => x.IsActive && hashes.Contains(x.SenderHash)).Select(x => x.PersonId).Distinct().ToArray();
+            if (matches.Length != 1 || await identities.ParticipantAsync(connection.EventId, matches[0], ct) is not { } participant)
+                continue;
+            var messageHash = options.Fingerprint("message", "private:" + input.MessageId);
+            var previous = (await store.ListAsync<WhatsAppCommandReceipt>(connection.EventId, ct))
+                .SingleOrDefault(x => x.MessageHash == messageHash);
+            if (previous is null) continue;
+            var commandHash = options.Fingerprint("command", input.Text);
+            if (previous.PersonId != participant.PersonId || previous.ActorId != actor || previous.CommandHash != commandHash)
+                throw new LocalConflictException("Identificativo messaggio già elaborato con dati diversi.");
+            return new WhatsAppIncomingResult(true, true);
+        }
+        return null;
+    }
+
+    private string MealIdentity(Event ev, IReadOnlyList<WhatsAppIdentityAlias> aliases, Guid personId) =>
+        options.Fingerprint("meal-identity", $"event:{ev.Revision};" + string.Join(';', aliases.Where(x => x.PersonId == personId)
+            .OrderBy(x => x.Id).Select(x => $"{x.Id}:{x.Revision}:{x.IsActive}")));
 
     private static string? MealProposalIneligible(EventParticipant participant, AttendanceStay? stay, DateOnly day)
     {

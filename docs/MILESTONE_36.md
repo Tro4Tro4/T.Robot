@@ -256,7 +256,7 @@ Il contratto `WhatsAppIncoming.GroupId` diventa nullable. Per un messaggio di gr
 
 ### Aiuto
 
-`HelpState` include i flag del collegamento. L'indice e le singole voci mostrano solo funzioni attive. `!aiuto presenza` senza `FeatureAttendance` risponde "voce non trovata o non attiva"; `!aiuto pasti` distingue proposte e preferenze; `!aiuto elenchi` considera `FeatureInformation` e `FeatureOperations`.
+Le voci di aiuto usano i flag del collegamento. L'indice e le singole voci mostrano solo funzioni attive. `!aiuto presenza` senza `FeatureAttendance` risponde "voce non trovata o non attiva"; `!aiuto pasti` distingue proposte e preferenze; `!aiuto elenchi` considera `FeatureInformation` e `FeatureOperations`.
 
 ## Dispatcher e scheduler
 
@@ -433,3 +433,7 @@ Rollback:
 - DM instradati solo con una sessione aperta unica del mittente; ambiguità ignorata, nessun routing privato memorizzato nel gateway.
 - Disconnessione del dispositivo globale e riservata all'amministratore globale.
 - Pausa, silenzio, limite e scheduler restano per evento.
+
+## Stato dell'implementazione
+
+Implementato nel branch di sessione il 27 novembre 2026, senza commit, push o rilascio. Build della soluzione senza errori o avvisi, 234 test WhatsApp .NET e 82 test Messaggi superati (inclusi isolamento multi-evento, feature flag, routing privato ambiguo e pannello) e 61 test gateway Node superati. I 14 test operativi Python del recovery sono superati con `PUT /groups`. La suite .NET completa non e stata eseguita in questo ambiente per il limite di cinque minuti per comando; va eseguita da desktop. Migrazione gia applicata nell'incremento precedente, nessuna modifica di modello pendente. Non testato dal telefono.

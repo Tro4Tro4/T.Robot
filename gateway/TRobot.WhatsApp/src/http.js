@@ -55,16 +55,20 @@ export function createGatewayServer(gateway, token) {
       const path = request.url;
       if (request.method === 'GET' && path === '/health') return json(response, 200, gateway.health());
       if (request.method === 'GET' && path === '/groups') return json(response, 200, await gateway.groups());
+      if (request.method === 'PUT' && path === '/groups') {
+        const input = await body(request);
+        fields(input, ['groupIds']);
+        return json(response, 200, await gateway.setGroups(input.groupIds));
+      }
       const members = /^\/groups\/([^/?]+)\/members$/.exec(path);
       if (request.method === 'GET' && members) {
         let id; try { id = decodeURIComponent(members[1]); } catch { throw new GatewayError('invalid_group'); }
         return json(response, 200, await gateway.members(id));
       }
-      if (request.method === 'POST' && ['/connect', '/disconnect', '/group', '/send'].includes(path)) {
+      if (request.method === 'POST' && ['/connect', '/disconnect', '/send'].includes(path)) {
         const input = await body(request);
         if (path === '/connect') { fields(input, []); return json(response, 200, await gateway.connect()); }
         if (path === '/disconnect') { fields(input, []); return json(response, 200, gateway.disconnect()); }
-        if (path === '/group') { fields(input, ['groupId']); return json(response, 200, await gateway.group(input.groupId)); }
         fields(input, ['operationId', 'groupId', 'text']);
         return json(response, 200, await gateway.send(input));
       }

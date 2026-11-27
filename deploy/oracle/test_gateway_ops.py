@@ -22,7 +22,7 @@ SECRET = 'a' * 64
 class BindingTests(unittest.TestCase):
     def test_database_reader_runs_as_owner_readonly_and_captures_output(self):
         with patch.object(ops.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, json.dumps([BINDING]))) as run:
-            self.assertEqual(BINDING, ops.binding())
+            self.assertEqual([BINDING], ops.binding())
         args, kwargs = run.call_args
         self.assertEqual(['/usr/sbin/runuser', '-u', 'trobot', '--', '/usr/bin/python3', '-c'], args[0][:6])
         self.assertTrue(kwargs['capture_output'])
@@ -49,8 +49,9 @@ class BindingTests(unittest.TestCase):
                 db.execute("UPDATE EventOrganizers SET EventId='other-event'")
                 self.assertEqual([], db.execute(ops.QUERY).fetchall())
 
-    def test_missing_and_ambiguous_bindings(self):
-        for rows, expected in [([], None), ([BINDING, BINDING], ValueError),
+    def test_missing_invalid_and_multiple_bindings(self):
+        other = (*BINDING[:2], '99999@g.us', *BINDING[3:])
+        for rows, expected in [([], []), ([BINDING], [BINDING]), ([BINDING, other], [BINDING, other]),
                                ([(*BINDING[:2], 'private@s.whatsapp.net', *BINDING[3:])], ValueError)]:
             with self.subTest(rows=rows), patch.object(ops.subprocess, 'run',
                     return_value=subprocess.CompletedProcess([], 0, json.dumps(rows))):
@@ -58,7 +59,7 @@ class BindingTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         ops.binding()
                 else:
-                    self.assertIsNone(ops.binding())
+                    self.assertEqual(expected, ops.binding())
 
     def test_only_existing_paired_identity_can_resume_regardless_of_registered_flag(self):
         account = {field: {'type': 'Buffer', 'data': base64.b64encode(b'x' * size).decode('ascii')}
@@ -98,7 +99,7 @@ class RecoveryTests(unittest.TestCase):
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.object(ops, 'token', return_value=SECRET))
-        self.binding = self.stack.enter_context(patch.object(ops, 'binding', return_value=BINDING))
+        self.binding = self.stack.enter_context(patch.object(ops, 'binding', return_value=[BINDING]))
         self.registered = self.stack.enter_context(patch.object(ops, 'registered', return_value=True))
         self.stack.enter_context(patch.object(ops, 'web_ready', return_value=True))
         self.stack.enter_context(patch.object(ops.time, 'sleep'))
@@ -114,31 +115,31 @@ class RecoveryTests(unittest.TestCase):
             self.health = 'connected'
         if path == '/disconnect':
             self.health = 'disconnected'
-        return {'status': self.health, 'activeGroupId': BINDING[2] if path == '/group' else None}
+        return {'status': self.health, 'activeGroupIds': [BINDING[2]] if path == '/groups' else []}
 
-    def test_restores_existing_group_without_sending(self):
+    def test_restores_existing_groups_without_sending(self):
         self.assertEqual(0, ops.main())
-        self.assertEqual(['/health', '/connect', '/health', '/group'], [x[0] for x in self.calls])
-        self.assertEqual({'groupId': BINDING[2]}, self.calls[-1][1])
+        self.assertEqual(['/health', '/connect', '/health', '/groups'], [x[0] for x in self.calls])
+        self.assertEqual({'groupIds': [BINDING[2]]}, self.calls[-1][1])
         self.assertNotIn(BINDING[2], self.output.getvalue())
         self.assertNotIn(SECRET, self.output.getvalue())
 
     def test_missing_binding_or_session_skips_successfully(self):
-        self.binding.return_value = None
+        self.binding.return_value = []
         self.assertEqual(0, ops.main())
         self.request.assert_not_called()
-        self.binding.return_value = BINDING
+        self.binding.return_value = [BINDING]
         self.registered.return_value = False
         self.assertEqual(0, ops.main())
         self.request.assert_not_called()
 
     def test_binding_change_after_connect_disconnects_without_pinning(self):
-        self.binding.side_effect = [BINDING, BINDING, None]
+        self.binding.side_effect = [[BINDING], [BINDING], []]
         self.assertEqual(1, ops.main())
         self.assertEqual(['/health', '/connect', '/health', '/disconnect'], [x[0] for x in self.calls])
 
     def test_binding_change_after_pin_disconnects(self):
-        self.binding.side_effect = [BINDING, BINDING, BINDING, (*BINDING[:4], 4, BINDING[5])]
+        self.binding.side_effect = [[BINDING], [BINDING], [BINDING], [(*BINDING[:2], '99999@g.us', *BINDING[3:])]]
         self.assertEqual(1, ops.main())
         self.assertEqual('/disconnect', self.calls[-1][0])
 
@@ -156,10 +157,10 @@ class RecoveryTests(unittest.TestCase):
         self.request.side_effect = qr
         self.assertEqual(1, ops.main())
         self.assertEqual('/disconnect', self.calls[-1][0])
-        self.assertFalse(any(path == '/group' for path, _ in self.calls))
+        self.assertFalse(any(path == '/groups' for path, _ in self.calls))
 
     def test_disconnect_failure_stops_gateway_without_exception_details(self):
-        self.binding.side_effect = [BINDING, BINDING, None]
+        self.binding.side_effect = [[BINDING], [BINDING], []]
         def failed(secret, path, payload=None):
             if path == '/disconnect':
                 raise RuntimeError(SECRET + BINDING[2])

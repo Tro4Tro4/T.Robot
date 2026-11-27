@@ -17,8 +17,8 @@ public sealed class WhatsAppGatewayClient(HttpClient client, WhatsAppGatewayOpti
     public async Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) => (await Request<GroupsResponse>(HttpMethod.Get, "groups", null, ct)).Groups;
     public async Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) =>
         (await Request<MembersResponse>(HttpMethod.Get, "groups/" + Uri.EscapeDataString(groupId) + "/members", null, ct)).Members;
-    public async Task SetGroupAsync(string? groupId, CancellationToken ct)
-    { using var response = await Send(HttpMethod.Post, "group", new { groupId }, ct); }
+    public Task<GatewayHealth> SetGroupsAsync(IReadOnlyList<string> groupIds, CancellationToken ct) =>
+        Request<GatewayHealth>(HttpMethod.Put, "groups", new { groupIds }, ct);
     public Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct) =>
         Request<GatewaySendResult>(HttpMethod.Post, "send", new { operationId, groupId, text }, ct);
     private async Task<T> Request<T>(HttpMethod method, string path, object? body, CancellationToken ct)

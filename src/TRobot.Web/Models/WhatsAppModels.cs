@@ -13,6 +13,20 @@ public sealed class WhatsAppGroupInput : WhatsAppActionInput
     [Required, StringLength(200)] public string GroupId { get; set; } = "";
     [BindRequired] public int Revision { get; set; }
 }
+public sealed class WhatsAppGroupDeactivateInput : WhatsAppActionInput
+{
+    [BindRequired] public int Revision { get; set; }
+}
+public sealed class WhatsAppFeatureInput : WhatsAppActionInput
+{
+    [BindRequired] public int FeaturesRevision { get; set; }
+    public bool Attendance { get; set; }
+    public bool Information { get; set; }
+    public bool Operations { get; set; }
+    public bool MealProposals { get; set; }
+    public bool MealPreferences { get; set; }
+    public bool FunReplies { get; set; }
+}
 public sealed class WhatsAppMapInput : WhatsAppActionInput
 {
     [Required, StringLength(200)] public string MemberId { get; set; } = "";

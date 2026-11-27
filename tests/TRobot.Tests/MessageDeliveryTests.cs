@@ -169,7 +169,7 @@ public sealed class MessageDeliveryTests
         var service = await QueueAsync(scope.ServiceProvider, clock, gateway, factory.EventId, factory.OrganizerPersonId);
         await MessageTestSupport.ActivateAsync(scope.ServiceProvider, factory.EventId, factory.OrganizerPersonId, Noon, "other-group@g.us");
         var outcome = await service.DispatchAsync(factory.OrganizerPersonId, factory.EventId);
-        Assert.Equal(0, outcome.Attempted); Assert.Equal(1, outcome.Skipped);
+        Assert.Equal(DispatchOutcome.Empty, outcome);
         var message = Assert.Single((await service.ListAsync(factory.OrganizerPersonId, factory.EventId)).Messages);
         Assert.Equal(OutboundMessageStatus.Queued, message.Status);
         Assert.Empty(gateway.OperationIds);
@@ -188,7 +188,7 @@ public sealed class MessageDeliveryTests
         var assignment = await db.EventOrganizers.SingleAsync(x => x.PersonId == factory.OrganizerPersonId);
         assignment.SetActive(false); await db.SaveChangesAsync();
         // A different authorized organizer can process the queue, but not a confirmation whose owner lost access.
-        Assert.Equal(new DispatchOutcome(0, 0, 0, 1, 0), await service.DispatchAsync(other.Id, factory.EventId));
+        Assert.Equal(DispatchOutcome.Empty, await service.DispatchAsync(other.Id, factory.EventId));
         Assert.Empty(gateway.OperationIds);
         Assert.Equal(OutboundMessageStatus.Queued,
             Assert.Single((await scope.ServiceProvider.GetRequiredService<TRobotDbContext>().Set<OutboundMessage>().AsNoTracking().ToListAsync())).Status);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TRobot.Application.WhatsApp;
+using TRobot.Domain;
 using TRobot.Web.Models;
 
 namespace TRobot.Web.Controllers;
@@ -24,6 +25,21 @@ public sealed class WhatsAppController(WhatsAppService service) : LocalControlle
     { if (!ModelState.IsValid) return BadRequest(); await service.DisconnectAsync(ActorId, input.EventId, input.Confirmed, ct); return RedirectToAction(nameof(Index), new { input.EventId }); });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SelectGroup(WhatsAppGroupInput input, CancellationToken ct) => ExecuteAsync(async () =>
     { if (!ModelState.IsValid) return BadRequest(); await service.SelectGroupAsync(ActorId, input.EventId, input.GroupId, input.Revision, input.Confirmed, ct); return RedirectToAction(nameof(Index), new { input.EventId }); });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> DeactivateGroup(WhatsAppGroupDeactivateInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    { if (!ModelState.IsValid) return BadRequest(); await service.DeactivateGroupAsync(ActorId, input.EventId, input.Revision, input.Confirmed, ct); return RedirectToAction(nameof(Index), new { input.EventId }); });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> UpdateFeatures(WhatsAppFeatureInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!ModelState.IsValid) return BadRequest();
+        var features = WhatsAppFeature.None;
+        if (input.Attendance) features |= WhatsAppFeature.Attendance;
+        if (input.Information) features |= WhatsAppFeature.Information;
+        if (input.Operations) features |= WhatsAppFeature.Operations;
+        if (input.MealProposals) features |= WhatsAppFeature.MealProposals;
+        if (input.MealPreferences) features |= WhatsAppFeature.MealPreferences;
+        if (input.FunReplies) features |= WhatsAppFeature.FunReplies;
+        await service.UpdateFeaturesAsync(ActorId, input.EventId, new WhatsAppFeatureSet(features), input.FeaturesRevision, input.Confirmed, ct);
+        return RedirectToAction(nameof(Index), new { input.EventId });
+    });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Map(WhatsAppMapInput input, CancellationToken ct) => ExecuteAsync(async () =>
     { if (!ModelState.IsValid) return BadRequest(); await service.MapAsync(ActorId, input.EventId, input.MemberId, input.PersonId, input.Revision, input.Confirmed, ct); return RedirectToAction(nameof(Index), new { input.EventId }); });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Draft(WhatsAppDraftInput input, CancellationToken ct) => ExecuteAsync(async () =>

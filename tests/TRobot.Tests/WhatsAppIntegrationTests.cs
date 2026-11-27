@@ -32,6 +32,9 @@ public sealed partial class WhatsAppIntegrationTests
     private static async Task<Guid> Activate(IServiceProvider p, LocalWebFactory f, WhatsAppService service)
     {
         await service.SelectGroupAsync(f.OrganizerPersonId, f.EventId, Group, 0, true);
+        var store = p.GetRequiredService<ILocalStore>();
+        var connection = await store.FindAsync<WhatsAppConnection>(f.EventId, f.EventId, default) ?? throw new InvalidOperationException();
+        connection.UpdateFeatures(WhatsAppFeatureSet.All); await store.SaveAsync(default);
         var person = (await p.GetRequiredService<TRobotDbContext>().EventParticipants.SingleAsync()).PersonId;
         await service.MapAsync(f.OrganizerPersonId, f.EventId, Sender, person, 1, true); return person;
     }
@@ -102,7 +105,7 @@ public sealed partial class WhatsAppIntegrationTests
         else if (kind == "administrator") user.IsSystemAdministrator = false;
         else (await db.EventOrganizers.SingleAsync()).SetActive(false);
         await db.SaveChangesAsync();
-        await Assert.ThrowsAsync<LocalAccessException>(() => service.IncomingAsync(Incoming()));
+        Assert.False((await service.IncomingAsync(Incoming())).Handled);
         await Assert.ThrowsAsync<LocalAccessException>(() => service.HealthAsync(f.OrganizerPersonId, f.EventId));
         Assert.Single(await db.Set<WhatsAppIncomingReceipt>().ToListAsync());
     }
@@ -248,6 +251,19 @@ public sealed partial class WhatsAppIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/WhatsApp/SelectGroup", Form(group))).StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/WhatsApp/SelectGroup", Form(group.Append(("Revision", "0")).ToArray()))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/WhatsApp/Members?eventId=" + f.EventId)).StatusCode);
+        var configured = await client.GetStringAsync("/WhatsApp?eventId=" + f.EventId); token = Token(configured);
+        Assert.Contains("Funzioni attive nel gruppo", configured); Assert.Contains("name=\"MealProposals\"", configured);
+        Assert.Contains("Disattiva questo gruppo", configured);
+        var featureFields = new[]
+        {
+            ("EventId", f.EventId.ToString()), ("FeaturesRevision", "0"), ("Attendance", "true"),
+            ("Information", "true"), ("Operations", "true"), ("MealProposals", "true"),
+            ("MealPreferences", "true"), ("FunReplies", "true"), ("Confirmed", "true"),
+            ("__RequestVerificationToken", token)
+        };
+        Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/WhatsApp/UpdateFeatures", Form(featureFields))).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/WhatsApp/DeactivateGroup",
+            Form(("EventId", f.EventId.ToString()), ("Revision", "1"), ("Confirmed", "true"), ("__RequestVerificationToken", token)))).StatusCode);
         using var verify = app.Services.CreateScope(); (await verify.ServiceProvider.GetRequiredService<TRobotDbContext>().Users.SingleAsync()).IsSystemAdministrator = false;
         await verify.ServiceProvider.GetRequiredService<TRobotDbContext>().SaveChangesAsync();
         Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync("/WhatsApp/Status?eventId=" + f.EventId)).StatusCode);
@@ -404,13 +420,22 @@ public sealed partial class WhatsAppIntegrationTests
         public TaskCompletionSource? ReleaseSend { get; set; }
         public string? ActiveGroup { get; private set; }
         public Task<GatewayHealth> HealthAsync(CancellationToken ct)
-        { HealthReads++; if (FailHealth) throw new HttpRequestException("Gateway non disponibile"); return Task.FromResult(new GatewayHealth("connected", null, HealthGroupOverride ?? ActiveGroup)); }
+        {
+            HealthReads++; if (FailHealth) throw new HttpRequestException("Gateway non disponibile");
+            var active = HealthGroupOverride is not null ? new[] { HealthGroupOverride }
+                : ActiveGroup is null ? [] : new[] { ActiveGroup };
+            return Task.FromResult(new GatewayHealth("connected", null, active, []));
+        }
         public Task<GatewayHealth> ConnectAsync(CancellationToken ct) { Connects++; return HealthAsync(ct); }
         public Task<GatewayHealth> DisconnectAsync(CancellationToken ct) { Disconnects++; ActiveGroup = null; return Task.FromResult(new GatewayHealth("disconnected")); }
         public Task<IReadOnlyList<GatewayGroup>> GroupsAsync(CancellationToken ct) => Task.FromResult(AvailableGroups);
         public IReadOnlyList<GatewayMember> AvailableMembers { get; set; } = [new(Sender, [Alternate], "Membro sintetico")];
         public Task<IReadOnlyList<GatewayMember>> MembersAsync(string groupId, CancellationToken ct) => Task.FromResult(AvailableMembers);
-        public Task SetGroupAsync(string? groupId, CancellationToken ct) { GroupSets++; if (FailGroup) throw new InvalidOperationException("Errore tecnico sintetico"); ActiveGroup = groupId; return Task.CompletedTask; }
+        public Task<GatewayHealth> SetGroupsAsync(IReadOnlyList<string> groupIds, CancellationToken ct)
+        {
+            GroupSets++; if (FailGroup) throw new InvalidOperationException("Errore tecnico sintetico");
+            ActiveGroup = groupIds.FirstOrDefault(); return HealthAsync(ct);
+        }
         public async Task<GatewaySendResult> SendAsync(Guid operationId, string groupId, string text, CancellationToken ct)
         { Sends++; SendStarted?.TrySetResult(); if (ReleaseSend is not null) await ReleaseSend.Task.WaitAsync(ct); if (FailSend) throw new TaskCanceledException(); return new GatewaySendResult("sent", "synthetic-outgoing"); }
     }
