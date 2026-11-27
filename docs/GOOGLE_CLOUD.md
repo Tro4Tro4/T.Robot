@@ -1,12 +1,12 @@
 # Google Cloud - hosting T.Robot
 
-**Stato al 25 novembre 2026.** Il 24 novembre l'utente ha spostato T.Robot da Azure a Google Cloud. Il trasferimento è stato fatto fuori da questo repository, che ne conserva solo i materiali privati in `.local`. Google è l'unica fonte operativa.
+**Stato al 27 novembre 2026** (infrastruttura e dati descritti al 25 novembre, release aggiornate qui sotto). Il 24 novembre l'utente ha spostato T.Robot da Azure a Google Cloud. Il trasferimento è stato fatto fuori da questo repository, che ne conserva solo i materiali privati in `.local`. Google è l'unica fonte operativa.
 
 ## Infrastruttura
 
 - Progetto `t-robot-515709`, VM `trobot`, zona `us-central1-c`, tipo `e2-micro` x86_64 (circa 1 GB di RAM), disco da 29 GB, IP pubblico `34.29.22.143`. `trobot-capodanno.duckdns.org` punta qui.
 - Firewall: `allow-trobot-web` (80/443 da ovunque), più le regole `default-*` del progetto (SSH 22, RDP 3389, ICMP, traffico interno).
-- Release attive: Web `/opt/trobot/app/releases/md-20261121-x64` (M35), gateway `/opt/trobot/gateway/releases/m34-x64`. Il DB è aggiornato all'ultima migrazione, `20261119084028_MessageDelivery`.
+- Release attive al 27 novembre: Web `/opt/trobot/app/releases/domande-presenza-20261127-x64` (M37), gateway `/opt/trobot/gateway/releases/multi-evento-20261127d-x64` (M36). Il DB è aggiornato all'ultima migrazione, `20261127142715_AttendanceStayModeAndQuestions` (59 tabelle). Le release precedenti (`md-20261121-x64`, `m34-x64`, `multi-evento-20261127-x64`, `...b-x64`, `...c-x64`) restano sul disco, non attive.
 - Gli script operativi in `/opt/trobot/ops` (`backup.py`, `backup-with-gateway.sh`, `resume-gateway.py`) e le unit systemd sono gli stessi di Azure.
 
 ## Accesso amministrativo
@@ -87,13 +87,26 @@ Verifiche del 25 novembre 2026:
 - Script EF reale da `AddHouseholdRenameFingerprint` a `MessageDelivery` applicato con successo a una copia locale del backup del 23 ottobre: 56 tabelle, 133 tra indici e altri oggetti, foreign key preservate.
 - `prepare`, `upload` e `stage` eseguiti sulla VM con la release di prova `check-20261125-x64`, poi rimossa. La release attiva e i servizi non sono cambiati.
 - Smoke pubblico positivo sul sito attuale.
-- `activate` non è ancora stato eseguito in produzione: la prima esecuzione reale avverrà con il prossimo rilascio.
 - Revisione indipendente: prima CHANGES REQUESTED (falsi fallimenti dovuti a scritture del Web avviato e a rotazione delle chiavi, segnali, stage parziale, controlli dello schema), poi APPROVED dopo le correzioni.
+
+Rilasci reali del 27 novembre 2026 (prime esecuzioni di `activate` in produzione):
+
+- **M36**, Web e gateway `multi-evento-20261127d-x64`, commit `b333de3`, con `--allow-changes WhatsAppConnections`. Servirono quattro nomi: i tentativi `...-x64`, `...b-x64` e `...c-x64` fallirono per difetti poi corretti (gruppi multipli in `release.py`, permessi della cartella `ops/migrations` con umask 077, `;` mancante nello script SQL, `POST` invece di `PUT /groups` nel recovery). Dettagli in `docs/MILESTONE_36.md`. Il secondo tentativo lasciò fermi per qualche minuto gateway e timer di backup: la procedura sa tornare ai binari precedenti, ma non se il recovery installato sulla VM è incompatibile con il gateway da riavviare.
+- **M37**, solo Web, `domande-presenza-20261127-x64`, commit `8fea061`, con `--allow-changes AttendanceCollectionSettings`. Nessun problema. Dettagli in `docs/MILESTONE_37.md`.
+
+Regole emerse:
+
+- `publish.py` non installa `deploy/oracle/resume-gateway.py`: se cambia, va copiato a mano in `/opt/trobot/ops/resume-gateway.py` (root, `700`, con backup del vecchio file) prima di `activate`. Lo script attuale funziona sia con il gateway M36 (`PUT /groups`) sia con il precedente (ripiego su `POST /group`), quindi il rollback resta possibile.
+- Prima di `activate` con una migrazione conviene provarla su una copia del DB di produzione: `sqlite3.backup` in `/var/lib/trobot/diag-*.db` come utente `trobot`, poi `sudo -u trobot python3 /opt/trobot/ops/release.py db-migrate <copia> /opt/trobot/ops/migrations/<nome>.sql <sha256>`, poi eliminare la copia e i file `-wal`, `-shm`, `-journal`.
+- Lo script generato da EF dev'essere controllato: ogni istruzione di `migrationBuilder.Sql(...)` termina con `;`, altrimenti `statements()` la fonde con la successiva.
+- Le migrazioni che aggiungono solo colonne con default e tabelle nuove (M37) non ricostruiscono tabelle e si verificano senza sorprese; un `CHECK` su tabella esistente forza invece la ricostruzione in SQLite.
 
 Limiti: le migrazioni che eliminano colonne, tabelle o righe vengono rifiutate e richiedono una procedura dedicata. Le vecchie release e i backup non vengono rimossi in automatico.
 
 ## Punti aperti
 
 - Manca una copia dei backup fuori dalla VM.
+- `publish.py` non gestisce il recovery (`resume-gateway.py`) né la prova della migrazione su copia: oggi sono passaggi manuali, descritti sopra.
+- Il flusso multi-evento (M36) e le domande della presenza (M37) non sono stati collaudati dal telefono.
 
 Le procedure e la cronologia Azure restano in [AZURE_CLOUD.md](AZURE_CLOUD.md) come riferimento storico.

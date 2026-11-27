@@ -1,5 +1,7 @@
 # T.Robot - Contesto per un agente di coding
 
+**Aggiornamento 27 novembre 2026:** su Google sono in produzione M36 (più eventi sullo stesso numero WhatsApp, un gruppo attivo per evento, funzioni per gruppo, gateway con `PUT /groups`; Web e gateway `multi-evento-20261127d-x64`) e M37 (opzione per evento che indica se chiedere arrivo e durata, con presenza sulla data dell'evento se no, e domande aggiuntive a risposta chiusa configurabili dal portale; Web `domande-presenza-20261127-x64`). Ultima migrazione `AttendanceStayModeAndQuestions`, 737 test .NET, rilasci eseguiti con `deploy/google/` dopo tre correzioni alla procedura. Non provati dal telefono. Dettagli in `docs/MILESTONE_36.md`, `docs/MILESTONE_37.md` e `docs/GOOGLE_CLOUD.md`.
+
 **Aggiornamento 5 novembre 2026:** Web `member-associations-20261105-arm64` rilasciato su Azure: nel pannello WhatsApp i membri gia associati sono raggruppati in fondo ed evidenziati. Solo Web, gateway M34 invariato, nessuna migrazione; dettagli in `docs/MEMBER_ASSOCIATIONS_RELEASE.md`.
 
 **Aggiornamento 1 novembre 2026:** controllo `!proponi` rilasciato su Azure nel Web `proposal-stay-20261101-arm64`: giorno nel soggiorno personale confermato, verifica alla scelta e alla conferma. Gateway M34 invariato, nessuna migrazione; backup e conservazione dati/identita verificati. 662/662 test .NET e review indipendenti APPROVED. Dettagli in `docs/MENU_PROPOSAL_STAY.md`.

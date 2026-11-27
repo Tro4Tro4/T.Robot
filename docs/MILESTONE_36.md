@@ -1,6 +1,6 @@
 # M36 - Più eventi sullo stesso numero WhatsApp
 
-Disegno tecnico del 27 novembre 2026. Stato: primo incremento implementato con dominio, configurazione EF, migrazione e test; gateway, Application e pannello non ancora.
+Disegno tecnico del 27 novembre 2026. Stato: implementata e rilasciata su Google il 27 novembre 2026 (vedi "Rilascio" in fondo). Il testo di disegno sotto è in parte storico.
 
 ## Obiettivo
 
@@ -436,4 +436,16 @@ Rollback:
 
 ## Stato dell'implementazione
 
-Implementato nel branch di sessione il 27 novembre 2026, senza commit, push o rilascio. Build della soluzione senza errori o avvisi, 235 test WhatsApp .NET e 82 test Messaggi superati (inclusi isolamento multi-evento, feature flag, routing privato ambiguo e pannello) e 61 test gateway Node superati. I 14 test operativi Python del recovery sono superati con `PUT /groups`. La suite .NET completa non e stata eseguita in questo ambiente per il limite di cinque minuti per comando; va eseguita da desktop. Migrazione gia applicata nell'incremento precedente, nessuna modifica di modello pendente. Non testato dal telefono.
+Implementato il 27 novembre 2026 e unito in `main` (`0cfd2af`). Build della soluzione senza errori o avvisi, suite .NET completa superata da desktop (729 test), 61 test gateway Node superati (Node 26 locale, fuori da `engines`) e test operativi Python del recovery superati. Nessuna modifica di modello pendente.
+
+## Rilascio del 27 novembre 2026
+
+Rilasciata su Google su richiesta esplicita dell'utente come Web e gateway `multi-evento-20261127d-x64` (commit `b333de3`), con migrazione `MultiEventWhatsApp`, tabella `WhatsAppConnections` autorizzata con `--allow-changes`. Backup, rehearsal e applicazione hanno conservato righe, identità e gruppo; `verify` e smoke positivi, gateway riconnesso al gruppo originale. Non testato dal telefono.
+
+È stata la prima esecuzione reale di `activate` sulla VM Google. Tre tentativi (`multi-evento-20261127-x64`, `...b-x64`, `...c-x64`) sono falliti prima di `...d-x64`, per tre difetti corretti nei commit `cde53e6` e `b333de3`:
+
+1. `release.py` assumeva un solo gruppo (`binding[2]`): ora `gateway_health` accetta l'elenco dei gruppi e legge sia `activeGroupIds` (gateway M36) sia `activeGroupId` (gateway precedente).
+2. `release.py` creava `ops/migrations` a `700` perché `mkdir(mode=0o750)` è ridotto dall'umask 077, quindi l'utente `trobot` non leggeva lo SQL: ora c'è un `chmod` esplicito.
+3. Lo script SQL della migrazione `MultiEventWhatsApp` aveva un `UPDATE` senza `;` finale, fuso con il `CREATE INDEX` successivo (`near "CREATE": syntax error`): aggiunto il terminatore nel `Sql(...)` della migrazione.
+
+In più `deploy/oracle/resume-gateway.py` inviava `POST /groups` mentre il gateway accetta solo `PUT /groups`: ora usa `PUT`, con ripiego su `POST /group` se il gateway è quello precedente (necessario al rollback). Il recovery sulla VM non fa parte dei pacchetti di `publish.py`: va installato a mano in `/opt/trobot/ops/resume-gateway.py` (root, `700`) prima di `activate`. Il secondo tentativo ha lasciato per qualche minuto il gateway fermo e il timer di backup disattivo, perché il rollback si è appoggiato a un recovery incompatibile: ripristinati a mano, gruppo riconnesso da solo.
