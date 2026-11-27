@@ -71,7 +71,7 @@ namespace TRobot.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql("UPDATE \"WhatsAppConnections\" SET \"FeatureAttendance\" = 1, " +
                 "\"FeatureInformation\" = 1, \"FeatureOperations\" = 1, " +
                 "\"FeatureMealProposals\" = 1, \"FeatureMealPreferences\" = 1, " +
-                "\"FeatureFunReplies\" = 1");
+                "\"FeatureFunReplies\" = 1;");
 
             migrationBuilder.CreateIndex(
                 name: "IX_WhatsAppConnections_Enabled",
