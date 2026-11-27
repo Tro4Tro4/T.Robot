@@ -13,19 +13,20 @@ public sealed partial class WhatsAppIntegrationTests
     private const string SecondGroup = "second-event-group@g.us";
 
     private static async Task<(Guid PersonId, Event SecondEvent, WhatsAppConnection Connection)> AddSecondEventAsync(
-        IServiceProvider p, LocalWebFactory f, Guid personId, WhatsAppFeatureSet? features = null)
+        IServiceProvider p, LocalWebFactory f, Guid personId, WhatsAppFeatureSet? features = null, Guid? participantId = null)
     {
         var db = p.GetRequiredService<TRobotDbContext>();
         var second = new Event("Secondo evento WhatsApp", new DateTime(2030, 12, 31, 12, 0, 0, DateTimeKind.Utc));
         var connection = new WhatsAppConnection(second.Id);
         connection.Activate(SecondGroup, f.OrganizerPersonId, Now);
         connection.UpdateFeatures(features ?? WhatsAppFeatureSet.All);
-        db.AddRange(second, new EventParticipant(second.Id, personId),
+        var target = participantId ?? personId;
+        db.AddRange(second, new EventParticipant(second.Id, target),
             new EventOrganizer(second.Id, f.OrganizerPersonId), connection);
         foreach (var sender in Incoming().SenderIds)
-            db.Add(new WhatsAppIdentityAlias(second.Id, Options().Fingerprint("sender", sender), personId));
+            db.Add(new WhatsAppIdentityAlias(second.Id, Options().Fingerprint("sender", sender), target));
         await db.SaveChangesAsync();
-        return (personId, second, connection);
+        return (target, second, connection);
     }
 
     [Fact]
@@ -57,6 +58,20 @@ public sealed partial class WhatsAppIntegrationTests
             (await db.EventParticipants.SingleAsync(x => x.EventId == f.EventId)).Status);
         Assert.Equal(ParticipationStatus.NoResponse,
             (await db.EventParticipants.SingleAsync(x => x.EventId == second.Id)).Status);
+    }
+
+    [Fact]
+    public async Task MultiEventAliasesResolveThePersonOfTheirOwnEvent()
+    {
+        await using var f = new LocalWebFactory(); using var scope = f.Services.CreateScope(); var p = scope.ServiceProvider;
+        var service = Service(p, new FakeGateway(), new Clock()); var person = await Activate(p, f, service);
+        var db = p.GetRequiredService<TRobotDbContext>();
+        var other = new Person("Persona secondo evento"); db.Add(other); await db.SaveChangesAsync();
+        var (_, second, _) = await AddSecondEventAsync(p, f, person, participantId: other.Id);
+
+        Assert.True((await service.IncomingAsync(Incoming("!presenza no", "second-person") with { GroupId = SecondGroup })).Handled);
+        Assert.Equal(ParticipationStatus.NoResponse, (await db.EventParticipants.SingleAsync(x => x.EventId == f.EventId)).Status);
+        Assert.Equal(ParticipationStatus.Absent, (await db.EventParticipants.SingleAsync(x => x.EventId == second.Id)).Status);
     }
 
     [Fact]
