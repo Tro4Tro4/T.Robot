@@ -94,6 +94,22 @@ class BindingTests(unittest.TestCase):
                 self.assertFalse(ops.registered())
 
 
+class RequestMethodTests(unittest.TestCase):
+    def test_groups_use_put_other_writes_use_post_and_reads_use_get(self):
+        seen = []
+
+        class Client:
+            def __init__(self, *args, **kwargs): pass
+            def request(self, method, path, body, headers): seen.append((method, path))
+            def getresponse(self): return type('R', (), {'status': 200, 'read': lambda self, n: b'{}'})()
+            def close(self): pass
+        with patch.object(ops.http.client, 'HTTPConnection', Client):
+            ops.request(SECRET, '/health')
+            ops.request(SECRET, '/groups', {'groupIds': []})
+            ops.request(SECRET, '/connect', {})
+        self.assertEqual([('GET', '/health'), ('PUT', '/groups'), ('POST', '/connect')], seen)
+
+
 class RecoveryTests(unittest.TestCase):
     def setUp(self):
         self.stack = contextlib.ExitStack()
@@ -125,6 +141,19 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual({'groupIds': [BINDING[2]]}, self.calls[-1][1])
         self.assertNotIn(BINDING[2], self.output.getvalue())
         self.assertNotIn(SECRET, self.output.getvalue())
+
+    def test_old_gateway_without_put_groups_uses_legacy_group_endpoint(self):
+        def legacy(secret, path, payload=None):
+            self.calls.append((path, payload))
+            if path == '/groups':
+                raise RuntimeError('gateway_unavailable')
+            if path == '/connect':
+                self.health = 'connected'
+            return {'status': self.health, 'activeGroupId': BINDING[2] if path == '/group' else None}
+        self.request.side_effect = legacy
+        self.assertEqual(0, ops.main())
+        self.assertEqual(['/health', '/connect', '/health', '/groups', '/group'], [x[0] for x in self.calls])
+        self.assertEqual({'groupId': BINDING[2]}, self.calls[-1][1])
 
     def test_one_unavailable_group_does_not_block_the_others(self):
         other = (*BINDING[:2], '99999@g.us', *BINDING[3:])

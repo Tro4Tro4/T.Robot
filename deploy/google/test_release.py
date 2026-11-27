@@ -154,6 +154,11 @@ class ProtectionTests(unittest.TestCase):
         self.assertFalse(release.protected_preserved(original, {**original, '/var/lib/trobot/keys/key-1.xml': 'x'}))
         self.assertFalse(release.protected_preserved(original, {'/etc/trobot/trobot.env': 'a'}))
 
+    def test_migrations_directory_is_made_readable_for_the_database_user(self):
+        # umask 077 riduce mkdir(mode=0o750) a 700: senza chmod esplicito trobot non legge lo SQL.
+        source = pathlib.Path(release.__file__).read_text(encoding='utf-8')
+        self.assertIn('MIGRATIONS.chmod(0o750)', source)
+
     def test_gateway_errors_mean_not_ready(self):
         class Gateway:
             def __init__(self, error=None, health=None):
@@ -164,11 +169,19 @@ class ProtectionTests(unittest.TestCase):
                 if self.error:
                     raise self.error
                 return self.health
-        binding = (1, 2, '123-456@g.us')
+        binding = [(1, 2, '123-456@g.us')]
         self.assertFalse(release.gateway_health(Gateway(RuntimeError('gateway_unavailable')), binding))
         self.assertFalse(release.gateway_health(Gateway(ValueError('json')), binding))
         self.assertFalse(release.gateway_health(Gateway(health={'status': 'connected', 'activeGroupId': None}), binding))
         self.assertTrue(release.gateway_health(Gateway(health={'status': 'connected', 'activeGroupId': '123-456@g.us'}), binding))
+        two = [(1, 2, 'a-1@g.us'), (3, 4, 'b-2@g.us')]
+        both = {'status': 'connected', 'activeGroupIds': ['a-1@g.us', 'b-2@g.us'], 'unavailableGroupIds': []}
+        self.assertTrue(release.gateway_health(Gateway(health=both), two))
+        one_down = {'status': 'connected', 'activeGroupIds': ['a-1@g.us'], 'unavailableGroupIds': ['b-2@g.us']}
+        self.assertTrue(release.gateway_health(Gateway(health=one_down), two))
+        self.assertFalse(release.gateway_health(Gateway(health={'status': 'connected', 'activeGroupIds': ['a-1@g.us'], 'unavailableGroupIds': []}), two))
+        self.assertFalse(release.gateway_health(Gateway(health={'status': 'connected', 'activeGroupIds': [], 'unavailableGroupIds': ['a-1@g.us', 'b-2@g.us']}), two))
+        self.assertFalse(release.gateway_health(Gateway(health={'status': 'connected', 'activeGroupId': 'a-1@g.us'}), two))
 
 class ScriptParsingTests(unittest.TestCase):
     def test_transaction_and_foreign_key_pragmas_are_skipped(self):

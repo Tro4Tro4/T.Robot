@@ -311,7 +311,16 @@ def gateway_health(module, binding):
         health = module.request(module.token(), '/health')
     except (RuntimeError, ValueError):
         return False
-    return health.get('status') == 'connected' and health.get('activeGroupId') == binding[2]
+    if health.get('status') != 'connected':
+        return False
+    groups = {row[2] for row in binding}
+    if 'activeGroupIds' in health:
+        # Gateway M36: one entry per approved group; an unavailable group must not block the others.
+        active = set(health.get('activeGroupIds') or [])
+        unavailable = set(health.get('unavailableGroupIds') or [])
+        return bool(active) and not active & unavailable and active | unavailable == groups
+    # Gateway precedente alla M36: un solo gruppo attivo.
+    return len(groups) == 1 and health.get('activeGroupId') in groups
 
 
 def exclusive_lock():
@@ -408,6 +417,7 @@ def stage_files(args, target, web_package, gateway_package, sql_file, sql_destin
     if args.sql_sha:
         MIGRATIONS.mkdir(mode=0o750, exist_ok=True)
         shutil.chown(MIGRATIONS, user='root', group='trobot')
+        MIGRATIONS.chmod(0o750)  # mkdir(mode=) e' ridotto dall'umask 077: trobot deve poter leggere lo SQL
         created.append(sql_destination)
         shutil.copyfile(sql_file, sql_destination)
         shutil.chown(sql_destination, user='root', group='trobot')

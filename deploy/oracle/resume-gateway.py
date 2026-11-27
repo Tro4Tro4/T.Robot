@@ -85,7 +85,9 @@ def request(secret, path, payload=None):
     client = http.client.HTTPConnection('127.0.0.1', 5240, timeout=5)
     try:
         body = None if payload is None else json.dumps(payload)
-        client.request('GET' if payload is None else 'POST', path, body,
+        # Il gateway M36 espone la sincronizzazione dei gruppi solo con PUT /groups.
+        method = 'GET' if payload is None else 'PUT' if path == '/groups' else 'POST'
+        client.request(method, path, body,
                        {'Authorization': 'Bearer ' + secret, 'Content-Type': 'application/json'})
         response = client.getresponse()
         if response.status != 200:
@@ -141,8 +143,15 @@ def resume():
         wait_ready(connected)
         if binding() != initial or not registered():
             raise RuntimeError('binding_changed')
-        health = request(secret, '/groups', {'groupIds': groups})
-        active = set(health.get('activeGroupIds') or [])
+        try:
+            health = request(secret, '/groups', {'groupIds': groups})
+            active = set(health.get('activeGroupIds') or [])
+        except RuntimeError:
+            # Gateway precedente alla M36 (rollback): un solo gruppo, POST /group.
+            if len(groups) != 1:
+                raise
+            health = request(secret, '/group', {'groupId': groups[0]})
+            active = {health.get('activeGroupId')} - {None}
         unavailable = set(health.get('unavailableGroupIds') or [])
         # An unavailable group must not block the other events from resuming.
         if (health.get('status') != 'connected' or active & unavailable
