@@ -43,7 +43,12 @@ public sealed record WhatsAppIncomingResult(bool Handled, bool Duplicate = false
 public sealed record WhatsAppListPreview(Guid EventId, WhatsAppListKind Kind, string GroupId, int ConnectionRevision,
     string GroupName, IReadOnlyList<string> Pages, string Fingerprint, bool Approved);
 public sealed record WhatsAppPage(Event Event, WhatsAppConnection? Connection, IReadOnlyList<LocalPerson> Participants,
-    IReadOnlyList<WhatsAppIdentityAlias> Aliases, IReadOnlyList<WhatsAppLiveMessage> Messages, bool CanManageDevice, bool GatewayEnabled);
+    IReadOnlyList<WhatsAppIdentityAlias> Aliases, IReadOnlyList<WhatsAppLiveMessage> Messages, bool CanManageDevice, bool GatewayEnabled,
+    IReadOnlyList<WhatsAppRubricaEntry> Rubrica);
+public sealed record WhatsAppContactPair(string Name, string SenderHash);
+public sealed record WhatsAppRubricaEntry(string Name, int Identities);
+public sealed record WhatsAppRubricaResult(int Associated, int AlreadyAssociated, int NotRecognized, int Ambiguous,
+    int NotParticipant, int Conflicts);
 public sealed record WhatsAppMessagePreview(string EventName, WhatsAppLiveMessage Message, string? GroupName,
     bool RecipientVerified, string RecipientStatus)
 {
@@ -65,6 +70,7 @@ public interface IWhatsAppStore
     Task<bool> IsAdministratorAsync(Guid personId, CancellationToken ct);
     Task<IReadOnlyList<WhatsAppConnection>> ActiveConnectionsAsync(CancellationToken ct);
     Task<WhatsAppConnection?> ConnectionByGroupAsync(string groupId, CancellationToken ct);
+    Task<IReadOnlyList<WhatsAppContactPair>> ActiveContactsAsync(CancellationToken ct);
     Task<EventParticipant?> ParticipantAsync(Guid eventId, Guid personId, CancellationToken ct);
     Task<WhatsAppIncomingReceipt?> ReceiptAsync(Guid eventId, string messageHash, CancellationToken ct);
     Task<IReadOnlyList<LocalAudit>> AuditsSinceAsync(Guid eventId, string action, DateTime afterUtc, CancellationToken ct);

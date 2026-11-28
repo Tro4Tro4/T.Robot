@@ -61,11 +61,16 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
     public async Task<WhatsAppPage> ReadAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
     {
         await operations.AuthorizeAsync(actorId, eventId, ct);
+        var participants = await store.ParticipantsAsync(eventId, ct);
+        var canManageDevice = await identities.IsAdministratorAsync(actorId, ct);
+        // La rubrica comune e' globale, ma il pannello ne mostra solo i nomi dei partecipanti
+        // di questo evento: nessun nome di un altro evento entra nella pagina.
+        var rubrica = canManageDevice ? RubricaEntries(participants, await identities.ActiveContactsAsync(ct)) : [];
         return new(await store.EventAsync(eventId, ct) ?? throw new LocalAccessException(),
-            await store.FindAsync<WhatsAppConnection>(eventId, eventId, ct), await store.ParticipantsAsync(eventId, ct),
+            await store.FindAsync<WhatsAppConnection>(eventId, eventId, ct), participants,
             await store.ListAsync<WhatsAppIdentityAlias>(eventId, ct),
             (await store.ListAsync<WhatsAppLiveMessage>(eventId, ct)).OrderByDescending(x => x.CreatedAtUtc).Take(30).ToArray(),
-            await identities.IsAdministratorAsync(actorId, ct), options.Enabled);
+            canManageDevice, options.Enabled, rubrica);
     }
 
     public async Task<GatewayHealth> HealthAsync(Guid actorId, Guid eventId, CancellationToken ct = default)
@@ -182,6 +187,16 @@ public sealed partial class WhatsAppService(ILocalStore store, IWhatsAppStore id
                 }, CancellationToken.None);
                 throw;
             }
+            // La rubrica e' un aiuto: un errore del gateway o un conflitto non devono
+            // annullare un'attivazione gia' salvata. Il pulsante nel pannello riprova.
+            try
+            {
+                var active = await RequireConnection(eventId, ct);
+                await AssociateFromRubricaAsync(actorId, eventId, active.Revision, true, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (ex is LocalValidationException or LocalConflictException
+                or WhatsAppGatewayRejectedException or OperationCanceledException) { }
         }
         finally { DeviceGate.Release(); }
     }

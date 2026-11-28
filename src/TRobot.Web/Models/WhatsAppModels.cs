@@ -33,6 +33,10 @@ public sealed class WhatsAppMapInput : WhatsAppActionInput
     [BindRequired] public Guid PersonId { get; set; }
     [BindRequired] public int Revision { get; set; }
 }
+public sealed class WhatsAppRubricaInput : WhatsAppActionInput
+{
+    [BindRequired] public int Revision { get; set; }
+}
 public sealed class WhatsAppDraftInput
 {
     [BindRequired] public Guid EventId { get; set; }

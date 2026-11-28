@@ -72,6 +72,22 @@ else
                 <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo l'identità della persona selezionata.</label>
                 <button class="btn btn-primary" type="submit">Associa identità</button>
             </form>
+            <h2>Rubrica comune</h2>
+            @if (TempData["WhatsAppResult"] is string rubricaMessage) { <p class="alert alert-info" role="status">@rubricaMessage</p> }
+            <p>La rubrica unisce le coppie nome-numero già definite dalle associazioni di tutti gli eventi. Un numero può avere più nomi e un nome più numeri: l'associazione automatica richiede che il nome visualizzato nel gruppo e il numero corrispondano entrambi. Le identità restano in forma di impronta tecnica; un membro può averne più di una (numero e LID).</p>
+            @if (Model.Rubrica.Count == 0) { <p>Nessuna coppia della rubrica corrisponde ai partecipanti di questo evento.</p> }
+            else
+            {
+                <div class="table-responsive" role="region" aria-label="Rubrica comune" tabindex="0"><table class="table"><thead><tr><th>Nome</th><th>Identità distinte</th></tr></thead><tbody>
+                @foreach (var entry in Model.Rubrica) { <tr><td>@entry.Name</td><td>@entry.Identities</td></tr> }
+                </tbody></table></div>
+            }
+            <form asp-action="AssociateFromRubrica" method="post" class="mb-3">
+                <input type="hidden" name="EventId" value="@Model.Event.Id" />
+                <input type="hidden" name="Revision" value="@Model.Connection.Revision" />
+                <label><input type="checkbox" name="Confirmed" value="true" required /> Confermo l'associazione automatica dei membri riconosciuti dalla rubrica.</label>
+                <button class="btn btn-primary" type="submit">Associa da rubrica</button>
+            </form>
             <p>Identità tecniche associate: @Model.Aliases.Count(x => x.IsActive). Le persone e lo storico esistenti sono conservati.</p>
         }
         </section>

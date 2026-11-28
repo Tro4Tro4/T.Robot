@@ -11,6 +11,14 @@ public sealed class WhatsAppStore(TRobotDbContext db) : IWhatsAppStore
         .Where(x => x.Enabled).OrderBy(x => x.EventId).ToListAsync(ct);
     public Task<WhatsAppConnection?> ConnectionByGroupAsync(string groupId, CancellationToken ct) => db.Set<WhatsAppConnection>()
         .SingleOrDefaultAsync(x => x.Enabled && x.GroupId == groupId, ct);
+    public async Task<IReadOnlyList<WhatsAppContactPair>> ActiveContactsAsync(CancellationToken ct)
+    {
+        var rows = await (from alias in db.Set<WhatsAppIdentityAlias>()
+                          join person in db.People on alias.PersonId equals person.Id
+                          where alias.IsActive
+                          select new { person.DisplayName, alias.SenderHash }).Distinct().ToListAsync(ct);
+        return rows.Select(x => new WhatsAppContactPair(x.DisplayName, x.SenderHash)).ToArray();
+    }
     public Task<EventParticipant?> ParticipantAsync(Guid eventId, Guid personId, CancellationToken ct) => db.EventParticipants.SingleOrDefaultAsync(x => x.EventId == eventId && x.PersonId == personId, ct);
     public Task<WhatsAppIncomingReceipt?> ReceiptAsync(Guid eventId, string messageHash, CancellationToken ct) => db.Set<WhatsAppIncomingReceipt>().SingleOrDefaultAsync(x => x.EventId == eventId && x.MessageHash == messageHash, ct);
     public async Task<IReadOnlyList<LocalAudit>> AuditsSinceAsync(Guid eventId, string action, DateTime afterUtc, CancellationToken ct) => await db.Set<LocalAudit>()

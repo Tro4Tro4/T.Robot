@@ -42,6 +42,17 @@ public sealed class WhatsAppController(WhatsAppService service) : LocalControlle
     });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Map(WhatsAppMapInput input, CancellationToken ct) => ExecuteAsync(async () =>
     { if (!ModelState.IsValid) return BadRequest(); await service.MapAsync(ActorId, input.EventId, input.MemberId, input.PersonId, input.Revision, input.Confirmed, ct); return RedirectToAction(nameof(Index), new { input.EventId }); });
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> AssociateFromRubrica(WhatsAppRubricaInput input, CancellationToken ct) => ExecuteAsync(async () =>
+    {
+        if (!ModelState.IsValid) return BadRequest();
+        var result = await service.AssociateFromRubricaAsync(ActorId, input.EventId, input.Revision, input.Confirmed, ct);
+        TempData["WhatsAppResult"] = result.Associated > 0
+            ? $"Rubrica: {result.Associated} membri associati, {result.AlreadyAssociated} già associati, {result.NotRecognized} non riconosciuti, "
+                + $"{result.Ambiguous} ambigui, {result.NotParticipant} senza partecipante, {result.Conflicts} in conflitto."
+            : $"Rubrica: nessuna nuova associazione. {result.AlreadyAssociated} già associati, {result.NotRecognized} non riconosciuti, "
+                + $"{result.Ambiguous} ambigui, {result.NotParticipant} senza partecipante, {result.Conflicts} in conflitto.";
+        return RedirectToAction(nameof(Index), new { input.EventId });
+    });
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> Draft(WhatsAppDraftInput input, CancellationToken ct) => ExecuteAsync(async () =>
     { if (!ModelState.IsValid) return BadRequest(); var id = await service.DraftAsync(ActorId, input.EventId, input.OperationId, input.Body, ct); return RedirectToAction(nameof(Preview), new { input.EventId, id }); });
     [HttpGet] public Task<IActionResult> Preview(Guid eventId, Guid id, CancellationToken ct) => ExecuteAsync(async () =>
